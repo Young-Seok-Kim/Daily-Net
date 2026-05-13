@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.youngs.dailynet.ui.theme.DailyNetTheme
@@ -26,23 +29,32 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             DailyNetTheme {
-                // AuthViewModel의 user 상태를 관찰
                 val user by authViewModel.user.collectAsState()
+
+                // 화면 전환을 위한 상태 관리 (임포트한 remember, getValue, setValue 사용)
+                var showInputScreen by remember { mutableStateOf(false) }
 
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     if (user == null) {
-                        // 1. 로그인이 안 되어 있으면 로그인 화면
-                        LoginScreen(
-                            authViewModel = authViewModel,
-                            modifier = Modifier.padding(innerPadding)
-                        )
+                        LoginScreen(authViewModel = authViewModel, modifier = Modifier.padding(innerPadding))
                     } else {
-                        // 2. 로그인 성공 시 메인 화면(식단 입력창)으로 교체!
                         val mainViewModel: MainViewModel = hiltViewModel()
-                        MainScreen(
-                            mainViewModel = mainViewModel,
-                            modifier = Modifier.padding(innerPadding)
-                        )
+
+                        if (showInputScreen) {
+                            // 'onBack' 파라미터가 SettlementScreen 정의부에 추가되어야 에러가 사라집니다.
+                            SettlementScreen(
+                                mainViewModel = mainViewModel,
+                                onBack = { showInputScreen = false },
+                                modifier = Modifier.padding(innerPadding)
+                            )
+                        } else {
+                            MainScreen(
+                                mainViewModel = mainViewModel,
+                                onNavigateToInput = { showInputScreen = true },
+                                onNavigateToDetail = { /* 상세 이동 로직 */ },
+                                modifier = Modifier.padding(innerPadding)
+                            )
+                        }
                     }
                 }
             }

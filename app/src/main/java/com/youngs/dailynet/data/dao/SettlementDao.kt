@@ -12,7 +12,7 @@ interface SettlementDao {
     @Query("SELECT * FROM daily_drafts WHERE date = :date")
     suspend fun getSettlementByDate(date: String): SettlementModel?
 
-    // 저장 또는 업데이트 (isFinalized 상태까지 한꺼번에 처리)
+    // 저장 또는 업데이트 (isFinalizing 상태까지 한꺼번에 처리)
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(settlement: SettlementModel)
 

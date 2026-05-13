@@ -1,130 +1,207 @@
 package com.youngs.dailynet.ui.view
 
-import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.youngs.dailynet.data.model.SettlementModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     mainViewModel: MainViewModel,
+    onNavigateToInput: () -> Unit,
+    onNavigateToDetail: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val uiState by mainViewModel.uiState.collectAsState()
-    val context = LocalContext.current
+    val settlements by mainViewModel.allSettlements.collectAsState()
 
-    // ✨ ViewModel의 toastMessage 상태를 관찰하여 토스트를 띄움
-    // MainViewModel에 toastMessage(String?)와 onToastShown()이 정의되어 있어야 합니다.
-    LaunchedEffect(mainViewModel.toastMessage) {
-        mainViewModel.toastMessage?.let {
-            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-            mainViewModel.onToastShown()
-        }
+    // ✨ 앱 진입 시 프로필 존재 여부 체크
+    LaunchedEffect(Unit) {
+        mainViewModel.checkProfile()
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()) // 중첩 스크롤 해결: 여기서 한 번만 사용
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "오늘의 정산 입력",
-            style = MaterialTheme.typography.headlineMedium
+    // ✨ 프로필(키/체중)이 없을 경우 팝업 표시
+    if (mainViewModel.showProfileDialog) {
+        ProfileSetupDialog(
+            onConfirm = { height, weight ->
+                mainViewModel.saveInitialProfile(height, weight)
+            }
         )
+    }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 입력 필드 루프
-        mainViewModel.categoryList.forEach { category ->
-            OutlinedTextField(
-                value = when (category.fieldName) {
-                    "breakfast" -> uiState.breakfast
-                    "lunch" -> uiState.lunch
-                    "dinner" -> uiState.dinner
-                    "snack" -> uiState.snack
-                    "exerciseInput" -> uiState.exerciseInput
-                    "noteInput" -> uiState.noteInput
-                    else -> ""
-                },
-                onValueChange = { mainViewModel.updateField(category.fieldName, it) },
-                label = { Text(category.label) },
-                placeholder = { Text(category.hint) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                minLines = if (category.fieldName == "noteInput") 3 else 1
+    Scaffold(
+        modifier = modifier,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("DailyNet Dashboard", style = MaterialTheme.typography.titleLarge) }
+            )
+        },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = onNavigateToInput,
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text("오늘의 정산") },
+                containerColor = MaterialTheme.colorScheme.primaryContainer
             )
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // 버튼 영역
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 💾 임시 저장 버튼
-            OutlinedButton(
-                onClick = { mainViewModel.saveTemporarily() },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("임시 저장")
+            item {
+                SummaryHeaderCard(settlements.firstOrNull())
             }
 
-            // 🚀 제미나이 분석 버튼
-            Button(
-                onClick = { mainViewModel.analyzeWithGemini() },
-                modifier = Modifier.weight(1f),
-                // 분석 중일 때는 버튼을 비활성화하여 중복 클릭 방지
-                enabled = !uiState.isAnalyzing
-            ) {
-                if (uiState.isAnalyzing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Text("제미나이 분석")
-                }
+            item {
+                Text(
+                    text = "정산 기록",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+
+            items(
+                items = settlements,
+                key = { it.date }
+            ) { item ->
+                SettlementHistoryItem(
+                    item = item,
+                    onClick = { onNavigateToDetail(item.date) }
+                )
             }
         }
+    }
+}
 
-        // ✨ 제미나이 분석 결과 표시 영역 (결과가 있을 때만 노출)
-        if (uiState.analysisResult.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(24.dp))
+/**
+ * 신체 정보(키, 시작 체중)를 최초 1회 입력받는 다이얼로그
+ */
+@Composable
+fun ProfileSetupDialog(
+    onConfirm: (height: Float, weight: Float) -> Unit
+) {
+    var heightText by remember { mutableStateOf("") }
+    var weightText by remember { mutableStateOf("") }
 
-            Card(
+    AlertDialog(
+        onDismissRequest = { /* 필수 입력 사항이므로 닫기 방지 */ },
+        title = { Text("신체 정보 입력") },
+        text = {
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "🤖 AI 분석 레포트",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = uiState.analysisResult,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
+                Text(
+                    "더 정확한 AI 영양 분석을 위해\n키와 시작 몸무게를 입력해 주세요.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                OutlinedTextField(
+                    value = heightText,
+                    onValueChange = { heightText = it },
+                    label = { Text("키 (cm)") },
+                    placeholder = { Text("예: 175.5") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = weightText,
+                    onValueChange = { weightText = it },
+                    label = { Text("시작 몸무게 (kg)") },
+                    placeholder = { Text("예: 70.0") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val h = heightText.toFloatOrNull() ?: 0f
+                    val w = weightText.toFloatOrNull() ?: 0f
+                    if (h > 0f && w > 0f) {
+                        onConfirm(h, w)
+                    }
+                },
+                enabled = heightText.isNotEmpty() && weightText.isNotEmpty()
+            ) {
+                Text("저장 및 시작")
+            }
+        }
+    )
+}
+
+@Composable
+fun SummaryHeaderCard(latestItem: SettlementModel?) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text("현재 누적 에너지 밸런스", color = Color.White.copy(alpha = 0.8f))
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "${latestItem?.netCalories ?: 0} kcal",
+                style = MaterialTheme.typography.displaySmall,
+                color = Color.White
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "최근 업데이트: ${latestItem?.date ?: "기록 없음"}",
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+@Composable
+fun SettlementHistoryItem(item: SettlementModel, onClick: () -> Unit) {
+    OutlinedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(text = item.date, style = MaterialTheme.typography.labelLarge)
+                Text(
+                    // SettlementModel에 isExercise 필드가 있다고 가정
+                    text = if (item.isExercise) "운동 기록 있음 💪" else "휴식 😴",
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
 
-            // 결과 하단 여백 추가 (스크롤 끝까지 되도록)
-            Spacer(modifier = Modifier.height(32.dp))
+            Text(
+                text = "${item.netCalories} kcal",
+                style = MaterialTheme.typography.titleMedium,
+                color = if (item.netCalories <= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+            )
         }
     }
 }

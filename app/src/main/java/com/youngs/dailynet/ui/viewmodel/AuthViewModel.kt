@@ -19,9 +19,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    // 나중에 여기에 @Inject val repository: SettlementRepository 등을 넣게 됨
+    private val auth: FirebaseAuth
 ) : ViewModel() {
-    private val auth = FirebaseAuth.getInstance()
     private val _user = MutableStateFlow(auth.currentUser)
     val user = _user.asStateFlow()
 
@@ -31,6 +30,7 @@ class AuthViewModel @Inject constructor(
         val googleIdOption = GetGoogleIdOption.Builder()
             .setFilterByAuthorizedAccounts(false)
             .setServerClientId(BuildConfig.GOOGLE_WEB_CLIENT_ID)
+            .setAutoSelectEnabled(true)
             .build()
 
         val request = GetCredentialRequest.Builder()
@@ -44,7 +44,12 @@ class AuthViewModel @Inject constructor(
                 val googleIdToken = GoogleIdTokenCredential.createFrom(credential.data)
                 val firebaseCredential = GoogleAuthProvider.getCredential(googleIdToken.idToken, null)
 
-                auth.signInWithCredential(firebaseCredential).addOnCompleteListener { task ->
+                // Task를 Coroutine으로 변환해서 처리하면 더 깔끔합니다 (await() 사용 가능)
+                val signInResult = auth.signInWithCredential(firebaseCredential)
+
+                // OnCompleteListener 대신 Firebase의 상태 변경을 감지하거나
+                // 아래처럼 결과에 따라 flow를 업데이트합니다.
+                signInResult.addOnCompleteListener { task ->
                     if (task.isSuccessful) {
                         _user.value = auth.currentUser
                     }
