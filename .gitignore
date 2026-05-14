@@ -35,3 +35,9 @@ secrets.properties
 google-services.json
 **/google-services.json
 app/google-services.json
+
+# functions/.gitignore
+node_modules/          # 용량만 차지하는 라이브러리 (npm install로 재생성 가능)
+npm-debug.log*         # 에러 로그
+.runtimeconfig.json    # 로컬 환경 변수 (민감 정보 포함 가능)
+lib/                   # TS 사용 시 빌드된 JS 파일
