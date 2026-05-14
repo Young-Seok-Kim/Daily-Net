@@ -81,6 +81,17 @@ dependencies {
     kapt(libs.androidx.room.compiler)
 
     implementation(libs.google.code.gson)
+
+    // Retrofit2
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.gson) // JSON 변환기
+
+    // OkHttp (로그 확인용)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging)
+
+    implementation(libs.firebase.appcheck.playintegrity)
+
 }
 // 2. 파일 맨 하단에 이 블록을 정확하게 넣어주세요.
 secrets {

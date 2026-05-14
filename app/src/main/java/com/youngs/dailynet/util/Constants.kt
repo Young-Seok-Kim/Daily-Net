@@ -1,5 +1,5 @@
 object Constants {
-    const val MODEL_NAME = "gemini-2.5-flash-lite"
+    const val BASE_URL = "https://analyzediet-muvblvcmkq-du.a.run.app/"
 
     const val REQUEST_TIMEOUT_MS = 30000L
 }
