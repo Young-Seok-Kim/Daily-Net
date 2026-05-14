@@ -105,13 +105,15 @@ class MainViewModel @Inject constructor(
                 "dinner" -> current.copy(dinner = text)
                 "snack" -> current.copy(snack = text)
                 "noteInput" -> current.copy(noteInput = text)
-                "currentWeight" -> current.copy(currentWeight = text.toFloatOrNull() ?: 0f) // 👈 체중 업데이트 추가
+                "currentWeight" -> {
+                    val weightVal = text.toFloatOrNull() ?: 0f
+                    // 💡 weight와 currentWeight 둘 다 업데이트하여 혼선 방지
+                    current.copy(currentWeight = weightVal, weight = weightVal)
+                }
                 "exercise" -> {
-                    // Firestore 필드명 'exercise'에 텍스트 저장
-                    // + 텍스트가 있으면 isExercise를 true로 자동 변경
                     current.copy(
                         exercise = text,
-                        isExercise = text.isNotBlank()
+                        hasExercise = text.isNotBlank()
                     )
                 }
                 else -> current
@@ -123,30 +125,21 @@ class MainViewModel @Inject constructor(
     fun analyzeAndFinalize() {
         viewModelScope.launch {
             val currentState = _uiState.value
-            _uiState.update { it.copy(isAnalyzing = true) }
+            _uiState.update { it.copy(analyzing = true) }
 
             try {
-                // 1. Firestore 및 분석 저장
+                // 1. Repository를 통해 서버+로컬 동시 저장
                 val analyzedData = repository.analyzeAndSave(currentState)
                 _uiState.update { analyzedData }
 
-                // 2. 로컬 Room에 체중 기록 업데이트
-                weightDao.insertWeight(WeightEntity(today, currentState.weight))
+                // 2. 별도의 체중 히스토리(WeightEntity)도 업데이트
+                weightDao.insertWeight(WeightEntity(today, currentState.currentWeight))
 
                 toastMessage = "분석 및 저장이 완료되었습니다."
             } catch (e: Exception) {
-                _uiState.update { it.copy(isAnalyzing = false) }
+                _uiState.update { it.copy(analyzing = false) }
                 toastMessage = "오류 발생: ${e.message}"
             }
-        }
-    }
-
-    fun saveTemporarily() = viewModelScope.launch {
-        try {
-            repository.insertOrUpdate(_uiState.value.copy(isFinalizing = false))
-            toastMessage = "임시 저장이 완료되었습니다."
-        } catch (e: Exception) {
-            toastMessage = "저장 실패: ${e.message}"
         }
     }
 }

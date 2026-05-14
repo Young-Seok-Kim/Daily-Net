@@ -192,7 +192,7 @@ fun SettlementHistoryItem(item: SettlementModel, onClick: () -> Unit) {
                 Text(text = item.date, style = MaterialTheme.typography.labelLarge)
                 Text(
                     // SettlementModel에 isExercise 필드가 있다고 가정
-                    text = if (item.isExercise) "운동 기록 있음 💪" else "휴식 😴",
+                    text = if (item.hasExercise) "운동 기록 있음 💪" else "휴식 😴",
                     style = MaterialTheme.typography.bodySmall
                 )
             }

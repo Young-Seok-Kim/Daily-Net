@@ -4,6 +4,7 @@ import com.google.firebase.auth.FirebaseAuth // 👈 추가
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.snapshots
+import com.youngs.dailynet.data.dao.SettlementDao
 import com.youngs.dailynet.data.model.SettlementModel
 import com.youngs.dailynet.data.remote.GeminiManager
 import kotlinx.coroutines.flow.Flow
@@ -15,17 +16,17 @@ import javax.inject.Singleton
 @Singleton
 class SettlementRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
-    private val auth: FirebaseAuth, // 👈 주입 추가
-    private val geminiManager: GeminiManager
+    private val auth: FirebaseAuth,
+    private val geminiManager: GeminiManager,
+    private val settlementDao: SettlementDao // 👈 로컬 저장을 위해 추가
 ) {
-    // 💡 보안 규칙에 맞게 경로 수정: /users/{uid}/settlements
     private val userSettlementsCollection
         get() = firestore.collection("users")
-            .document(auth.currentUser?.uid ?: "guest") // 로그인 안된 경우 대비
+            .document(auth.currentUser?.uid ?: "guest")
             .collection("settlements")
 
     /**
-     * 1. 대시보드용 실시간 리스트 조회
+     * 1. 실시간 리스트 조회 (Firestore 감시)
      */
     fun getAllSettlements(): Flow<List<SettlementModel>> {
         return userSettlementsCollection
@@ -37,19 +38,7 @@ class SettlementRepository @Inject constructor(
     }
 
     /**
-     * 2. 날짜별 상세 데이터 가져오기
-     */
-    suspend fun getSettlementByDate(date: String): SettlementModel? {
-        return try {
-            val snapshot = userSettlementsCollection.document(date).get().await()
-            snapshot.toObject(SettlementModel::class.java)
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    /**
-     * 3. AI 분석 및 최종 저장
+     * AI 분석 후 Firestore와 Room에 모두 저장
      */
     suspend fun analyzeAndSave(settlement: SettlementModel): SettlementModel {
         val analysisResponse = geminiManager.analyzeFoodAndExercise(settlement)
@@ -57,20 +46,33 @@ class SettlementRepository @Inject constructor(
         val finalizedModel = settlement.copy(
             netCalories = analysisResponse.netCalories,
             analysisResult = analysisResponse.feedback,
-            isFinalizing = true,
-            isAnalyzing = false
+            finalized = true, // 💡 최종 완료됨
+            analyzing = false
         )
 
-        // 설정하신 규칙에 따라 본인 UID 하위 경로에 저장됩니다.
+        // 1. 서버(Firestore) 저장
         userSettlementsCollection.document(finalizedModel.date).set(finalizedModel).await()
+
+        // 2. 로컬(Room) 저장
+        settlementDao.insertOrUpdate(finalizedModel)
 
         return finalizedModel
     }
 
     /**
-     * 4. 임시 저장 및 단순 업데이트
+     * 날짜별 데이터 가져오기 (로컬에 우선순위를 둠)
      */
-    suspend fun insertOrUpdate(settlement: SettlementModel) {
-        userSettlementsCollection.document(settlement.date).set(settlement).await()
+    suspend fun getSettlementByDate(date: String): SettlementModel? {
+        // 1. 로컬에서 먼저 확인 (오프라인 대응)
+        val localData = settlementDao.getSettlementByDate(date)
+        if (localData != null) return localData
+
+        // 2. 로컬에 없으면 서버에서 가져오기
+        return try {
+            val snapshot = userSettlementsCollection.document(date).get().await()
+            snapshot.toObject(SettlementModel::class.java)
+        } catch (e: Exception) {
+            null
+        }
     }
 }

@@ -21,15 +21,14 @@ data class SettlementModel(
     val weight: Float = 0f,
 
     val netCalories: Int = 0,
-    val isExercise: Boolean = false,
+    val hasExercise: Boolean = false,
     val currentWeight: Float = 0f,
     val tags: List<String> = listOf(),
     val note: String = "",           // 제미나이 피드백
     val details: List<Map<String, Any>> = listOf(),
 
-    // 💡 Firestore 필드명(finalized, analyzing)과 일치시킴
-    val isFinalizing: Boolean = false,
-    val isAnalyzing: Boolean = false,
+    val finalized: Boolean = false,
+    val analyzing: Boolean = false,
 
     val analysisResult: String = ""
 )

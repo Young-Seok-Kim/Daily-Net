@@ -10,7 +10,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -103,19 +102,12 @@ fun SettlementScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedButton(
-                    onClick = { mainViewModel.saveTemporarily() },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("임시 저장")
-                }
-
                 Button(
                     onClick = { mainViewModel.analyzeAndFinalize() }, // 👈 함수명 수정 완료
                     modifier = Modifier.weight(1f),
-                    enabled = !uiState.isAnalyzing
+                    enabled = !uiState.analyzing
                 ) {
-                    if (uiState.isAnalyzing) {
+                    if (uiState.analyzing) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
                             strokeWidth = 2.dp,
