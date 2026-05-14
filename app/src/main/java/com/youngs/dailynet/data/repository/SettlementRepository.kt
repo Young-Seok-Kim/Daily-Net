@@ -40,8 +40,8 @@ class SettlementRepository @Inject constructor(
     /**
      * AI 분석 후 Firestore와 Room에 모두 저장
      */
-    suspend fun analyzeAndSave(settlement: SettlementModel): SettlementModel {
-        val analysisResponse = geminiManager.analyzeFoodAndExercise(settlement)
+    suspend fun analyzeAndSave(settlement: SettlementModel, userHeight: Float): SettlementModel {
+        val analysisResponse = geminiManager.analyzeFoodAndExercise(settlement, userHeight)
 
         val finalizedModel = settlement.copy(
             netCalories = analysisResponse.netCalories,

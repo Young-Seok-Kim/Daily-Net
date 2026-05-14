@@ -21,6 +21,7 @@ import com.youngs.dailynet.ui.viewmodel.MainViewModel
 fun SettlementScreen(
     mainViewModel: MainViewModel,
     onBack: () -> Unit,
+    isReadOnly: Boolean = false, // 💡 1. 읽기 전용 모드 파라미터 추가
     modifier: Modifier = Modifier
 ) {
     BackHandler(onBack = onBack)
@@ -28,13 +29,11 @@ fun SettlementScreen(
     val uiState by mainViewModel.uiState.collectAsState()
     val context = LocalContext.current
 
-    // ✨ 토스트 메시지 처리 및 자동 화면 닫기 로직
     LaunchedEffect(mainViewModel.toastMessage) {
         mainViewModel.toastMessage?.let { message ->
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             mainViewModel.onToastShown()
 
-            // 분석 및 저장이 완료되었다면 목록으로 복귀
             if (message.contains("완료")) {
                 onBack()
             }
@@ -44,7 +43,8 @@ fun SettlementScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("오늘의 정산") },
+                // 💡 2. 제목 동적 변경
+                title = { Text(if (isReadOnly) "${uiState.date} 정산 상세" else "오늘의 정산") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "뒤로가기")
@@ -60,7 +60,6 @@ fun SettlementScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            // 🏋️ 체중 입력 필드 (숫자 키패드 적용)
             OutlinedTextField(
                 value = if (uiState.currentWeight == 0f) "" else uiState.currentWeight.toString(),
                 onValueChange = { mainViewModel.updateField("currentWeight", it) },
@@ -68,12 +67,12 @@ fun SettlementScreen(
                 placeholder = { Text("예: 75.5") },
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                singleLine = true
+                singleLine = true,
+                enabled = !isReadOnly // 💡 3. 읽기 전용일 때 비활성화
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
-            // 식단 및 운동 입력 필드 루프
             mainViewModel.categoryList.forEach { category ->
                 OutlinedTextField(
                     value = when (category.fieldName) {
@@ -91,35 +90,37 @@ fun SettlementScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
-                    minLines = if (category.fieldName == "noteInput") 3 else 1
+                    minLines = if (category.fieldName == "noteInput") 3 else 1,
+                    enabled = !isReadOnly // 💡 4. 읽기 전용일 때 비활성화
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // 버튼 영역
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = { mainViewModel.analyzeAndFinalize() }, // 👈 함수명 수정 완료
-                    modifier = Modifier.weight(1f),
-                    enabled = !uiState.analyzing
+            // 💡 5. 읽기 전용 모드에서는 분석 버튼 숨기기
+            if (!isReadOnly) {
+                Spacer(modifier = Modifier.height(24.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (uiState.analyzing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                    } else {
-                        Text("제미나이 분석")
+                    Button(
+                        onClick = { mainViewModel.analyzeAndFinalize() },
+                        modifier = Modifier.weight(1f),
+                        enabled = !uiState.analyzing
+                    ) {
+                        if (uiState.analyzing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            Text("제미나이 분석")
+                        }
                     }
                 }
             }
 
-            // AI 분석 결과 카드
+            // AI 분석 결과 카드 (이건 상세 보기에서도 보여야 하므로 유지)
             if (uiState.analysisResult.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(24.dp))
                 Card(

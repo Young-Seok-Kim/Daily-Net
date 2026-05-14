@@ -65,7 +65,7 @@ class MainViewModel @Inject constructor(
         CategoryInfo("저녁", "예: 샐러드, 스테이크", "dinner"),
         CategoryInfo("간식", "예: 아메리카노, 견과류", "snack"),
         CategoryInfo("운동", "예: 스쿼트 100개, 런닝 5km", "exercise"),
-        CategoryInfo("비고", "오늘의 특이사항 (회식, 데이트 등)", "noteInput")
+        CategoryInfo("비고", "오늘의 특이사항 \n ex)저녁은 회식으로 4명이서 삽겹살 4인분과 소주 3병을 먹고 밥 1공기를 먹음", "noteInput")
     )
 
     private val _uiState = MutableStateFlow(SettlementModel(date = today))
@@ -80,7 +80,7 @@ class MainViewModel @Inject constructor(
         loadTodayDraft()
     }
 
-    private fun loadTodayDraft() = viewModelScope.launch {
+    fun loadTodayDraft() = viewModelScope.launch {
         // 1. 오늘의 정산 기록 가져오기
         val savedDraft = repository.getSettlementByDate(today)
 
@@ -94,6 +94,13 @@ class MainViewModel @Inject constructor(
         } else {
             // 저장된 기록이 없으면 몸무게만 기본값으로 세팅
             _uiState.update { it.copy(weight = defaultWeight) }
+        }
+    }
+
+    fun loadDateData(date: String) = viewModelScope.launch {
+        val savedData = repository.getSettlementByDate(date)
+        if (savedData != null) {
+            _uiState.value = savedData
         }
     }
 
@@ -128,8 +135,11 @@ class MainViewModel @Inject constructor(
             _uiState.update { it.copy(analyzing = true) }
 
             try {
+                val profile = weightDao.getUserProfile()
+                val userHeight = profile?.height ?: 0f // 키가 없으면 0 (프롬프트에서 처리)
+
                 // 1. Repository를 통해 서버+로컬 동시 저장
-                val analyzedData = repository.analyzeAndSave(currentState)
+                val analyzedData = repository.analyzeAndSave(currentState, userHeight)
                 _uiState.update { analyzedData }
 
                 // 2. 별도의 체중 히스토리(WeightEntity)도 업데이트

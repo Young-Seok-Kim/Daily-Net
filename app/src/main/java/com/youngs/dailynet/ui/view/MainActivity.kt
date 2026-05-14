@@ -8,6 +8,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,8 +32,9 @@ class MainActivity : ComponentActivity() {
             DailyNetTheme {
                 val user by authViewModel.user.collectAsState()
 
-                // 화면 전환을 위한 상태 관리 (임포트한 remember, getValue, setValue 사용)
-                var showInputScreen by remember { mutableStateOf(false) }
+                var currentScreen by remember { mutableStateOf("main") } // "main", "input", "detail"
+                var selectedDate by remember { mutableStateOf("") }     // 상세 화면에 넘겨줄 날짜
+
 
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     if (user == null) {
@@ -40,20 +42,44 @@ class MainActivity : ComponentActivity() {
                     } else {
                         val mainViewModel: MainViewModel = hiltViewModel()
 
-                        if (showInputScreen) {
-                            // 'onBack' 파라미터가 SettlementScreen 정의부에 추가되어야 에러가 사라집니다.
-                            SettlementScreen(
-                                mainViewModel = mainViewModel,
-                                onBack = { showInputScreen = false },
-                                modifier = Modifier.padding(innerPadding)
-                            )
-                        } else {
-                            MainScreen(
-                                mainViewModel = mainViewModel,
-                                onNavigateToInput = { showInputScreen = true },
-                                onNavigateToDetail = { /* 상세 이동 로직 */ },
-                                modifier = Modifier.padding(innerPadding)
-                            )
+                        when (currentScreen) {
+                            "input" -> {
+                                SettlementScreen(
+                                    mainViewModel = mainViewModel,
+                                    onBack = { currentScreen = "main" },
+                                    isReadOnly = false
+                                )
+                            }
+                            "detail" -> {
+                                // [과거 기록 상세] - 읽기 전용 모드
+                                // 💡 화면이 뜰 때 해당 날짜 데이터를 불러오도록 설정
+                                LaunchedEffect(selectedDate) {
+                                    mainViewModel.loadDateData(selectedDate)
+                                }
+
+                                SettlementScreen(
+                                    mainViewModel = mainViewModel,
+                                    onBack = {
+                                        currentScreen = "main"
+                                        mainViewModel.loadTodayDraft() // 다시 메인으로 올 땐 오늘 데이터로 복구
+                                    },
+                                    isReadOnly = true
+                                )
+                            }
+                            else -> {
+                                MainScreen(
+                                    mainViewModel = mainViewModel,
+                                    onNavigateToInput = {
+                                        mainViewModel.loadTodayDraft() // 오늘 날짜 로드 후 이동
+                                        currentScreen = "input"
+                                    },
+                                    onNavigateToDetail = { date ->
+                                        selectedDate = date // 클릭한 날짜 저장
+                                        currentScreen = "detail"
+                                    },
+                                    modifier = Modifier.padding(innerPadding)
+                                )
+                            }
                         }
                     }
                 }

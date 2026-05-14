@@ -18,13 +18,13 @@ class GeminiManager @Inject constructor(
         val feedback: String
     )
 
-    suspend fun analyzeFoodAndExercise(settlement: SettlementModel): AnalysisResponse =
+    suspend fun analyzeFoodAndExercise(settlement: SettlementModel, userHeight: Float): AnalysisResponse =
         withContext(Dispatchers.IO) {
             val prompt = """
                 당신은 전문 다이어트 영양사입니다. 
                 사용자의 신체 정보와 활동량을 바탕으로 오늘의 '순 칼로리(Net Calories)'를 계산하세요.
                 
-                [신체 정보] 체중: ${settlement.currentWeight}kg
+                [신체 정보] 체중: ${settlement.currentWeight}kg, 키 : ${userHeight}cm
                 [식단] 아침: ${settlement.breakfast}, 점심: ${settlement.lunch}, 저녁: ${settlement.dinner}, 간식: ${settlement.snack}
                 [활동] 운동: ${settlement.exercise}
                 
