@@ -1,10 +1,12 @@
 package com.youngs.dailynet.data.remote
 
 import com.google.ai.client.generativeai.GenerativeModel
+import com.google.type.DateTime
 import com.youngs.dailynet.data.model.SettlementModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -18,28 +20,41 @@ class GeminiManager @Inject constructor(
         val feedback: String
     )
 
-    suspend fun analyzeFoodAndExercise(settlement: SettlementModel, userHeight: Float): AnalysisResponse =
+    suspend fun analyzeFoodAndExercise(
+        settlement: SettlementModel,
+        userHeight: Float
+    ): AnalysisResponse =
         withContext(Dispatchers.IO) {
             val prompt = """
-                당신은 전문 다이어트 영양사입니다. 
-                사용자의 신체 정보와 활동량을 바탕으로 오늘의 '순 칼로리(Net Calories)'를 계산하세요.
-                
-                [신체 정보] 체중: ${settlement.currentWeight}kg, 키 : ${userHeight}cm
-                [식단] 아침: ${settlement.breakfast}, 점심: ${settlement.lunch}, 저녁: ${settlement.dinner}, 간식: ${settlement.snack}
-                [활동] 운동: ${settlement.exercise}
-                
-                분석 규칙:
-                1. 기초대사량(BMR) 계산: 사용자의 체중을 기반으로 대략적인 BMR을 포함하세요. (예: 체중 * 24kcal 등 간이 방식 활용)
-                2. 순 칼로리 계산 공식: (섭취 칼로리) - (기초대사량 + 운동 소모 칼로리)
-                3. 결과가 마이너스라면 사용자가 살이 빠지는 상태임을 의미합니다.
-                4. net_calories는 반드시 '정수 숫자'만 출력하세요.
-                
-                반드시 아래 JSON 형식으로 응답하세요:
-                {
-                  "net_calories": -200,
-                  "feedback": "전문적인 조언 한 줄"
-                }
-            """.trimIndent()
+    당신은 전문 다이어트 영양사이자 스마트한 분석 엔진입니다. 
+    사용자의 신체 데이터와 활동량을 분석하여 오늘의 '순 칼로리'를 계산하고, 사용자가 한눈에 볼 수 있는 '상세 분석 레포트'를 피드백에 작성하세요.
+
+    [신체 데이터]
+    - 날짜: ${LocalDate.now()}
+    - 키: ${userHeight}cm
+    - 현재 체중: ${settlement.currentWeight}kg
+    
+    [입력 데이터]
+    - 아침: ${settlement.breakfast} / 점심: ${settlement.lunch} / 저녁: ${settlement.dinner} / 간식: ${settlement.snack}
+    - 운동: ${settlement.exercise}
+    
+    분석 및 출력 규칙:
+    1. BMR(기초대사량): Mifflin-St Jeor 공식을 사용하여 정교하게 계산하세요.
+    2. 피드백(feedback) 구성: 아래의 '로그 테이블' 형식을 반드시 포함하여 작성하세요.
+       - 구분 | 상세 데이터 | 칼로리 연산 | 비고
+       - 기초 사양 | 기초대사량 (BMR) | -1,950 | 기초 소모 칼로리
+       - 활동 인입 | 러닝 1시간 | -850 | 고강도 인터벌 가속 모드
+       - 섭취 인입 | 점심: 닭가슴살 1팩 | +130 | 단백질 인입 성공
+       ... (이런 식으로 모든 항목 나열)
+    3. 순 칼로리(net_calories): 모든 항목의 합계를 정수로 산출하세요.
+    4. 비고란에는 개발자 유머(엔진 가동, 메모리 해제, 지방 삭제 등)를 적절히 섞어주세요.
+
+    반드시 아래 JSON 형식으로 응답하세요:
+    {
+      "net_calories": -1800,
+      "feedback": "구분 | 상세 데이터 | 칼로리 연산 | 비고\n--------------------------------------\n기초 사양 | 기초대사량(BMR) | -1,950 | 기본 엔진 가동\n활동 인입 | MMA 1시간 | -850 | 고강도 인터벌 가속\n섭취 인입 | 점심: 닭가슴살 | +130 | 단백질 인입\n...\n\n오늘의 결과: 약 -1,800kcal. 지방 삭제 로직이 아주 성공적으로 작동 중입니다!"
+    }
+""".trimIndent()
 
             try {
                 val response = generativeModel.generateContent(prompt)
