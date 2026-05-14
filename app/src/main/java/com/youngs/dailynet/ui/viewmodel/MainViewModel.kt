@@ -62,7 +62,7 @@ class MainViewModel @Inject constructor(
     val categoryList = listOf(
         CategoryInfo("아침", "예: 사과 1개, 닭가슴살", "breakfast"),
         CategoryInfo("점심", "예: 김치찌개, 현미밥 1공기", "lunch"),
-        CategoryInfo("저녁", "예: 샐러드, 스테이크", "dinner"),
+        CategoryInfo("저녁", "예: 샐러드, 스테이크, 흰쌀밥 1공기, 고등어 등등", "dinner"),
         CategoryInfo("간식", "예: 아메리카노, 견과류", "snack"),
         CategoryInfo("운동", "예: 스쿼트 100개, 런닝 5km", "exercise"),
         CategoryInfo("비고", "오늘의 특이사항 \n ex)저녁은 회식으로 4명이서 삽겹살 4인분과 소주 3병을 먹고 밥 1공기를 먹음", "noteInput")
