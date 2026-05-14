@@ -43,11 +43,6 @@ fun MainScreen(
 
     Scaffold(
         modifier = modifier,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("DailyNet Dashboard", style = MaterialTheme.typography.titleLarge) }
-            )
-        },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onNavigateToInput,
