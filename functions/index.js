@@ -3,10 +3,11 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 exports.analyzeDiet = onRequest({
     region: "asia-northeast3",
+    enforceAppCheck: false,
     secrets: ["GEMINI_API_KEY"]
 }, async (req, res) => {
 
-//    console.log("👉 [DEBUG] Received Data:", JSON.stringify(req.body));
+    console.log("👉 [DEBUG] Received Data:", JSON.stringify(req.body));
     try {
         // 1. 요청 데이터 구조 분해 할당
         const { weight, height, isMale, birthDate, breakfast, lunch, dinner, snack, exercise, remark } = req.body;

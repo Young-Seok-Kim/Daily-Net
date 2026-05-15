@@ -22,7 +22,6 @@ gson = "2.10.1"
 # Retrofit & OkHttp 버전
 retrofit = "2.11.0"
 okhttp = "4.12.0"
-firebaseAppCheck = "18.0.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -79,3 +78,4 @@ google-services = { id = "com.google.gms.google-services", version.ref = "google
 google-android-secrets = { id = "com.google.android.libraries.mapsplatform.secrets-gradle-plugin", version.ref = "secretsPlugin" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version = "1.9.0" }
+
