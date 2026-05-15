@@ -6,7 +6,7 @@ exports.analyzeDiet = onRequest({
     cors: true,
     secrets: ["GEMINI_API_KEY"],
     // [보안] 인증된 앱의 요청만 허용 (App Check 필수 활성화 필요)
-    enforceAppCheck: false
+    enforceAppCheck: true
 }, async (req, res) => {
 
     try {
@@ -82,8 +82,8 @@ const prompt = `
         📊 영양 분석 리포트
 
 🍳 아침: ${data.descriptions.breakfast} (+${data.calories.breakfast}kcal)
-lunch 점심: ${data.descriptions.lunch} (+${data.calories.lunch}kcal)
-dinner 저녁: ${data.descriptions.dinner} (+${data.calories.dinner}kcal)
+🍳 점심: ${data.descriptions.lunch} (+${data.calories.lunch}kcal)
+🍳 저녁: ${data.descriptions.dinner} (+${data.calories.dinner}kcal)
 🍰 간식: ${data.descriptions.snack} (+${data.calories.snack}kcal)
 🔥 운동: ${exercise || '없음'} (-${data.calories.exercise}kcal)
 
