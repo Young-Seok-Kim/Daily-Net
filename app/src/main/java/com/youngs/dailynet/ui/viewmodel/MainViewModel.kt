@@ -59,6 +59,14 @@ class MainViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
+    val totalNetCalories: StateFlow<Int> = allSettlements
+        .map { list -> list.sumOf { it.netCalories } } // 리스트의 모든 netCalories를 더함
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0
+        )
+
     val categoryList = listOf(
         CategoryInfo("아침", "예: 사과 1개, 닭가슴살", "breakfast"),
         CategoryInfo("점심", "예: 김치찌개, 현미밥 1공기", "lunch"),

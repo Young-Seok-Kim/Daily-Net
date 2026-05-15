@@ -26,6 +26,7 @@ fun MainScreen(
     modifier: Modifier = Modifier
 ) {
     val settlements by mainViewModel.allSettlements.collectAsState()
+    val totalCalories by mainViewModel.totalNetCalories.collectAsState()
 
     // ✨ 앱 진입 시 프로필 존재 여부 체크
     LaunchedEffect(Unit) {
@@ -60,7 +61,10 @@ fun MainScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                SummaryHeaderCard(settlements.firstOrNull())
+                SummaryHeaderCard(
+                    totalCalories = totalCalories,
+                    latestDate = settlements.firstOrNull()?.date ?: "기록 없음"
+                )
             }
 
             item {
@@ -146,7 +150,7 @@ fun ProfileSetupDialog(
 }
 
 @Composable
-fun SummaryHeaderCard(latestItem: SettlementModel?) {
+fun SummaryHeaderCard(totalCalories: Int, latestDate: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
@@ -155,13 +159,14 @@ fun SummaryHeaderCard(latestItem: SettlementModel?) {
             Text("현재 누적 에너지 밸런스", color = Color.White.copy(alpha = 0.8f))
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "${latestItem?.netCalories ?: 0} kcal",
+                // ✨ 이제 합산된 totalCalories가 표시됩니다.
+                text = "$totalCalories kcal",
                 style = MaterialTheme.typography.displaySmall,
                 color = Color.White
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "최근 업데이트: ${latestItem?.date ?: "기록 없음"}",
+                text = "최근 업데이트: $latestDate",
                 style = MaterialTheme.typography.labelMedium,
                 color = Color.White.copy(alpha = 0.7f)
             )
