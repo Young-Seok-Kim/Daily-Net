@@ -8,7 +8,7 @@ exports.analyzeDiet = onRequest({
 }, async (req, res) => {
     try {
         // 1. 요청 데이터 구조 분해 할당
-        const { weight, height, isMale, breakfast, lunch, dinner, snack, exercise, remark } = req.body;
+        const { weight, height, isMale, birthDate, breakfast, lunch, dinner, snack, exercise, remark } = req.body;
 
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -57,10 +57,23 @@ exports.analyzeDiet = onRequest({
         const result = await model.generateContent(prompt);
         const data = JSON.parse(result.response.text());
 
-        // 4. 서버 로직 (Node.js)에서 물리 법칙에 따른 정확한 계산 수행
-        // Mifflin-St Jeor 공식 (1997년생 만 29세 기준)
+        const calculateAge = (birthDateString) => {
+            if (!birthDateString) return 29; // 혹시 데이터가 없으면 기본값
+            const today = new Date();
+            const birth = new Date(birthDateString);
+            let age = today.getFullYear() - birth.getFullYear();
+            const m = today.getMonth() - birth.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+                age--;
+            }
+            return age;
+        };
+
+        const userAge = calculateAge(birthDate);
+
+        // [수정] Mifflin-St Jeor 공식 (동적 나이 반영)
         const bmrOffset = isMale ? 5 : -161;
-        const bmr = Math.round(10 * weight + 6.25 * height - 5 * 29 + bmrOffset);
+        const bmr = Math.round(10 * weight + 6.25 * height - 5 * userAge + bmrOffset);
 
         const totalIn = data.calories.breakfast + data.calories.lunch + data.calories.dinner + data.calories.snack;
         const totalOut = bmr + data.calories.exercise;
