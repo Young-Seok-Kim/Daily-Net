@@ -2,12 +2,10 @@ package com.youngs.dailynet.di
 
 import android.content.Context
 import androidx.room.Room
-import com.google.ai.client.generativeai.GenerativeModel
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.youngs.dailynet.BuildConfig
-import com.youngs.dailynet.data.dao.SettlementDao
-import com.youngs.dailynet.data.dao.WeightDao
+import com.youngs.dailynet.data.local.entity.dao.SettlementDao
+import com.youngs.dailynet.data.local.entity.dao.WeightDao
 import com.youngs.dailynet.data.local.AppDatabase
 import com.youngs.dailynet.data.network.DailyNetApiService
 import dagger.Module

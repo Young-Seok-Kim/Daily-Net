@@ -3,8 +3,8 @@ package com.youngs.dailynet.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import com.youngs.dailynet.data.dao.SettlementDao
-import com.youngs.dailynet.data.dao.WeightDao
+import com.youngs.dailynet.data.local.entity.dao.SettlementDao
+import com.youngs.dailynet.data.local.entity.dao.WeightDao
 import com.youngs.dailynet.data.model.SettlementModel
 import com.youngs.dailynet.data.local.entity.WeightEntity
 import com.youngs.dailynet.data.local.entity.UserProfileEntity

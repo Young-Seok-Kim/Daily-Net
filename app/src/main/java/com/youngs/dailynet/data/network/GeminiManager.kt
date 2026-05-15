@@ -1,19 +1,12 @@
-package com.youngs.dailynet.data.remote
+package com.youngs.dailynet.data.network
 
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.type.DateTime
 import com.youngs.dailynet.data.model.AnalysisRequest
 import com.youngs.dailynet.data.model.AnalysisResponse
 import com.youngs.dailynet.data.model.SettlementModel
-import com.youngs.dailynet.data.network.DailyNetApiService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
-import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
-import retrofit2.http.POST
-import retrofit2.http.Body
 
 @Singleton
 class GeminiManager @Inject constructor(

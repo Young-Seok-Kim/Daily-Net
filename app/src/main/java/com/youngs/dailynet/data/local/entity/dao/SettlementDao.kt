@@ -1,4 +1,4 @@
-package com.youngs.dailynet.data.dao
+package com.youngs.dailynet.data.local.entity.dao
 
 import androidx.room.Dao
 import androidx.room.Insert

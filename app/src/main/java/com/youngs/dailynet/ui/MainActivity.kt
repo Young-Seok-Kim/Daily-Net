@@ -1,4 +1,5 @@
-package com.youngs.dailynet.ui.view
+package com.youngs.dailynet.ui
+
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -17,9 +18,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.youngs.dailynet.ui.theme.DailyNetTheme
+import com.youngs.dailynet.ui.view.LoginScreen
+import com.youngs.dailynet.ui.view.MainScreen
+import com.youngs.dailynet.ui.view.SettlementScreen
 import com.youngs.dailynet.ui.viewmodel.AuthViewModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
+
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -36,9 +41,12 @@ class MainActivity : ComponentActivity() {
                 var selectedDate by remember { mutableStateOf("") }     // 상세 화면에 넘겨줄 날짜
 
 
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                Scaffold(modifier = Modifier.Companion.fillMaxSize()) { innerPadding ->
                     if (user == null) {
-                        LoginScreen(authViewModel = authViewModel, modifier = Modifier.padding(innerPadding))
+                        LoginScreen(
+                            authViewModel = authViewModel,
+                            modifier = Modifier.Companion.padding(innerPadding)
+                        )
                     } else {
                         val mainViewModel: MainViewModel = hiltViewModel()
 
@@ -50,6 +58,7 @@ class MainActivity : ComponentActivity() {
                                     isReadOnly = false
                                 )
                             }
+
                             "detail" -> {
                                 // [과거 기록 상세] - 읽기 전용 모드
                                 // 💡 화면이 뜰 때 해당 날짜 데이터를 불러오도록 설정
@@ -66,6 +75,7 @@ class MainActivity : ComponentActivity() {
                                     isReadOnly = true
                                 )
                             }
+
                             else -> {
                                 MainScreen(
                                     mainViewModel = mainViewModel,
@@ -77,7 +87,7 @@ class MainActivity : ComponentActivity() {
                                         selectedDate = date // 클릭한 날짜 저장
                                         currentScreen = "detail"
                                     },
-                                    modifier = Modifier.padding(innerPadding)
+                                    modifier = Modifier.Companion.padding(innerPadding)
                                 )
                             }
                         }

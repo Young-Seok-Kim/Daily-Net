@@ -4,9 +4,9 @@ import com.google.firebase.auth.FirebaseAuth // 👈 추가
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.snapshots
-import com.youngs.dailynet.data.dao.SettlementDao
+import com.youngs.dailynet.data.local.entity.dao.SettlementDao
 import com.youngs.dailynet.data.model.SettlementModel
-import com.youngs.dailynet.data.remote.GeminiManager
+import com.youngs.dailynet.data.network.GeminiManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
