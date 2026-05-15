@@ -12,7 +12,8 @@ exports.analyzeDiet = onRequest({
 
         // 1. 모델명 수정 (안정적인 최신 버전 사용)
         const model = genAI.getGenerativeModel({
-            model: "gemini-2.5-flash-lite",
+            model: "gemini-2.5-flash-lite
+            ",
             generationConfig: { responseMimeType: "application/json" } // JSON 출력 강제
         });
 
