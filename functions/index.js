@@ -8,58 +8,77 @@ exports.analyzeDiet = onRequest({
 }, async (req, res) => {
     try {
         const { weight, height, breakfast, lunch, dinner, snack, exercise, remark } = req.body;
-
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-        // [수정] Gemini 2.5 Flash-Lite 모델로 변경
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+        // 1. 모델명 수정 (안정적인 최신 버전 사용)
+        const model = genAI.getGenerativeModel({
+            model: "gemini-2.5-flash-lite",
+            generationConfig: { responseMimeType: "application/json" } // JSON 출력 강제
+        });
 
-const prompt = `
-            당신은 전문 다이어트 영양사입니다.
-            사용자의 신체 정보(키: ${height}cm, 체중: ${weight}kg)를 바탕으로 기초대사량(BMR)을 계산하고, 아래 식단과 운동량을 분석하여 '오늘의 정산 상세' 리포트를 작성하세요.
+        // 2. AI에게는 '데이터 추출'만 맡기는 프롬프트
+        const prompt = `
+            사용자의 식단과 활동 데이터를 분석하여 칼로리 수치를 '추정'하세요.
+            반드시 다음 JSON 구조로만 응답하세요. 다른 설명은 필요 없습니다.
 
-            [입력 데이터]
-            - 식단: 아침(${breakfast}), 점심(${lunch}), 저녁(${dinner}), 간식(${snack})
-            - 활동 및 운동: ${exercise}
-            - 비고(Remark): ${remark}
+            [사용자 데이터]
+            - 신체: ${height}cm, ${weight}kg, 남성
+            - 식사: 아침(${breakfast}), 점심(${lunch}), 저녁(${dinner}), 간식(${snack})
+            - 활동: ${exercise}
+            - 비고: ${remark}
 
-            [응답 지침]
-            1. 'net_calories'는 최종 계산된 순 칼로리 수치(정수)만 넣으세요.
-            2. 'feedback' 항목 안에 아래 형식을 참고하여 깔끔한 줄바꿈 텍스트로 작성하세요.
-            3. 절대 별표(**), 구분선(|), 하이픈 다발(---) 등의 마크다운 기호를 사용하지 마세요.
-            4. 각 항목 앞에 적절한 이모지(🍎, 🏃, 📉 등)를 사용해 가독성을 높여주세요.
-
-            [feedback 구성 예시]
-            🍎 인입 (IN)
-            - 아침: ${breakfast} (+150 kcal) / 비고: 가벼운 시작
-            - 점심: ${lunch} (+600 kcal) / 비고: 적정량 섭취
-            ...
-            🏃 배출 (OUT)
-            - 기초 대사: -1,900 kcal (Mifflin-St Jeor 계산 결과)
-            - 활동 및 운동: -300 kcal (일상 활동량 반영)
-
-            📉 최종 결산 (NET)
-            - 에너지 손익: -1,700 kcal
-            - 종합 평가: 현재 체지방 연소에 매우 유리한 에너지 적자 상태입니다.
-
-            전문적이고 친절한 어투로 작성하세요. JSON 형식은 엄격히 지키세요.
+            [JSON 응답 구조]
+            {
+                "calories": {
+                    "breakfast": 정수,
+                    "lunch": 정수,
+                    "dinner": 정수,
+                    "snack": 정수,
+                    "exercise": 정수 (운동으로 소모된 칼로리, 양수로 표기)
+                },
+                "descriptions": {
+                    "breakfast": "메뉴명 및 간단 설명",
+                    "lunch": "메뉴명 및 간단 설명",
+                    "dinner": "메뉴명 및 간단 설명",
+                    "snack": "메뉴명 및 간단 설명"
+                },
+                "evaluation": "영양사 관점의 짧은 종합 평가 한 줄"
+            }
         `;
+
         const result = await model.generateContent(prompt);
-        const responseText = result.response.text();
+        const data = JSON.parse(result.response.text());
 
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) {
-            throw new Error("Gemini 응답에서 유효한 JSON을 찾을 수 없습니다.");
-        }
+        // 3. 실제 산수는 서버 코드(Node.js)에서 직접 수행 (정확도 100%)
+        const bmr = Math.round(10 * weight + 6.25 * height - 5 * 29 + 5); // Mifflin-St Jeor (남성, 만 29세 가정)
+        const totalIn = data.calories.breakfast + data.calories.lunch + data.calories.dinner + data.calories.snack;
+        const totalOut = bmr + data.calories.exercise;
+        const netCalories = totalIn - totalOut;
 
-        const jsonResult = JSON.parse(jsonMatch[0]);
-        res.status(200).json(jsonResult);
+        // 4. 최종 사용자 피드백 문자열 조립
+        const feedback = `
+🍎 인입 (IN)
+- 아침: ${data.descriptions.breakfast} (+${data.calories.breakfast} kcal)
+- 점심: ${data.descriptions.lunch} (+${data.calories.lunch} kcal)
+- 저녁: ${data.descriptions.dinner} (+${data.calories.dinner} kcal)
+- 간식: ${data.descriptions.snack} (+${data.calories.snack} kcal)
+
+🏃 배출 (OUT)
+- 기초 대사: -${bmr} kcal
+- 활동 및 운동: -${data.calories.exercise} kcal
+
+📉 최종 결산 (NET)
+- 에너지 손익: ${netCalories} kcal
+- 종합 평가: ${data.evaluation}
+`.trim();
+
+        res.status(200).json({
+            net_calories: netCalories,
+            feedback: feedback
+        });
 
     } catch (error) {
-        console.error("Internal Error Details:", error.message);
-        res.status(500).json({
-            net_calories: 0,
-            feedback: `분석 실패: ${error.message}`
-        });
+        console.error("Error:", error.message);
+        res.status(500).json({ net_calories: 0, feedback: `분석 실패: ${error.message}` });
     }
 });
