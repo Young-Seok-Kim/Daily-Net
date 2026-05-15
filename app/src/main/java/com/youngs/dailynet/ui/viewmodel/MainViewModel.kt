@@ -5,7 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.youngs.dailynet.data.dao.WeightDao
+import com.youngs.dailynet.data.local.entity.dao.WeightDao
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.local.entity.WeightEntity
 import com.youngs.dailynet.data.model.SettlementModel
