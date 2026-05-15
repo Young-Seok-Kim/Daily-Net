@@ -81,7 +81,7 @@ fun SettlementScreen(
                         "dinner" -> uiState.dinner
                         "snack" -> uiState.snack
                         "exercise" -> uiState.exercise
-                        "noteInput" -> uiState.noteInput
+                        "remark" -> uiState.remark
                         else -> ""
                     },
                     onValueChange = { mainViewModel.updateField(category.fieldName, it) },
@@ -90,7 +90,7 @@ fun SettlementScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
-                    minLines = if (category.fieldName == "noteInput") 3 else 1,
+                    minLines = if (category.fieldName == "remark") 3 else 1,
                     enabled = !isReadOnly // 💡 4. 읽기 전용일 때 비활성화
                 )
             }
