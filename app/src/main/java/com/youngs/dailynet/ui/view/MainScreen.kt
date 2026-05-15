@@ -3,7 +3,6 @@ package com.youngs.dailynet.ui.view
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -13,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -71,8 +71,8 @@ fun MainScreen(
     // ✨ 프로필(키/체중)이 없을 경우 팝업 표시
     if (mainViewModel.showProfileDialog) {
         ProfileSetupDialog(
-            onConfirm = { height, weight ->
-                mainViewModel.saveInitialProfile(height, weight)
+            onConfirm = { height, weight, isMale, birthDate ->
+                mainViewModel.saveInitialProfile(height, weight, isMale, birthDate)
             }
         )
     }
@@ -177,10 +177,27 @@ fun WeekDivider(headerText: String) {
  */
 @Composable
 fun ProfileSetupDialog(
-    onConfirm: (height: Float, weight: Float) -> Unit
+    onConfirm: (height: Float, weight: Float, isMale: Boolean, birthDate: String) -> Unit
 ) {
+    var birthDateText by remember { mutableStateOf("2000-01-21") } // 기본값
     var heightText by remember { mutableStateOf("") }
     var weightText by remember { mutableStateOf("") }
+    var selectedIsMale by remember { mutableStateOf(true) } // 👈 성별 상태 추가 (기본값 남성)
+
+    val context = LocalContext.current
+    val calendar = Calendar.getInstance()
+
+// 2. DatePickerDialog 설정
+    val datePickerDialog = android.app.DatePickerDialog(
+        context,
+        { _, year, month, dayOfMonth ->
+            // 선택된 날짜를 "YYYY-MM-DD" 형식으로 업데이트
+            birthDateText = String.format("%d-%02d-%02d", year, month + 1, dayOfMonth)
+        },
+        calendar.get(Calendar.YEAR),
+        calendar.get(Calendar.MONTH),
+        calendar.get(Calendar.DAY_OF_MONTH)
+    )
 
     AlertDialog(
         onDismissRequest = { /* 필수 입력 사항이므로 닫기 방지 */ },
@@ -191,8 +208,38 @@ fun ProfileSetupDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    "더 정확한 AI 영양 분석을 위해\n키와 시작 몸무게를 입력해 주세요.",
+                    "더 정확한 AI 영양 분석을 위해\n정보를 입력해 주세요.",
                     style = MaterialTheme.typography.bodyMedium
+                )
+
+                Text("성별", style = MaterialTheme.typography.labelMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = selectedIsMale,
+                        onClick = { selectedIsMale = true },
+                        label = { Text("남성") }
+                    )
+                    FilterChip(
+                        selected = !selectedIsMale,
+                        onClick = { selectedIsMale = false },
+                        label = { Text("여성") }
+                    )
+                }
+
+                OutlinedTextField(
+                    value = birthDateText,
+                    onValueChange = { /* 읽기 전용으로 만들기 위해 비워둠 */ },
+                    label = { Text("생년월일") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { datePickerDialog.show() }, // 👈 클릭 시 데이트피커 팝업!
+                    enabled = false, // 👈 직접 타이핑 방지
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    singleLine = true
                 )
 
                 OutlinedTextField(
@@ -221,11 +268,15 @@ fun ProfileSetupDialog(
                 onClick = {
                     val h = heightText.toFloatOrNull() ?: 0f
                     val w = weightText.toFloatOrNull() ?: 0f
-                    if (h > 0f && w > 0f) {
-                        onConfirm(h, w)
+                    // 날짜 형식이 최소한의 형태를 갖췄는지 체크
+                    if (h > 0f && w > 0f && birthDateText.contains("-")) {
+                        onConfirm(h, w, selectedIsMale, birthDateText)
                     }
                 },
-                enabled = heightText.isNotEmpty() && weightText.isNotEmpty()
+                // 모든 필드가 채워졌을 때만 버튼 활성화
+                enabled = heightText.isNotBlank() &&
+                        weightText.isNotBlank() &&
+                        birthDateText.isNotBlank()
             ) {
                 Text("저장 및 시작")
             }
@@ -233,7 +284,6 @@ fun ProfileSetupDialog(
     )
 }
 
-@Preview
 @Composable
 fun SummaryHeaderCard(totalCalories: Int, latestDate: String) {
     Card(

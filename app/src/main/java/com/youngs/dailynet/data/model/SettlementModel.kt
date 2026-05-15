@@ -19,6 +19,7 @@ data class SettlementModel(
     val exercise: String = "",
     val remark: String = "",
     val weight: Float = 0f,
+    val isMale: Boolean = true,
 
     val netCalories: Int = 0,
     val hasExercise: Boolean = false,

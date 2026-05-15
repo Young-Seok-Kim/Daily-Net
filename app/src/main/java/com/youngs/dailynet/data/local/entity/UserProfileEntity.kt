@@ -14,5 +14,6 @@ data class WeightEntity(
 data class UserProfileEntity(
     @PrimaryKey val id: Int = 0, // 단일 행만 유지
     val height: Float,
-    val initialWeight: Float
+    val initialWeight: Float,
+    val birthDate: String
 )

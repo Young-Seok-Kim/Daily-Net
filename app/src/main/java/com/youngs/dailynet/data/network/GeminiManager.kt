@@ -14,13 +14,15 @@ class GeminiManager @Inject constructor(
 ) {
     suspend fun analyzeFoodAndExercise(
         settlement: SettlementModel,
-        userHeight: Float
+        userHeight: Float,
+        isMale: Boolean
     ): AnalysisResponse {
         return withContext(Dispatchers.IO) {
             try {
                 val request = AnalysisRequest(
                     weight = settlement.currentWeight,
                     height = userHeight,
+                    isMale = isMale,
                     breakfast = settlement.breakfast,
                     lunch = settlement.lunch,
                     dinner = settlement.dinner,
