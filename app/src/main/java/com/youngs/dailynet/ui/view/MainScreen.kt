@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -13,9 +14,43 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.youngs.dailynet.data.model.SettlementModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+
+fun getWeekIdentifier(dateString: String): Int {
+    val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateString) ?: return 0
+    val calendar = Calendar.getInstance().apply {
+        time = date
+        firstDayOfWeek = Calendar.MONDAY // 월요일 시작
+        minimalDaysInFirstWeek = 4
+    }
+    // 일요일이 한 주의 끝이 되도록 계산 (해당 날짜가 속한 연도 + 주차 조합)
+    return calendar.get(Calendar.YEAR) * 100 + calendar.get(Calendar.WEEK_OF_YEAR)
+}
+
+// 1. 월별 주차를 계산하는 헬퍼 함수 추가
+fun getWeekOfMonthText(dateString: String): String {
+    return try {
+        val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateString) ?: return dateString
+        val calendar = Calendar.getInstance().apply {
+            time = date
+            firstDayOfWeek = Calendar.MONDAY // 월요일 시작 기준
+        }
+        val month = calendar.get(Calendar.MONTH) + 1 // 0부터 시작하므로 +1
+        val week = calendar.get(Calendar.WEEK_OF_MONTH)
+
+        // "05월 3주차" 형식으로 반환
+        String.format("%02d월 %d주차", month, week)
+    } catch (e: Exception) {
+        dateString // 에러 시 기본 날짜 반환
+    }
+}
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,15 +110,64 @@ fun MainScreen(
                 )
             }
 
-            items(
+            itemsIndexed(
                 items = settlements,
-                key = { it.date }
-            ) { item ->
+                key = { _, item -> item.date }
+            ) { index, item ->
+                val currentWeekId = getWeekIdentifier(item.date)
+                // ✨ 표시할 주차 텍스트 생성
+                val weekDisplayText = getWeekOfMonthText(item.date)
+
+                if (index == 0) {
+                    // 첫 번째 항목에 헤더 표시
+                    WeekDivider(headerText = weekDisplayText)
+                } else {
+                    val previousWeekId = getWeekIdentifier(settlements[index - 1].date)
+                    if (currentWeekId != previousWeekId) {
+                        // 주차가 바뀌면 헤더 표시
+                        WeekDivider(headerText = weekDisplayText)
+                    }
+                }
+
                 SettlementHistoryItem(
                     item = item,
                     onClick = { onNavigateToDetail(item.date) }
                 )
             }
+        }
+    }
+}
+
+/**
+ * 2. WeekDivider 컴포저블 수정 (date 대신 headerText 사용)
+ */
+@Composable
+fun WeekDivider(headerText: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            // Material3 기준 HorizontalDivider 사용 (Divider도 무방)
+            HorizontalDivider(
+                modifier = Modifier.weight(1f),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            Text(
+                text = " $headerText 정산 ",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+            HorizontalDivider(
+                modifier = Modifier.weight(1f),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
         }
     }
 }
@@ -149,6 +233,7 @@ fun ProfileSetupDialog(
     )
 }
 
+@Preview
 @Composable
 fun SummaryHeaderCard(totalCalories: Int, latestDate: String) {
     Card(
