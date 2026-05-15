@@ -73,7 +73,7 @@ class MainViewModel @Inject constructor(
         CategoryInfo("저녁", "예: 샐러드, 스테이크, 흰쌀밥 1공기, 고등어 등등", "dinner"),
         CategoryInfo("간식", "예: 아메리카노, 견과류", "snack"),
         CategoryInfo("운동", "예: 스쿼트 100개, 런닝 5km", "exercise"),
-        CategoryInfo("비고", "오늘의 특이사항 \n ex)저녁은 회식으로 4명이서 삽겹살 4인분과 소주 3병을 먹고 밥 1공기를 먹음", "noteInput")
+        CategoryInfo("비고", "오늘의 특이사항 \n ex)저녁은 회식으로 4명이서 삽겹살 4인분과 소주 3병을 먹고 밥 1공기를 먹음", "remark")
     )
 
     private val _uiState = MutableStateFlow(SettlementModel(date = today))
@@ -119,7 +119,7 @@ class MainViewModel @Inject constructor(
                 "lunch" -> current.copy(lunch = text)
                 "dinner" -> current.copy(dinner = text)
                 "snack" -> current.copy(snack = text)
-                "noteInput" -> current.copy(noteInput = text)
+                "remark" -> current.copy(remark = text)
                 "currentWeight" -> {
                     val weightVal = text.toFloatOrNull() ?: 0f
                     // 💡 weight와 currentWeight 둘 다 업데이트하여 혼선 방지
