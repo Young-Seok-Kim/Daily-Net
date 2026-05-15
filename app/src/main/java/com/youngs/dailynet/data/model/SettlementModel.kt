@@ -20,9 +20,6 @@ data class SettlementModel(
     val exercise: String = "",
     val remark: String = "",
     val weight: Float = 0f,
-    // 1. 읽을 때 "isMale"이라는 이름을 찾아라
-    @get:PropertyName("isMale")
-    @PropertyName("isMale")
     val isMale: Boolean = true,
 
     val netCalories: Int = 0,
