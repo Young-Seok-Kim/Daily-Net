@@ -15,7 +15,7 @@ exports.analyzeDiet = onRequest({
 
         // 2. 모델 설정 (Gemini 2.5 Flash-Lite & JSON 모드 강제)
         const model = genAI.getGenerativeModel({
-            model: "gemini-2.5-flash-lite",
+            model: "gemini-2.5-flash",
             generationConfig: { responseMimeType: "application/json" }
         });
 
