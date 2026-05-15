@@ -32,7 +32,8 @@ class GeminiManager @Inject constructor(
                     lunch = settlement.lunch,
                     dinner = settlement.dinner,
                     snack = settlement.snack,
-                    exercise = settlement.exercise
+                    exercise = settlement.exercise,
+                    remark = settlement.remark
                 )
 
                 // 서버 호출

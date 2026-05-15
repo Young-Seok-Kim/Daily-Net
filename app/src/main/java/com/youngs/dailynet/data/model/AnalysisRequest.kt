@@ -7,5 +7,6 @@ data class AnalysisRequest(
     val lunch: String,
     val dinner: String,
     val snack: String,
-    val exercise: String
+    val exercise: String,
+    val remark: String
 )
