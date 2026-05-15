@@ -29,6 +29,26 @@ class MainViewModel @Inject constructor(
     private val weightDao: WeightDao // 👈 생성자 주입 추가
 ) : ViewModel() {
 
+    private val _isMale = MutableStateFlow(true)
+    val isMale = _isMale.asStateFlow()
+
+    fun setGender(isMale: Boolean) {
+        _isMale.value = isMale
+    }
+
+    // [수정 포인트 2] 초기 프로필 저장 시 성별 반영 (Room에 안 넣더라도 세션 동안 유지)
+    fun saveInitialProfile(height: Float, weight: Float, isMale: Boolean, birthDate: String) {
+        viewModelScope.launch {
+            weightDao.insertUserProfile(
+                UserProfileEntity(height = height, initialWeight = weight, birthDate = birthDate)
+            )
+            weightDao.insertWeight(WeightEntity(today, weight))
+            _isMale.value = isMale // 성별 상태 업데이트
+            showProfileDialog = false
+            _uiState.update { it.copy(weight = weight) }
+        }
+    }
+
     var showProfileDialog by mutableStateOf(false)
         private set
 
@@ -38,15 +58,6 @@ class MainViewModel @Inject constructor(
             if (profile == null) {
                 showProfileDialog = true
             }
-        }
-    }
-
-    fun saveInitialProfile(height: Float, weight: Float) {
-        viewModelScope.launch {
-            weightDao.insertUserProfile(UserProfileEntity(height = height, initialWeight = weight))
-            weightDao.insertWeight(WeightEntity(today, weight)) // 첫 기록 저장
-            showProfileDialog = false
-            _uiState.update { it.copy(weight = weight) }
         }
     }
 
@@ -147,7 +158,10 @@ class MainViewModel @Inject constructor(
                 val userHeight = profile?.height ?: 0f // 키가 없으면 0 (프롬프트에서 처리)
 
                 // 1. Repository를 통해 서버+로컬 동시 저장
-                val analyzedData = repository.analyzeAndSave(currentState, userHeight)
+                val analyzedData = repository.analyzeAndSave(
+                    currentState.copy(isMale = _isMale.value), // 데이터 모델에 isMale 추가 전제
+                    userHeight
+                )
                 _uiState.update { analyzedData }
 
                 // 2. 별도의 체중 히스토리(WeightEntity)도 업데이트
