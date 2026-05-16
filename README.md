@@ -27,16 +27,16 @@
 
 ## 🛠 기술 스택 (Tech Stack)
 
-| 분류 | 기술 도구 |
-| :--- | :--- |
-| **Language** | Kotlin |
-| **UI Framework** | Jetpack Compose |
+| 분류 | 기술 도구                                        |
+| :--- |:---------------------------------------------|
+| **Language** | Kotlin                                       |
+| **UI Framework** | Jetpack Compose                              |
 | **Architecture** | MVVM, Clean Architecture, Repository Pattern |
-| **DI** | Hilt |
-| **Database** | Room (Local), Firebase Firestore (Remote) |
-| **Backend** | Firebase Functions (Node.js) |
-| **AI Engine** | Google Gemini 1.5 Flash |
-| **Library** | Coroutines, Flow, Retrofit2, Serialization |
+| **DI** | Hilt                                         |
+| **Database** | Room (Local), Firebase Firestore (Remote)    |
+| **Backend** | Firebase Functions (Node.js)                 |
+| **AI Engine** | Google Gemini 2.5 Flash                      |
+| **Library** | Coroutines, Flow, Retrofit2, Serialization   |
 
 ---
 
