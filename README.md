@@ -22,7 +22,8 @@
 
 ### 3. 보안 지향형 아키텍처
 * **Server-side Proxy**: Firebase Functions를 통해 AI 프롬프트를 은닉하여 비즈니스 로직 유출 및 프롬프트 인젝션을 원천 차단했습니다.
-
+* **Firebase App Check 도입:** 앱의 무결성을 검증하고 승인되지 않은 비인가 기기나 위변조된 앱으로부터의 백엔드(Firestore, Functions) API 호출을 차단하여 자원 어뷰징 및 비용 리스크를 방지했습니다.
+* 
 ---
 
 ## 🛠 기술 스택 (Tech Stack)
@@ -34,7 +35,7 @@
 | **Architecture** | MVVM, Clean Architecture, Repository Pattern |
 | **DI** | Hilt                                         |
 | **Database** | Room (Local), Firebase Firestore (Remote)    |
-| **Backend** | Firebase Functions (Node.js)                 |
+| **Backend** | Firebase Functions (Node.js) ,Firebase App Check               |
 | **AI Engine** | Google Gemini 2.5 Flash                      |
 | **Library** | Coroutines, Flow, Retrofit2, Serialization   |
 
@@ -42,12 +43,20 @@
 
 ## 🏗 시스템 아키텍처 (System Architecture)
 
-본 프로젝트는 **보안**과 **확장성**을 위해 3-Tier 구조를 채택하고 있습니다.
+본 프로젝트는 **보안(Security)**과 **확장성(Scalability)**을 극대화하기 위해 독립적인 역할 분담을 지향하는 **3-Tier 구조**를 채택하고 있습니다.
 
-1. **Client (Android)**: 사용자의 신체 데이터 및 식단/운동 입력을 처리합니다.
-2. **Server (Firebase Functions)**: 
-    * API Key 노출 방지 및 프롬프트 은닉.
-    * 사용자별 호출 제한(Rate Limiting)을 통한 비용 최적화.
-3. **AI Engine (Gemini)**: 서버로부터 전달받은 가공된 데이터를 바탕으로 분석 결과를 생성합니다.
+### 1. Client (Android)
+* **역할:** 사용자의 신체 데이터 및 식단/운동 입력 UI/UX 처리
+* **특징:** 원격 데이터베이스인 **Firebase Firestore**로부터 유저의 식단 및 운동 데이터를 실시간으로 가져와(Fetch) 화면에 즉각적으로 반영합니다. 사용자가 입력한 데이터 역시 Firestore에 실시간으로 반영되어 상시 동기화된 상태를 유지합니다.
 
+### 2. Backend (Firebase)
+* **Firebase Functions (Node.js)**
+   * **보안 강화:** API Key 노출을 원천 차단하고 AI 프롬프트를 백엔드 내에 은닉하여 비즈니스 로직 유출을 방지합니다.
+   * **비용 최적화:** 사용자별 호출 제한(Rate Limiting)을 구현하여 무분별한 AI 엔진 API 호출 및 비용 리스크를 관리합니다.
+* **Firebase Firestore**
+   * **데이터 동기화:** 클라이언트와 원격지 간의 식단 및 운동 데이터를 실시간으로 동기화하고 안전하게 백업합니다.
+
+### 3. AI Engine (Gemini)
+* **역할:** 서버(Functions)로부터 전달받은 가공 데이터를 바탕으로 정밀 분석 결과를 생성합니다.
+* **특징:** Mifflin-St Jeor 공식을 적용한 정교한 BMR 산출 및 사용자 맞춤형 영양 조언을 피드백으로 제공합니다.
 ---
