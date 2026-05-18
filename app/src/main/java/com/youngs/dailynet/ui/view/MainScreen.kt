@@ -179,7 +179,7 @@ fun WeekDivider(headerText: String) {
 fun ProfileSetupDialog(
     onConfirm: (height: Float, weight: Float, isMale: Boolean, birthDate: String) -> Unit
 ) {
-    var birthDateText by remember { mutableStateOf("2000-01-21") } // 기본값
+    var birthDateText by remember { mutableStateOf("2000-01-01") } // 기본값
     var heightText by remember { mutableStateOf("") }
     var weightText by remember { mutableStateOf("") }
     var selectedIsMale by remember { mutableStateOf(true) } // 👈 성별 상태 추가 (기본값 남성)
@@ -187,17 +187,18 @@ fun ProfileSetupDialog(
     val context = LocalContext.current
     val calendar = Calendar.getInstance()
 
-// 2. DatePickerDialog 설정
-    val datePickerDialog = android.app.DatePickerDialog(
-        context,
-        { _, year, month, dayOfMonth ->
-            // 선택된 날짜를 "YYYY-MM-DD" 형식으로 업데이트
-            birthDateText = String.format("%d-%02d-%02d", year, month + 1, dayOfMonth)
-        },
-        calendar.get(Calendar.YEAR),
-        calendar.get(Calendar.MONTH),
-        calendar.get(Calendar.DAY_OF_MONTH)
-    )
+    fun getCalendarFromText(dateStr: String): Calendar {
+        val cal = Calendar.getInstance()
+        try {
+            val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateStr)
+            if (date != null) {
+                cal.time = date
+            }
+        } catch (e: Exception) {
+            // 파싱 실패 시 현재 날짜(오늘) 유지
+        }
+        return cal
+    }
 
     AlertDialog(
         onDismissRequest = { /* 필수 입력 사항이므로 닫기 방지 */ },
@@ -232,8 +233,19 @@ fun ProfileSetupDialog(
                     label = { Text("생년월일") },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { datePickerDialog.show() }, // 👈 클릭 시 데이트피커 팝업!
-                    enabled = false, // 👈 직접 타이핑 방지
+                        .clickable {
+                            val currentCal = getCalendarFromText(birthDateText)
+
+                            android.app.DatePickerDialog(
+                                context,
+                                { _, year, month, dayOfMonth ->
+                                    birthDateText = String.format("%d-%02d-%02d", year, month + 1, dayOfMonth)
+                                },
+                                currentCal.get(Calendar.YEAR),
+                                currentCal.get(Calendar.MONTH),
+                                currentCal.get(Calendar.DAY_OF_MONTH)).show()
+                        },
+                    enabled = false,
                     colors = OutlinedTextFieldDefaults.colors(
                         disabledTextColor = MaterialTheme.colorScheme.onSurface,
                         disabledBorderColor = MaterialTheme.colorScheme.outline,
@@ -286,20 +298,56 @@ fun ProfileSetupDialog(
 
 @Composable
 fun SummaryHeaderCard(totalCalories: Int, latestDate: String) {
+    // 7700kcal 기준 예상 체중 변동량 계산 (소모가 많아 마이너스인 경우가 '감소'이므로 부호를 반전)
+    // totalCalories가 마이너스(적자)일 때 체중이 감소합니다.
+    val expectedWeightChange = -totalCalories / 7700f
+
+    // 부호에 따른 텍스트와 색상 정의
+    val weightText = if (expectedWeightChange <= 0) {
+        String.format(Locale.getDefault(), "%.1f kg", expectedWeightChange) // 플러스거나 0일 때 (예: +0.2 kg)
+    } else {
+        String.format(Locale.getDefault(), "-%.1f kg", expectedWeightChange) // 마이너스 적자 누적으로 감량 성공 시 (예: -0.5 kg)
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            Text("현재 누적 에너지 밸런스", color = Color.White.copy(alpha = 0.8f))
+            Text("현재 누적 칼로리 결산", color = Color.White.copy(alpha = 0.8f))
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                // ✨ 이제 합산된 totalCalories가 표시됩니다.
-                text = "$totalCalories kcal",
-                style = MaterialTheme.typography.displaySmall,
-                color = Color.White
-            )
+
+            // 칼로리와 예상 체중 변동량을 나란히 배치하거나 행으로 분리
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Text(
+                    text = "$totalCalories kcal",
+                    style = MaterialTheme.typography.displaySmall,
+                    color = Color.White
+                )
+
+                // 예상 체중 감소량 뱃지 스타일
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = "예상 체중 변화",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                    Text(
+                        text = weightText,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = if (expectedWeightChange > 0) Color(0xFFB9FFB7) else Color.White // 살이 빠지는 상태면 연두색으로 강조
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.2f))
             Spacer(modifier = Modifier.height(8.dp))
+
             Text(
                 text = "최근 업데이트: $latestDate",
                 style = MaterialTheme.typography.labelMedium,

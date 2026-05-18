@@ -14,10 +14,4 @@ interface WeightDao {
 
     @Query("SELECT weight FROM weight_history ORDER BY date DESC LIMIT 1")
     suspend fun getLatestWeight(): Float?
-
-    @Query("SELECT * FROM user_profile WHERE id = 0")
-    suspend fun getUserProfile(): UserProfileEntity?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertUserProfile(profile: UserProfileEntity)
 }

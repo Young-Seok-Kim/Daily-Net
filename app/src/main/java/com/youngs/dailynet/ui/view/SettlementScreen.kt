@@ -60,7 +60,14 @@ fun SettlementScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
+            LaunchedEffect(uiState.weight) {
+                if (uiState.currentWeight == 0f && uiState.weight > 0f) {
+                    mainViewModel.updateField("currentWeight", uiState.weight.toString())
+                }
+            }
+
             OutlinedTextField(
+                // 0f(다 지운 상태)면 빈칸을 보여주고, 값이 있으면 소수점 그대로 노출
                 value = if (uiState.currentWeight == 0f) "" else uiState.currentWeight.toString(),
                 onValueChange = { mainViewModel.updateField("currentWeight", it) },
                 label = { Text("현재 체중 (kg)") },
@@ -68,7 +75,7 @@ fun SettlementScreen(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
-                enabled = !isReadOnly // 💡 3. 읽기 전용일 때 비활성화
+                enabled = !isReadOnly
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))

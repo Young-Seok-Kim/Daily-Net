@@ -4,7 +4,9 @@ import com.google.firebase.auth.FirebaseAuth // 👈 추가
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.snapshots
+import com.youngs.dailynet.data.local.entity.WeightEntity
 import com.youngs.dailynet.data.local.entity.dao.SettlementDao
+import com.youngs.dailynet.data.local.entity.dao.WeightDao
 import com.youngs.dailynet.data.model.SettlementModel
 import com.youngs.dailynet.data.network.GeminiManager
 import kotlinx.coroutines.flow.Flow
@@ -18,7 +20,8 @@ class SettlementRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
     private val auth: FirebaseAuth,
     private val geminiManager: GeminiManager,
-    private val settlementDao: SettlementDao // 👈 로컬 저장을 위해 추가
+    private val settlementDao: SettlementDao,
+    private val weightDao: WeightDao
 ) {
     private val userSettlementsCollection
         get() = firestore.collection("users")
@@ -28,7 +31,7 @@ class SettlementRepository @Inject constructor(
     /**
      * 1. 실시간 리스트 조회 (Firestore 감시)
      */
-    fun getAllSettlements(): Flow<List<SettlementModel>> {
+    fun getAllSettlementsFirebase(): Flow<List<SettlementModel>> {
         return userSettlementsCollection
             .orderBy("date", Query.Direction.DESCENDING)
             .snapshots()
@@ -37,37 +40,49 @@ class SettlementRepository @Inject constructor(
             }
     }
 
-    /**
-     * AI 분석 후 Firestore와 Room에 모두 저장
-     */
+    fun getAllSettlementsRoom(): Flow<List<SettlementModel>> {
+        return settlementDao.getAllSettlementsRoomFlow()
+    }
+
+    suspend fun fetchAndSyncFromFirebase() {
+        try {
+            val snapshot = userSettlementsCollection.get().await()
+            val serverList = snapshot.toObjects(SettlementModel::class.java)
+
+            serverList.forEach { model ->
+                // 1. SettlementModel 자체가 Entity이므로 바로 룸에 insertOrUpdate 가능
+                settlementDao.insertOrUpdate(model)
+
+                // 2. 정산 모델에 체중 데이터가 기록되어 있다면 체중 히스토리 테이블에도 분기 주입
+                if (model.currentWeight > 0f) {
+                    weightDao.insertWeight(WeightEntity(model.date, model.currentWeight))
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     suspend fun analyzeAndSave(settlement: SettlementModel, userHeight: Float): SettlementModel {
         val analysisResponse = geminiManager.analyzeFoodAndExercise(settlement, userHeight, settlement.isMale)
 
         val finalizedModel = settlement.copy(
             netCalories = analysisResponse.netCalories,
             analysisResult = analysisResponse.feedback,
-            finalized = true, // 💡 최종 완료됨
+            finalized = true,
             analyzing = false
         )
 
-        // 1. 서버(Firestore) 저장
         userSettlementsCollection.document(finalizedModel.date).set(finalizedModel).await()
-
-        // 2. 로컬(Room) 저장
         settlementDao.insertOrUpdate(finalizedModel)
 
         return finalizedModel
     }
 
-    /**
-     * 날짜별 데이터 가져오기 (로컬에 우선순위를 둠)
-     */
     suspend fun getSettlementByDate(date: String): SettlementModel? {
-        // 1. 로컬에서 먼저 확인 (오프라인 대응)
         val localData = settlementDao.getSettlementByDate(date)
         if (localData != null) return localData
 
-        // 2. 로컬에 없으면 서버에서 가져오기
         return try {
             val snapshot = userSettlementsCollection.document(date).get().await()
             snapshot.toObject(SettlementModel::class.java)
