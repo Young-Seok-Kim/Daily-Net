@@ -13,7 +13,9 @@ data class WeightEntity(
 @Entity(tableName = "user_profile")
 data class UserProfileEntity(
     @PrimaryKey val id: Int = 0, // 단일 행만 유지
-    val height: Float,
+    val height: Float = 0f,
+    val isMale: Boolean = true,
     val initialWeight: Float,
-    val birthDate: String
+    val birthDate: String,
+    val createdAt: Long = System.currentTimeMillis()
 )

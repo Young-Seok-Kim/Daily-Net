@@ -19,6 +19,7 @@ import javax.inject.Singleton
 import com.google.firebase.FirebaseApp
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
+import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
@@ -91,4 +92,7 @@ object AppModule {
 
     @Provides
     fun provideWeightDao(db: AppDatabase): WeightDao = db.weightDao()
+
+    @Provides
+    fun provideUserProfileDao(db: AppDatabase): UserProfileDao = db.userProfileDao()
 }

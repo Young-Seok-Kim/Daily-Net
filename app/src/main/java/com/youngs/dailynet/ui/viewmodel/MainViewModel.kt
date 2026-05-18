@@ -5,14 +5,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.youngs.dailynet.data.local.entity.dao.WeightDao
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.local.entity.WeightEntity
+import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
+import com.youngs.dailynet.data.local.entity.dao.WeightDao
 import com.youngs.dailynet.data.model.SettlementModel
 import com.youngs.dailynet.data.repository.SettlementRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
@@ -26,7 +30,10 @@ data class CategoryInfo(
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val repository: SettlementRepository,
-    private val weightDao: WeightDao // 👈 생성자 주입 추가
+    private val weightDao: WeightDao,
+    private val userProfileDao: UserProfileDao,
+    private val auth: FirebaseAuth,
+    private val firestore: FirebaseFirestore
 ) : ViewModel() {
 
     private val _isMale = MutableStateFlow(true)
@@ -36,34 +43,106 @@ class MainViewModel @Inject constructor(
         _isMale.value = isMale
     }
 
-    // [수정 포인트 2] 초기 프로필 저장 시 성별 반영 (Room에 안 넣더라도 세션 동안 유지)
-    fun saveInitialProfile(height: Float, weight: Float, isMale: Boolean, birthDate: String) {
-        viewModelScope.launch {
-            weightDao.insertUserProfile(
-                UserProfileEntity(height = height, initialWeight = weight, birthDate = birthDate)
-            )
-            weightDao.insertWeight(WeightEntity(today, weight))
-            _isMale.value = isMale // 성별 상태 업데이트
-            showProfileDialog = false
-            _uiState.update { it.copy(weight = weight) }
-        }
-    }
-
     var showProfileDialog by mutableStateOf(false)
         private set
 
-    fun checkProfile() {
+    private val currentUserId: String?
+        get() = auth.currentUser?.uid
+
+    private val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+
+    fun saveInitialProfile(height: Float, weight: Float, isMale: Boolean, birthDate: String) {
+        val uid = currentUserId ?: return
+
         viewModelScope.launch {
-            val profile = weightDao.getUserProfile()
-            if (profile == null) {
+            try {
+                val timestamp = System.currentTimeMillis()
+
+                val serverProfile = mapOf(
+                    "height" to height,
+                    "initialWeight" to weight,
+                    "isMale" to isMale,
+                    "birthDate" to birthDate,
+                    "createdAt" to timestamp
+                )
+                firestore.collection("users").document(uid).set(serverProfile).await()
+
+                userProfileDao.insertProfile(
+                    UserProfileEntity(
+                        height = height,
+                        initialWeight = weight,
+                        isMale = isMale,
+                        birthDate = birthDate,
+                        createdAt = timestamp
+                    )
+                )
+
+                weightDao.insertWeight(WeightEntity(today, weight))
+
+                _isMale.value = isMale
+                showProfileDialog = false
+                _uiState.update { it.copy(weight = weight, currentWeight = weight) } // 💡 진입 시점 일치를 위해 currentWeight도 세팅
+            } catch (e: Exception) {
+                e.printStackTrace()
+                toastMessage = "프로필 저장 실패: ${e.message}"
+            }
+        }
+    }
+
+    fun checkProfile() {
+        val uid = currentUserId ?: return
+
+        viewModelScope.launch {
+            try {
+                val localProfile = userProfileDao.getProfile()
+                if (localProfile != null) {
+                    showProfileDialog = false
+                    _isMale.value = localProfile.isMale
+
+                    repository.fetchAndSyncFromFirebase()
+
+                    return@launch
+                }
+
+                val document = firestore.collection("users").document(uid).get().await()
+                val serverHeight = document.getDouble("height")
+
+                if (document.exists() && serverHeight != null && serverHeight > 0.0) {
+                    val initialWeight = (document.getDouble("initialWeight") ?: 0.0).toFloat()
+                    val isMale = document.getBoolean("isMale") ?: true
+                    val birthDate = document.getString("birthDate") ?: ""
+                    val createdAt = document.getLong("createdAt") ?: System.currentTimeMillis()
+
+                    // 1. 프로필 복원
+                    userProfileDao.insertProfile(
+                        UserProfileEntity(
+                            height = serverHeight.toFloat(),
+                            initialWeight = initialWeight,
+                            isMale = isMale,
+                            birthDate = birthDate,
+                            createdAt = createdAt
+                        )
+                    )
+
+                    repository.fetchAndSyncFromFirebase()
+
+                    _isMale.value = isMale
+                    showProfileDialog = false
+
+                    loadTodayDraft()
+                } else {
+                    showProfileDialog = true
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
                 showProfileDialog = true
             }
         }
     }
 
-    private val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-
-    val allSettlements: StateFlow<List<SettlementModel>> = repository.getAllSettlements()
+    // 💡 [구조 수정] 만약 룸 DB가 완벽히 연동되게 하려면 repository 내부에서 룸 Flow를 반환하도록 고쳐야 합니다.
+    // 임시로 우선 기존 파이프라인을 유지하되, 전체 정산 리스트 동기화 로직(Sync)이 리포지토리에 구현되어 있어야 양쪽 개수가 맞습니다.
+    val allSettlements: StateFlow<List<SettlementModel>> = repository.getAllSettlementsRoom()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -71,7 +150,7 @@ class MainViewModel @Inject constructor(
         )
 
     val totalNetCalories: StateFlow<Int> = allSettlements
-        .map { list -> list.sumOf { it.netCalories } } // 리스트의 모든 netCalories를 더함
+        .map { list -> list.sumOf { it.netCalories } }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -99,20 +178,25 @@ class MainViewModel @Inject constructor(
         loadTodayDraft()
     }
 
+    /**
+     * [로직 보정] 최초 진입 시점에만 가장 최근 몸무게를 깔끔하게 자동 주입합니다.
+     */
     fun loadTodayDraft() = viewModelScope.launch {
-        // 1. 오늘의 정산 기록 가져오기
         val savedDraft = repository.getSettlementByDate(today)
 
-        // 2. 몸무게 기본값 결정 로직 실행
         val latestWeight = weightDao.getLatestWeight()
-        val profile = weightDao.getUserProfile()
+        val profile = userProfileDao.getProfile()
         val defaultWeight = latestWeight ?: profile?.initialWeight ?: 0f
 
         if (savedDraft != null) {
             _uiState.value = savedDraft
+            // 기존 데이터는 있으나 현재 체중 기록만 0인 경우 방어 코드
+            if (savedDraft.currentWeight == 0f && defaultWeight > 0f) {
+                _uiState.update { it.copy(currentWeight = defaultWeight, weight = defaultWeight) }
+            }
         } else {
-            // 저장된 기록이 없으면 몸무게만 기본값으로 세팅
-            _uiState.update { it.copy(weight = defaultWeight) }
+            // 💡 오늘 자 새로운 정산 작성이면 최초 진입할 때 룸의 최근 몸무게를 currentWeight에 미리 꽂아줍니다.
+            _uiState.update { it.copy(weight = defaultWeight, currentWeight = defaultWeight) }
         }
     }
 
@@ -132,8 +216,9 @@ class MainViewModel @Inject constructor(
                 "snack" -> current.copy(snack = text)
                 "remark" -> current.copy(remark = text)
                 "currentWeight" -> {
+                    // 💡 [백스페이스 버그 해결] 사용자가 다 지웠을 때(" ")는 0f로 변환하되,
+                    // UI 단에서 좀비처럼 살아나지 않도록 상태 필드 분리 바인딩의 기반을 마련합니다.
                     val weightVal = text.toFloatOrNull() ?: 0f
-                    // 💡 weight와 currentWeight 둘 다 업데이트하여 혼선 방지
                     current.copy(currentWeight = weightVal, weight = weightVal)
                 }
                 "exercise" -> {
@@ -147,24 +232,22 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // AI 분석 및 최종 저장 (체중 포함)
     fun analyzeAndFinalize() {
         viewModelScope.launch {
             val currentState = _uiState.value
             _uiState.update { it.copy(analyzing = true) }
 
             try {
-                val profile = weightDao.getUserProfile()
-                val userHeight = profile?.height ?: 0f // 키가 없으면 0 (프롬프트에서 처리)
+                val profile = userProfileDao.getProfile()
+                val userHeight = profile?.height ?: 0f
 
-                // 1. Repository를 통해 서버+로컬 동시 저장
                 val analyzedData = repository.analyzeAndSave(
-                    currentState.copy(isMale = _isMale.value), // 데이터 모델에 isMale 추가 전제
+                    currentState.copy(isMale = _isMale.value),
                     userHeight
                 )
                 _uiState.update { analyzedData }
 
-                // 2. 별도의 체중 히스토리(WeightEntity)도 업데이트
+                // 제미나이 정산 완료 시점에 최종 입력된 현재 체중을 역사(History) 테이블에 저장
                 weightDao.insertWeight(WeightEntity(today, currentState.currentWeight))
 
                 toastMessage = "분석 및 저장이 완료되었습니다."

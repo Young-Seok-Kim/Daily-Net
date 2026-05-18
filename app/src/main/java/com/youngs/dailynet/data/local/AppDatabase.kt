@@ -8,6 +8,7 @@ import com.youngs.dailynet.data.local.entity.dao.WeightDao
 import com.youngs.dailynet.data.model.SettlementModel
 import com.youngs.dailynet.data.local.entity.WeightEntity
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
+import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
 
 @Database(
     entities = [
@@ -21,5 +22,6 @@ import com.youngs.dailynet.data.local.entity.UserProfileEntity
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun settlementDao(): SettlementDao
-    abstract fun weightDao(): WeightDao // 👈 이 메서드가 있어야 에러가 안 납니다.
+    abstract fun weightDao(): WeightDao
+    abstract fun userProfileDao(): UserProfileDao // 👈 관련 DAO도 함께 추가
 }
