@@ -15,7 +15,9 @@ interface SettlementDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(settlement: SettlementModel)
 
-    // 💡 [수정] List 대신 Flow를 반환하도록 변경하여 로컬 DB 데이터 변경을 실시간 감지합니다.
     @Query("SELECT * FROM daily_drafts ORDER BY date DESC")
     fun getAllSettlementsRoomFlow(): Flow<List<SettlementModel>>
+
+    @Query("SELECT currentWeight FROM daily_drafts WHERE currentWeight > 0.0 ORDER BY date DESC LIMIT 1")
+    suspend fun getLatestWeight(): Float?
 }

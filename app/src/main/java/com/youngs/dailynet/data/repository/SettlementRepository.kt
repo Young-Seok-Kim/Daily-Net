@@ -1,12 +1,10 @@
 package com.youngs.dailynet.data.repository
 
-import com.google.firebase.auth.FirebaseAuth // 👈 추가
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.snapshots
-import com.youngs.dailynet.data.local.entity.WeightEntity
 import com.youngs.dailynet.data.local.entity.dao.SettlementDao
-import com.youngs.dailynet.data.local.entity.dao.WeightDao
 import com.youngs.dailynet.data.model.SettlementModel
 import com.youngs.dailynet.data.network.GeminiManager
 import kotlinx.coroutines.flow.Flow
@@ -21,7 +19,6 @@ class SettlementRepository @Inject constructor(
     private val auth: FirebaseAuth,
     private val geminiManager: GeminiManager,
     private val settlementDao: SettlementDao,
-    private val weightDao: WeightDao
 ) {
     private val userSettlementsCollection
         get() = firestore.collection("users")
@@ -50,13 +47,8 @@ class SettlementRepository @Inject constructor(
             val serverList = snapshot.toObjects(SettlementModel::class.java)
 
             serverList.forEach { model ->
-                // 1. SettlementModel 자체가 Entity이므로 바로 룸에 insertOrUpdate 가능
                 settlementDao.insertOrUpdate(model)
 
-                // 2. 정산 모델에 체중 데이터가 기록되어 있다면 체중 히스토리 테이블에도 분기 주입
-                if (model.currentWeight > 0f) {
-                    weightDao.insertWeight(WeightEntity(model.date, model.currentWeight))
-                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
