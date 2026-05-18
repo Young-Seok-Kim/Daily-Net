@@ -8,9 +8,8 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
-import com.youngs.dailynet.data.local.entity.WeightEntity
+import com.youngs.dailynet.data.local.entity.dao.SettlementDao
 import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
-import com.youngs.dailynet.data.local.entity.dao.WeightDao
 import com.youngs.dailynet.data.model.SettlementModel
 import com.youngs.dailynet.data.repository.SettlementRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,7 +29,7 @@ data class CategoryInfo(
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val repository: SettlementRepository,
-    private val weightDao: WeightDao,
+    private val settlementDao: SettlementDao,
     private val userProfileDao: UserProfileDao,
     private val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore
@@ -76,8 +75,6 @@ class MainViewModel @Inject constructor(
                         createdAt = timestamp
                     )
                 )
-
-                weightDao.insertWeight(WeightEntity(today, weight))
 
                 _isMale.value = isMale
                 showProfileDialog = false
@@ -184,7 +181,7 @@ class MainViewModel @Inject constructor(
     fun loadTodayDraft() = viewModelScope.launch {
         val savedDraft = repository.getSettlementByDate(today)
 
-        val latestWeight = weightDao.getLatestWeight()
+        val latestWeight = settlementDao.getLatestWeight()
         val profile = userProfileDao.getProfile()
         val defaultWeight = latestWeight ?: profile?.initialWeight ?: 0f
 
@@ -246,9 +243,6 @@ class MainViewModel @Inject constructor(
                     userHeight
                 )
                 _uiState.update { analyzedData }
-
-                // 제미나이 정산 완료 시점에 최종 입력된 현재 체중을 역사(History) 테이블에 저장
-                weightDao.insertWeight(WeightEntity(today, currentState.currentWeight))
 
                 toastMessage = "분석 및 저장이 완료되었습니다."
             } catch (e: Exception) {
