@@ -52,6 +52,18 @@ fun getWeekOfMonthText(dateString: String): String {
 }
 
 
+fun getDayOfWeekText(dateString: String): String {
+    return try {
+        val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateString) ?: return ""
+        // EEE 포맷은 기기 언어 설정에 따라 "월", "화" 혹은 "Mon", "Tue" 형태로 깔끔하게 반환됩니다.
+        val dayOfWeek = SimpleDateFormat("EEE", Locale.getDefault()).format(date)
+        "($dayOfWeek)"
+    } catch (e: Exception) {
+        ""
+    }
+}
+
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
@@ -359,6 +371,9 @@ fun SummaryHeaderCard(totalCalories: Int, latestDate: String) {
 
 @Composable
 fun SettlementHistoryItem(item: SettlementModel, onClick: () -> Unit) {
+
+    val dayOfWeekText = getDayOfWeekText(item.date)
+
     OutlinedCard(
         modifier = Modifier
             .fillMaxWidth()
@@ -372,9 +387,23 @@ fun SettlementHistoryItem(item: SettlementModel, onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text(text = item.date, style = MaterialTheme.typography.labelLarge)
+                // 3. 날짜와 요일을 나란히 배치 (예: 2026-05-20 (수))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = item.date,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = dayOfWeekText,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f) // 요일은 살짝 톤다운
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
                 Text(
-                    // SettlementModel에 isExercise 필드가 있다고 가정
                     text = if (item.hasExercise) "운동 기록 있음 💪" else "휴식 😴",
                     style = MaterialTheme.typography.bodySmall
                 )
