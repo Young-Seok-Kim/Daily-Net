@@ -59,12 +59,4 @@ class AuthViewModel @Inject constructor(
             }
         }
     }
-
-    fun signOut(context: Context) {
-        auth.signOut()
-        _user.value = null
-        viewModelScope.launch {
-            CredentialManager.create(context).clearCredentialState(ClearCredentialStateRequest())
-        }
-    }
 }

@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
 
 
                 Scaffold(modifier = Modifier.Companion.fillMaxSize()) { innerPadding ->
-                    if (user == null) {
+                    if (user == null || currentScreen == "login") {
                         LoginScreen(
                             authViewModel = authViewModel,
                             modifier = Modifier.Companion.padding(innerPadding)
@@ -51,6 +51,7 @@ class MainActivity : ComponentActivity() {
                         val mainViewModel: MainViewModel = hiltViewModel()
 
                         when (currentScreen) {
+
                             "input" -> {
                                 SettlementScreen(
                                     mainViewModel = mainViewModel,
@@ -87,7 +88,9 @@ class MainActivity : ComponentActivity() {
                                         selectedDate = date // 클릭한 날짜 저장
                                         currentScreen = "detail"
                                     },
-                                    modifier = Modifier.Companion.padding(innerPadding)
+                                    onNavigateToLogin = {
+                                        currentScreen = "login"
+                                    }
                                 )
                             }
                         }

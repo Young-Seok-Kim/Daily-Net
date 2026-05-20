@@ -19,6 +19,7 @@ class SettlementRepository @Inject constructor(
     private val auth: FirebaseAuth,
     private val geminiManager: GeminiManager,
     private val settlementDao: SettlementDao,
+    private val appDatabase: com.youngs.dailynet.data.local.AppDatabase,
 ) {
     private val userSettlementsCollection
         get() = firestore.collection("users")
@@ -81,5 +82,10 @@ class SettlementRepository @Inject constructor(
         } catch (e: Exception) {
             null
         }
+    }
+
+    suspend fun clearAllLocalData() {
+        // Room DB의 모든 테이블 데이터를 삭제합니다.
+        appDatabase.clearAllTables()
     }
 }
