@@ -14,9 +14,11 @@ import com.youngs.dailynet.data.model.SettlementModel
 import com.youngs.dailynet.data.repository.SettlementRepository
 import com.youngs.dailynet.ui.view.getWeekIdentifier
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
@@ -264,6 +266,25 @@ class MainViewModel @Inject constructor(
             } catch (e: Exception) {
                 _uiState.update { it.copy(analyzing = false) }
                 toastMessage = "오류 발생: ${e.message}"
+            }
+        }
+    }
+
+    fun logout(onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            try {
+                // 1. Firebase 로그아웃 (이건 기본적으로 비동기지만 안전하게 처리)
+                auth.signOut()
+
+                // 2. Room DB 삭제 작업을 백그라운드 스레드(IO)에서 실행
+                withContext(Dispatchers.IO) {
+                    repository.clearAllLocalData()
+                }
+
+                onResult(true)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                onResult(false)
             }
         }
     }

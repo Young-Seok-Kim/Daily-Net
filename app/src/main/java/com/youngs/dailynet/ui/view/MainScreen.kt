@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,7 +38,8 @@ fun getWeekIdentifier(dateString: String): Int {
 // 1. 월별 주차를 계산하는 헬퍼 함수 추가
 fun getWeekOfMonthText(dateString: String): String {
     return try {
-        val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateString) ?: return dateString
+        val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateString)
+            ?: return dateString
         val calendar = Calendar.getInstance().apply {
             time = date
             firstDayOfWeek = Calendar.MONDAY // 월요일 시작 기준
@@ -61,7 +63,8 @@ fun calculateWeeklyCalories(settlements: List<SettlementModel>, targetWeekId: In
 
 fun getDayOfWeekText(dateString: String): String {
     return try {
-        val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateString) ?: return ""
+        val date =
+            SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateString) ?: return ""
         // EEE 포맷은 기기 언어 설정에 따라 "월", "화" 혹은 "Mon", "Tue" 형태로 깔끔하게 반환됩니다.
         val dayOfWeek = SimpleDateFormat("EEE", Locale.getDefault()).format(date)
         "($dayOfWeek)"
@@ -77,7 +80,7 @@ fun MainScreen(
     mainViewModel: MainViewModel,
     onNavigateToInput: () -> Unit,
     onNavigateToDetail: (String) -> Unit,
-    modifier: Modifier = Modifier
+    onNavigateToLogin: () -> Unit,
 ) {
     val settlements by mainViewModel.allSettlements.collectAsState()
     val totalCalories by mainViewModel.totalNetCalories.collectAsState()
@@ -96,8 +99,21 @@ fun MainScreen(
         )
     }
 
+    var showSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
+
     Scaffold(
-        modifier = modifier,
+        topBar = {
+            TopAppBar(
+                title = { Text("DailyNet") },
+                actions = {
+                    // 1. 프로필 아이콘 (사용자 아바타)
+                    IconButton(onClick = { showSheet = true }) {
+                        Icon(Icons.Default.AccountCircle, contentDescription = "프로필")
+                    }
+                }
+            )
+        },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onNavigateToInput,
@@ -107,6 +123,7 @@ fun MainScreen(
             )
         }
     ) { padding ->
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -157,12 +174,44 @@ fun MainScreen(
                 )
             }
         }
+
+        if (showSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showSheet = false },
+                sheetState = sheetState
+            ) {
+                Column(modifier = Modifier
+                    .padding(16.dp)
+                    .navigationBarsPadding()) {
+                    TextButton(
+                        onClick = {
+                            // ViewModel의 로그아웃 함수 실행
+                            mainViewModel.logout { success ->
+                                if (success) {
+                                    showSheet = false
+                                    onNavigateToLogin()
+                                } else {
+                                    // 필요시 toastMessage 호출 등 에러 처리
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                            Text("로그아웃")
+                        }
+                    }
+
+                    // 회원탈퇴 버튼
+                    TextButton(onClick = { /* 탈퇴 로직 호출 */ showSheet = false }) {
+                        Text("회원탈퇴", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        }
     }
 }
 
-/**
- * 2. WeekDivider 컴포저블 수정 (date 대신 headerText 사용)
- */
 @Composable
 fun WeekDivider(headerText: String, weeklyCalories: Int) {
     Column(
@@ -266,11 +315,13 @@ fun ProfileSetupDialog(
                             android.app.DatePickerDialog(
                                 context,
                                 { _, year, month, dayOfMonth ->
-                                    birthDateText = String.format("%d-%02d-%02d", year, month + 1, dayOfMonth)
+                                    birthDateText =
+                                        String.format("%d-%02d-%02d", year, month + 1, dayOfMonth)
                                 },
                                 currentCal.get(Calendar.YEAR),
                                 currentCal.get(Calendar.MONTH),
-                                currentCal.get(Calendar.DAY_OF_MONTH)).show()
+                                currentCal.get(Calendar.DAY_OF_MONTH)
+                            ).show()
                         },
                     enabled = false,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -331,9 +382,17 @@ fun SummaryHeaderCard(totalCalories: Int, latestDate: String) {
 
     // 부호에 따른 텍스트와 색상 정의
     val weightText = if (expectedWeightChange <= 0) {
-        String.format(Locale.getDefault(), "%.1f kg", expectedWeightChange) // 플러스거나 0일 때 (예: +0.2 kg)
+        String.format(
+            Locale.getDefault(),
+            "%.1f kg",
+            expectedWeightChange
+        ) // 플러스거나 0일 때 (예: +0.2 kg)
     } else {
-        String.format(Locale.getDefault(), "-%.1f kg", expectedWeightChange) // 마이너스 적자 누적으로 감량 성공 시 (예: -0.5 kg)
+        String.format(
+            Locale.getDefault(),
+            "-%.1f kg",
+            expectedWeightChange
+        ) // 마이너스 적자 누적으로 감량 성공 시 (예: -0.5 kg)
     }
 
     Card(
