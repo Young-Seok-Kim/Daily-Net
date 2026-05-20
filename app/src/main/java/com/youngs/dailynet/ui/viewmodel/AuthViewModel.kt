@@ -24,9 +24,8 @@ class AuthViewModel @Inject constructor(
     private val _user = MutableStateFlow(auth.currentUser)
     val user = _user.asStateFlow()
 
-    fun signIn(context: Context) {
+    fun signIn(context: Context, onResult: (Boolean) -> Unit) {
         val credentialManager = CredentialManager.create(context)
-
         val googleIdOption = GetGoogleIdOption.Builder()
             .setFilterByAuthorizedAccounts(false)
             .setServerClientId(BuildConfig.GOOGLE_WEB_CLIENT_ID)
@@ -54,8 +53,10 @@ class AuthViewModel @Inject constructor(
                         _user.value = auth.currentUser
                     }
                 }
+                onResult(true)
             } catch (e: Exception) {
                 e.printStackTrace()
+                onResult(false)
             }
         }
     }
