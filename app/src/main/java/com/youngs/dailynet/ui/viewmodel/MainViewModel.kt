@@ -12,6 +12,7 @@ import com.youngs.dailynet.data.local.entity.dao.SettlementDao
 import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
 import com.youngs.dailynet.data.model.SettlementModel
 import com.youngs.dailynet.data.repository.SettlementRepository
+import com.youngs.dailynet.ui.view.getWeekIdentifier
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -168,6 +169,21 @@ class MainViewModel @Inject constructor(
 
     var toastMessage by mutableStateOf<String?>(null)
         private set
+
+    // MainViewModel.kt
+    val weeklyCaloriesMap: StateFlow<Map<Int, Int>> = allSettlements
+        .map { list ->
+            list.groupBy { getWeekIdentifier(it.date) }
+                .mapValues { entry ->
+                    // 해당 주차에 속한 모든 정산의 netCalories 합계
+                    entry.value.sumOf { it.netCalories }
+                }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyMap()
+        )
 
     fun onToastShown() { toastMessage = null }
 

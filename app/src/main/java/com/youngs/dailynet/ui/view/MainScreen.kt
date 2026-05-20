@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -51,6 +52,12 @@ fun getWeekOfMonthText(dateString: String): String {
     }
 }
 
+fun calculateWeeklyCalories(settlements: List<SettlementModel>, targetWeekId: Int): Int {
+    return settlements
+        .filter { getWeekIdentifier(it.date) == targetWeekId }
+        .sumOf { it.netCalories }
+}
+
 
 fun getDayOfWeekText(dateString: String): String {
     return try {
@@ -74,8 +81,8 @@ fun MainScreen(
 ) {
     val settlements by mainViewModel.allSettlements.collectAsState()
     val totalCalories by mainViewModel.totalNetCalories.collectAsState()
+    val weeklyCaloriesMap by mainViewModel.weeklyCaloriesMap.collectAsState()
 
-    // ✨ 앱 진입 시 프로필 존재 여부 체크
     LaunchedEffect(Unit) {
         mainViewModel.checkProfile()
     }
@@ -127,17 +134,20 @@ fun MainScreen(
                 key = { _, item -> item.date }
             ) { index, item ->
                 val currentWeekId = getWeekIdentifier(item.date)
-                // ✨ 표시할 주차 텍스트 생성
                 val weekDisplayText = getWeekOfMonthText(item.date)
 
-                if (index == 0) {
-                    // 첫 번째 항목에 헤더 표시
-                    WeekDivider(headerText = weekDisplayText)
+                val totalWeeklyNet = weeklyCaloriesMap[currentWeekId] ?: 0
+
+                if (index == 0 || currentWeekId != getWeekIdentifier(settlements[index - 1].date)) {
+                    WeekDivider(
+                        headerText = weekDisplayText,
+                        weeklyCalories = totalWeeklyNet // 💡 여기에 합계 전달
+                    )
                 } else {
                     val previousWeekId = getWeekIdentifier(settlements[index - 1].date)
                     if (currentWeekId != previousWeekId) {
                         // 주차가 바뀌면 헤더 표시
-                        WeekDivider(headerText = weekDisplayText)
+                        WeekDivider(headerText = weekDisplayText, totalWeeklyNet)
                     }
                 }
 
@@ -154,7 +164,7 @@ fun MainScreen(
  * 2. WeekDivider 컴포저블 수정 (date 대신 headerText 사용)
  */
 @Composable
-fun WeekDivider(headerText: String) {
+fun WeekDivider(headerText: String, weeklyCalories: Int) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -171,11 +181,16 @@ fun WeekDivider(headerText: String) {
                 color = MaterialTheme.colorScheme.outlineVariant
             )
             Text(
-                text = " $headerText 정산 ",
+                text = "$headerText ",
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                modifier = Modifier.padding(horizontal = 8.dp)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Text(
+                text = "(${weeklyCalories} kcal)",
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = if (weeklyCalories <= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+            )
+
             HorizontalDivider(
                 modifier = Modifier.weight(1f),
                 color = MaterialTheme.colorScheme.outlineVariant
