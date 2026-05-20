@@ -15,10 +15,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.youngs.dailynet.data.model.SettlementModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
@@ -74,6 +78,26 @@ fun getDayOfWeekText(dateString: String): String {
     }
 }
 
+@Composable
+fun SystemUiController(showLoading: Boolean) {
+    val view = LocalView.current
+    val window = (view.context as? android.app.Activity)?.window ?: return
+
+    // 💡 WindowInsetsController를 통해 Immersive 모드 설정
+    val controller = WindowCompat.getInsetsController(window, view)
+
+    LaunchedEffect(showLoading) {
+        if (showLoading) {
+            // 시스템 바를 완전 숨김
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            // 스와이프해도 안 나오게 설정 (BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE는 스와이프 시 나타남)
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        } else {
+            // 원래대로 복구
+            controller.show(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,6 +127,9 @@ fun MainScreen(
 
     var showSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
+
+    SystemUiController(showLogoutLoading)
+
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             topBar = {
@@ -206,12 +233,14 @@ fun MainScreen(
                         TextButton(
                             onClick = {
                                 // ViewModel의 로그아웃 함수 실행
+                                showSheet = false
+                                showLogoutLoading = true
                                 mainViewModel.logout(context) { success ->
                                     if (success) {
                                         showSheet = false
                                         onNavigateToLogin()
                                     } else {
-                                        // 필요시 toastMessage 호출 등 에러 처리
+                                        showLogoutLoading = false // 실패 시 로딩 해제
                                     }
                                 }
                             },
@@ -230,6 +259,22 @@ fun MainScreen(
                             Text("회원탈퇴", color = MaterialTheme.colorScheme.error)
                         }
                     }
+                }
+            }
+        }
+
+        if (showLogoutLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f))
+                    .clickable(enabled = false) {}, // 뒷배경 클릭 방지
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("로그아웃 중입니다...", style = MaterialTheme.typography.bodyLarge)
                 }
             }
         }
