@@ -57,7 +57,10 @@ class SettlementRepository @Inject constructor(
     }
 
     suspend fun analyzeAndSave(settlement: SettlementModel, userHeight: Float): SettlementModel {
-        val analysisResponse = geminiManager.analyzeFoodAndExercise(settlement, userHeight, settlement.isMale)
+        val analysisResponse =
+            geminiManager.analyzeFoodAndExercise(settlement, userHeight, settlement.isMale)
+                ?: throw Exception("서버 분석 중 오류가 발생했습니다.")
+
 
         val finalizedModel = settlement.copy(
             netCalories = analysisResponse.netCalories,

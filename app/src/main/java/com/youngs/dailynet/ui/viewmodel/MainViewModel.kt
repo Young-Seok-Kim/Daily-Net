@@ -1,8 +1,11 @@
 package com.youngs.dailynet.ui.viewmodel
 
+import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.credentials.ClearCredentialStateRequest
+import androidx.credentials.CredentialManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
@@ -247,7 +250,10 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun analyzeAndFinalize() {
+    fun analyzeAndFinalize(
+        onSuccess: () -> Unit,
+        onFailure: (String) -> Unit
+    ) {
         viewModelScope.launch {
             val currentState = _uiState.value
             _uiState.update { it.copy(analyzing = true) }
@@ -260,31 +266,50 @@ class MainViewModel @Inject constructor(
                     currentState.copy(isMale = _isMale.value),
                     userHeight
                 )
-                _uiState.update { analyzedData }
-
+                _uiState.update { analyzedData.copy(analyzing = false) }
                 toastMessage = "분석 및 저장이 완료되었습니다."
+
+                // 💡 여기서만 화면 이동(onSuccess) 실행
+                onSuccess()
             } catch (e: Exception) {
                 _uiState.update { it.copy(analyzing = false) }
                 toastMessage = "오류 발생: ${e.message}"
+
+                // 💡 실패 시 화면 이동 없이 현재 데이터 유지(onFailure 호출)
+                onFailure(e.message ?: "알 수 없는 오류")
             }
         }
     }
-
-    fun logout(onResult: (Boolean) -> Unit) {
+    private val _isLoggingOut = MutableStateFlow(false)
+    val isLoggingOut = _isLoggingOut.asStateFlow() // 외부에서는 읽기만 가능
+    fun logout(context: Context, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
             try {
+                _isLoggingOut.value = true
                 // 1. Firebase 로그아웃 (이건 기본적으로 비동기지만 안전하게 처리)
                 auth.signOut()
+
+                val credentialManager = CredentialManager.create(context)
+                try {
+                    credentialManager.clearCredentialState(ClearCredentialStateRequest())
+                } catch (e: Exception) {
+                    // Credential 삭제 실패는 무시해도 괜찮습니다.
+                    e.printStackTrace()
+                }
+
 
                 // 2. Room DB 삭제 작업을 백그라운드 스레드(IO)에서 실행
                 withContext(Dispatchers.IO) {
                     repository.clearAllLocalData()
                 }
-
+                _isLoggingOut.value = false // 로딩 종료
                 onResult(true)
+
             } catch (e: Exception) {
                 e.printStackTrace()
                 onResult(false)
+            } finally {
+                _isLoggingOut.value = false
             }
         }
     }

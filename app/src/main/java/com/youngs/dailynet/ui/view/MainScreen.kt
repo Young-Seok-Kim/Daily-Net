@@ -1,5 +1,6 @@
 package com.youngs.dailynet.ui.view
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -85,6 +86,7 @@ fun MainScreen(
     val settlements by mainViewModel.allSettlements.collectAsState()
     val totalCalories by mainViewModel.totalNetCalories.collectAsState()
     val weeklyCaloriesMap by mainViewModel.weeklyCaloriesMap.collectAsState()
+    var showLogoutLoading by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         mainViewModel.checkProfile()
@@ -101,110 +103,132 @@ fun MainScreen(
 
     var showSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("DailyNet") },
+                    actions = {
+                        // 1. 프로필 아이콘 (사용자 아바타)
+                        IconButton(onClick = { showSheet = true }) {
+                            Icon(Icons.Default.AccountCircle, contentDescription = "프로필")
+                        }
+                    }
+                )
+            },
+            floatingActionButton = {
+                ExtendedFloatingActionButton(
+                    onClick = onNavigateToInput,
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("오늘의 정산") },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            }
+        ) { padding ->
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("DailyNet") },
-                actions = {
-                    // 1. 프로필 아이콘 (사용자 아바타)
-                    IconButton(onClick = { showSheet = true }) {
-                        Icon(Icons.Default.AccountCircle, contentDescription = "프로필")
+            if (showLogoutLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("로그아웃 중입니다...", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
-            )
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onNavigateToInput,
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("오늘의 정산") },
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
-        }
-    ) { padding ->
-
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            item {
-                SummaryHeaderCard(
-                    totalCalories = totalCalories,
-                    latestDate = settlements.firstOrNull()?.date ?: "기록 없음"
-                )
             }
 
-            item {
-                Text(
-                    text = "정산 기록",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-            }
-
-            itemsIndexed(
-                items = settlements,
-                key = { _, item -> item.date }
-            ) { index, item ->
-                val currentWeekId = getWeekIdentifier(item.date)
-                val weekDisplayText = getWeekOfMonthText(item.date)
-
-                val totalWeeklyNet = weeklyCaloriesMap[currentWeekId] ?: 0
-
-                if (index == 0 || currentWeekId != getWeekIdentifier(settlements[index - 1].date)) {
-                    WeekDivider(
-                        headerText = weekDisplayText,
-                        weeklyCalories = totalWeeklyNet // 💡 여기에 합계 전달
-                    )
-                } else {
-                    val previousWeekId = getWeekIdentifier(settlements[index - 1].date)
-                    if (currentWeekId != previousWeekId) {
-                        // 주차가 바뀌면 헤더 표시
-                        WeekDivider(headerText = weekDisplayText, totalWeeklyNet)
-                    }
-                }
-
-                SettlementHistoryItem(
-                    item = item,
-                    onClick = { onNavigateToDetail(item.date) }
-                )
-            }
-        }
-
-        if (showSheet) {
-            ModalBottomSheet(
-                onDismissRequest = { showSheet = false },
-                sheetState = sheetState
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Column(modifier = Modifier
-                    .padding(16.dp)
-                    .navigationBarsPadding()) {
-                    TextButton(
-                        onClick = {
-                            // ViewModel의 로그아웃 함수 실행
-                            mainViewModel.logout { success ->
-                                if (success) {
-                                    showSheet = false
-                                    onNavigateToLogin()
-                                } else {
-                                    // 필요시 toastMessage 호출 등 에러 처리
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                            Text("로그아웃")
+                item {
+                    SummaryHeaderCard(
+                        totalCalories = totalCalories,
+                        latestDate = settlements.firstOrNull()?.date ?: "기록 없음"
+                    )
+                }
+
+                item {
+                    Text(
+                        text = "정산 기록",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+
+                itemsIndexed(
+                    items = settlements,
+                    key = { _, item -> item.date }
+                ) { index, item ->
+                    val currentWeekId = getWeekIdentifier(item.date)
+                    val weekDisplayText = getWeekOfMonthText(item.date)
+
+                    val totalWeeklyNet = weeklyCaloriesMap[currentWeekId] ?: 0
+
+                    if (index == 0 || currentWeekId != getWeekIdentifier(settlements[index - 1].date)) {
+                        WeekDivider(
+                            headerText = weekDisplayText,
+                            weeklyCalories = totalWeeklyNet // 💡 여기에 합계 전달
+                        )
+                    } else {
+                        val previousWeekId = getWeekIdentifier(settlements[index - 1].date)
+                        if (currentWeekId != previousWeekId) {
+                            // 주차가 바뀌면 헤더 표시
+                            WeekDivider(headerText = weekDisplayText, totalWeeklyNet)
                         }
                     }
 
-                    // 회원탈퇴 버튼
-                    TextButton(onClick = { /* 탈퇴 로직 호출 */ showSheet = false }) {
-                        Text("회원탈퇴", color = MaterialTheme.colorScheme.error)
+                    SettlementHistoryItem(
+                        item = item,
+                        onClick = { onNavigateToDetail(item.date) }
+                    )
+                }
+            }
+
+            if (showSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { showSheet = false },
+                    sheetState = sheetState
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .navigationBarsPadding()
+                    ) {
+                        val context = LocalContext.current // 💡 추가
+                        TextButton(
+                            onClick = {
+                                // ViewModel의 로그아웃 함수 실행
+                                mainViewModel.logout(context) { success ->
+                                    if (success) {
+                                        showSheet = false
+                                        onNavigateToLogin()
+                                    } else {
+                                        // 필요시 toastMessage 호출 등 에러 처리
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Start
+                            ) {
+                                Text("로그아웃")
+                            }
+                        }
+
+                        // 회원탈퇴 버튼
+                        TextButton(onClick = { /* 탈퇴 로직 호출 */ showSheet = false }) {
+                            Text("회원탈퇴", color = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
             }

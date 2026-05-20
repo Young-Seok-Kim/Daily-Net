@@ -16,7 +16,7 @@ class GeminiManager @Inject constructor(
         settlement: SettlementModel,
         userHeight: Float,
         isMale: Boolean
-    ): AnalysisResponse {
+    ): AnalysisResponse? {
         return withContext(Dispatchers.IO) {
             try {
                 val request = AnalysisRequest(
@@ -35,7 +35,7 @@ class GeminiManager @Inject constructor(
                 apiService.analyzeFoodAndExercise(request)
             } catch (e: Exception) {
                 e.printStackTrace()
-                AnalysisResponse(0, "서버 분석 중 오류가 발생했습니다.")
+                null
             }
         }
     }

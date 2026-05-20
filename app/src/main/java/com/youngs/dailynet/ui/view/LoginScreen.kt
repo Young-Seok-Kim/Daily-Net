@@ -18,6 +18,7 @@ import com.youngs.dailynet.ui.viewmodel.AuthViewModel
 @Composable
 fun LoginScreen(
     authViewModel: AuthViewModel,
+    onNavigateToMain: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -51,7 +52,13 @@ fun LoginScreen(
                 .fillMaxWidth(0.8f) // 원하는 너비 조절
                 .height(56.dp)      // 공식 이미지 비율에 맞춰 조절
                 .padding(horizontal = 8.dp)
-                .clickable { authViewModel.signIn(context) } // 이미지 자체를 클릭 가능하게!
+                .clickable {
+                    authViewModel.signIn(context) { success ->
+                        if (success) {
+                            onNavigateToMain() // 성공 시 이동!
+                        }
+                    }
+                } // 이미지 자체를 클릭 가능하게!
         )
     }
 }

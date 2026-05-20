@@ -40,11 +40,20 @@ class MainActivity : ComponentActivity() {
                 var currentScreen by remember { mutableStateOf("main") } // "main", "input", "detail"
                 var selectedDate by remember { mutableStateOf("") }     // 상세 화면에 넘겨줄 날짜
 
+                LaunchedEffect(user) {
+                    if (user == null) {
+                        currentScreen = "login"
+                    }
+                }
+
 
                 Scaffold(modifier = Modifier.Companion.fillMaxSize()) { innerPadding ->
                     if (user == null || currentScreen == "login") {
                         LoginScreen(
                             authViewModel = authViewModel,
+                            onNavigateToMain = {
+                                currentScreen = "main"
+                            },
                             modifier = Modifier.Companion.padding(innerPadding)
                         )
                     } else {

@@ -56,7 +56,9 @@ object AppModule {
     @Singleton
     fun provideAppCheck(@ApplicationContext context: Context): FirebaseAppCheck {
         // Firebase가 이미 초기화되어 있어야 합니다.
-        FirebaseApp.initializeApp(context)
+        if (FirebaseApp.getApps(context).isEmpty()) {
+            FirebaseApp.initializeApp(context)
+        }
         val firebaseAppCheck = FirebaseAppCheck.getInstance()
 
         // Play Integrity 증명 공급자 등록
