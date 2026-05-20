@@ -89,6 +89,7 @@ class MainActivity : ComponentActivity() {
                                         currentScreen = "detail"
                                     },
                                     onNavigateToLogin = {
+                                        authViewModel.resetUserState()
                                         currentScreen = "login"
                                     }
                                 )

@@ -59,4 +59,7 @@ class AuthViewModel @Inject constructor(
             }
         }
     }
+    fun resetUserState() {
+        _user.value = null
+    }
 }
