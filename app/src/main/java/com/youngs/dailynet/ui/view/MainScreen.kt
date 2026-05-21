@@ -1,7 +1,9 @@
 package com.youngs.dailynet.ui.view
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -111,6 +113,26 @@ fun MainScreen(
     val totalCalories by mainViewModel.totalNetCalories.collectAsState()
     val weeklyCaloriesMap by mainViewModel.weeklyCaloriesMap.collectAsState()
     var showLogoutLoading by remember { mutableStateOf(false) }
+    var selectedDateToDelete by remember { mutableStateOf<String?>(null) }
+
+    if (selectedDateToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { selectedDateToDelete = null },
+            title = { Text("기록 삭제") },
+            text = { Text("${selectedDateToDelete}의 정산 기록을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    selectedDateToDelete?.let { date ->
+                        mainViewModel.deleteSettlement(date)
+                    }
+                    selectedDateToDelete = null
+                }) { Text("삭제", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { selectedDateToDelete = null }) { Text("취소") }
+            }
+        )
+    }
 
     LaunchedEffect(Unit) {
         mainViewModel.checkProfile()
@@ -214,7 +236,8 @@ fun MainScreen(
 
                     SettlementHistoryItem(
                         item = item,
-                        onClick = { onNavigateToDetail(item.date) }
+                        onClick = { onNavigateToDetail(item.date) },
+                        onLongClick = { selectedDateToDelete = item.date }
                     )
                 }
             }
@@ -512,15 +535,23 @@ fun SummaryHeaderCard(totalCalories: Int, latestDate: String) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun SettlementHistoryItem(item: SettlementModel, onClick: () -> Unit) {
+fun SettlementHistoryItem(
+    item: SettlementModel,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
 
     val dayOfWeekText = getDayOfWeekText(item.date)
 
     OutlinedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
     ) {
         Row(
             modifier = Modifier

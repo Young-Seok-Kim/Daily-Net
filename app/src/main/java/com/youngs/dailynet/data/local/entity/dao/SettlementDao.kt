@@ -20,4 +20,7 @@ interface SettlementDao {
 
     @Query("SELECT currentWeight FROM daily_drafts WHERE currentWeight > 0.0 ORDER BY date DESC LIMIT 1")
     suspend fun getLatestWeight(): Float?
+
+    @Query("DELETE FROM daily_drafts WHERE date = :date")
+    suspend fun deleteByDate(date: String)
 }
