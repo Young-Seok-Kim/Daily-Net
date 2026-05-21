@@ -328,19 +328,18 @@ class MainViewModel @Inject constructor(
             _uiState.update { it.copy(analyzing = true) }
 
             try {
-                val profile = userProfileDao.getProfile()
-                val userHeight = profile?.height ?: 0f
+                val profile = userProfileDao.getProfile() ?: throw Exception("유저 프로필 정보가 없습니다. 설정을 먼저 완료해주세요.")
+                val userHeight = profile.height
 
                 val analyzedData = repository.analyzeAndSave(
                     currentState.copy(isMale = _isMale.value),
-                    userHeight
+                    profile
                 )
                 _uiState.update { analyzedData.copy(analyzing = false) }
                 val savedWeight = _uiState.value.currentWeight
                 cachedWeight = savedWeight
                 onToastShown("분석 및 저장이 완료되었습니다.")
 
-                // 💡 여기서만 화면 이동(onSuccess) 실행
                 onSuccess()
             } catch (e: Exception) {
                 _uiState.update { it.copy(analyzing = false) }
