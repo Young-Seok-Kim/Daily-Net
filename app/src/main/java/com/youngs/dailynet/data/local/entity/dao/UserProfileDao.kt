@@ -21,4 +21,7 @@ interface UserProfileDao {
     // 3. Flow 형태로 프로필 실시간 관찰 (UI 데이터 바인딩용)
     @Query("SELECT * FROM user_profile WHERE id = 0")
     fun getProfileFlow(): Flow<UserProfileEntity?>
+
+    @Query("DELETE FROM user_profile")
+    suspend fun clearProfile()
 }

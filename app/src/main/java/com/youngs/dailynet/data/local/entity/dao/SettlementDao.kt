@@ -23,4 +23,7 @@ interface SettlementDao {
 
     @Query("DELETE FROM daily_drafts WHERE date = :date")
     suspend fun deleteByDate(date: String)
+
+    @Query("DELETE FROM daily_drafts")
+    suspend fun clearAllSettlements()
 }

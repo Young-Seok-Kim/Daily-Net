@@ -109,11 +109,13 @@ fun MainScreen(
     onNavigateToDetail: (String) -> Unit,
     onNavigateToLogin: () -> Unit,
 ) {
+    var loadingMessage by remember { mutableStateOf<String?>(null) }
     val settlements by mainViewModel.allSettlements.collectAsState()
     val totalCalories by mainViewModel.totalNetCalories.collectAsState()
     val weeklyCaloriesMap by mainViewModel.weeklyCaloriesMap.collectAsState()
     var showLogoutLoading by remember { mutableStateOf(false) }
     var selectedDateToDelete by remember { mutableStateOf<String?>(null) }
+    var showWithdrawConfirmDialog by remember { mutableStateOf(false) }
 
     if (selectedDateToDelete != null) {
         AlertDialog(
@@ -130,6 +132,36 @@ fun MainScreen(
             },
             dismissButton = {
                 TextButton(onClick = { selectedDateToDelete = null }) { Text("취소") }
+            }
+        )
+    }
+
+    if (showWithdrawConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showWithdrawConfirmDialog = false },
+            title = { Text("회원탈퇴 재확인") },
+            text = { Text("진짜 회원탈퇴를 진행하시겠습니까?\n이 작업은 절대 되돌릴 수 없으며, 모든 정산 기록 및 신체 정보가 완전히 영구 삭제됩니다.") },
+            confirmButton = {
+                val context = LocalContext.current
+                TextButton(
+                    onClick = {
+                        showWithdrawConfirmDialog = false
+                        loadingMessage = "회원탈퇴 처리 중..."
+
+                        // ViewModel 탈퇴 로직 호출 (로컬 DB 및 Firestore 일괄 삭제 수행)
+                        mainViewModel.withdrawAccount(context) { success ->
+                            loadingMessage = null
+                            if (success) {
+                                onNavigateToLogin()
+                            }
+                        }
+                    }
+                ) {
+                    Text("진짜 탈퇴하기", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showWithdrawConfirmDialog = false }) { Text("취소") }
             }
         )
     }
@@ -278,7 +310,12 @@ fun MainScreen(
                         }
 
                         // 회원탈퇴 버튼
-                        TextButton(onClick = { /* 탈퇴 로직 호출 */ showSheet = false }) {
+                        TextButton(
+                            onClick = {
+                                showSheet = false // 바텀시트를 먼저 닫아 UI 유연성 확보
+                                showWithdrawConfirmDialog = true
+                            },
+                        ) {
                             Text("회원탈퇴", color = MaterialTheme.colorScheme.error)
                         }
                     }
