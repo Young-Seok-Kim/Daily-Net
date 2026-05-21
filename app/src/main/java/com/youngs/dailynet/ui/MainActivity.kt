@@ -82,7 +82,6 @@ class MainActivity : ComponentActivity() {
                                     mainViewModel = mainViewModel,
                                     onBack = {
                                         currentScreen = "main"
-                                        mainViewModel.loadTodayDraft() // 다시 메인으로 올 땐 오늘 데이터로 복구
                                     },
                                     isReadOnly = true
                                 )
@@ -92,7 +91,9 @@ class MainActivity : ComponentActivity() {
                                 MainScreen(
                                     mainViewModel = mainViewModel,
                                     onNavigateToInput = {
-                                        mainViewModel.loadTodayDraft() // 오늘 날짜 로드 후 이동
+//                                        mainViewModel.prepareNewSettlement()
+//                                        mainViewModel.resetStateForNewInput()
+                                        mainViewModel.loadOrCreateTodayDraft() // 오늘 날짜 로드 후 이동
                                         currentScreen = "input"
                                     },
                                     onNavigateToDetail = { date ->

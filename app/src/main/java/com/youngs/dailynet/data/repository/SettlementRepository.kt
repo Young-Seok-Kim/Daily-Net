@@ -76,11 +76,11 @@ class SettlementRepository @Inject constructor(
     }
 
     suspend fun getSettlementByDate(date: String): SettlementModel? {
-        val localData = settlementDao.getSettlementByDate(date)
+        val localData = settlementDao.getSettlementByDate(date) // room에서 먼저 데이터를 가져옴
         if (localData != null) return localData
 
         return try {
-            val snapshot = userSettlementsCollection.document(date).get().await()
+            val snapshot = userSettlementsCollection.document(date).get().await() // room에서 가져온 데이터가 없으면 firebase에서 가져옴
             snapshot.toObject(SettlementModel::class.java)
         } catch (e: Exception) {
             null
