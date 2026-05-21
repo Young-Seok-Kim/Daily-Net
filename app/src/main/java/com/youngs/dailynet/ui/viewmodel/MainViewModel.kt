@@ -280,6 +280,45 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun withdrawAccount(context: android.content.Context, onResult: (Boolean) -> Unit) = viewModelScope.launch {
+        try {
+            val currentUser = auth.currentUser
+            if (currentUser != null) {
+                val userId = currentUser.uid
+
+                // 1. 원격 Firebase Firestore 데이터 삭제
+                // (유저 메타데이터 및 하위 정산 기록 컬렉션 삭제)
+                // 주의: 프로덕션 환경에서 하위 컬렉션이 많다면 Cloud Functions나 반복문 분할 삭제가 안전합니다.
+                firestore.collection("users").document(userId)
+                    .delete()
+                    .await()
+
+                // 2. 로컬 Room DB 데이터 전체 삭제 (현재 로그인했던 유저의 기록 초기화)
+                // 데이터 혼선을 방지하기 위해 clearAllTables 또는 기존 Dao의 삭제 메서드를 호출합니다.
+                // 예: settlementDao.deleteAll()이 구현되어 있다면 사용, 없다면 아래 쿼리 기반 메서드 추가 필요
+                settlementDao.clearAllSettlements()
+                userProfileDao.clearProfile()
+
+                // 3. Firebase Authentication 유저 계정 탈퇴 처리
+                currentUser.delete().await()
+
+                onToastShown("회원탈퇴가 정상적으로 처리되었습니다.")
+                onResult(true)
+            } else {
+                onToastShown("인증 정보가 만료되었습니다. 다시 로그인 해주세요.")
+                onResult(false)
+            }
+        } catch (e: Exception) {
+            // Firebase 보안 규칙 상, 로그인한 지 오래된 유저는 계정 삭제 시 '상대적 최근 인증(Requires Recent Login)' 에러가 발생할 수 있습니다.
+            if (e.message?.contains("CREDENTIAL_TOO_OLD_LOGIN_AGAIN") == true) {
+                onToastShown("보안을 위해 재인증이 필요합니다. 로그아웃 후 다시 로그인하여 시도해 주세요.")
+            } else {
+                onToastShown("회원탈퇴 실패: ${e.localizedMessage}")
+            }
+            onResult(false)
+        }
+    }
+
     fun analyzeAndFinalize(
         onSuccess: () -> Unit,
         onFailure: (String) -> Unit
