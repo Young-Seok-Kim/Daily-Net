@@ -2,6 +2,7 @@ package com.youngs.dailynet.ui.view
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -12,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -29,7 +31,9 @@ fun SettlementScreen(
 
     val uiState by mainViewModel.uiState.collectAsState()
     val context = LocalContext.current
+
     Box(modifier = Modifier.fillMaxSize()) {
+
         LaunchedEffect(mainViewModel.toastMessage) {
             mainViewModel.toastMessage?.let { message ->
                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()

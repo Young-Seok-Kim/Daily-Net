@@ -44,6 +44,9 @@ class MainViewModel @Inject constructor(
     private val _isMale = MutableStateFlow(true)
     val isMale = _isMale.asStateFlow()
 
+    private val _isLoggingOut = MutableStateFlow(false)
+    val isLoggingOut = _isLoggingOut.asStateFlow() // 외부에서는 읽기만 가능
+
     var cachedWeight: Float = 0f
 
     fun setGender(isMale: Boolean) {
@@ -144,8 +147,6 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // 💡 [구조 수정] 만약 룸 DB가 완벽히 연동되게 하려면 repository 내부에서 룸 Flow를 반환하도록 고쳐야 합니다.
-    // 임시로 우선 기존 파이프라인을 유지하되, 전체 정산 리스트 동기화 로직(Sync)이 리포지토리에 구현되어 있어야 양쪽 개수가 맞습니다.
     val allSettlements: StateFlow<List<SettlementModel>> = repository.getAllSettlementsRoom()
         .stateIn(
             scope = viewModelScope,
@@ -262,6 +263,23 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun deleteSettlement(date: String) = viewModelScope.launch {
+        try {
+            // 1. Room 삭제
+            settlementDao.deleteByDate(date)
+
+            // 2. Firebase 삭제 (Firestore 경로에 맞게 작성)
+            val userId = auth.currentUser?.uid ?: return@launch
+            firestore.collection("users").document(userId)
+                .collection("settlements").document(date)
+                .delete()
+                .await()
+            onToastShown("정산 기록이 삭제 되었습니다.")
+        } catch (e: Exception) {
+            onToastShown("삭제 실패: ${e.message}")
+        }
+    }
+
     fun analyzeAndFinalize(
         onSuccess: () -> Unit,
         onFailure: (String) -> Unit
@@ -295,8 +313,6 @@ class MainViewModel @Inject constructor(
             }
         }
     }
-    private val _isLoggingOut = MutableStateFlow(false)
-    val isLoggingOut = _isLoggingOut.asStateFlow() // 외부에서는 읽기만 가능
 
     fun logout(context: Context, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
