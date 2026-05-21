@@ -1,5 +1,6 @@
 package com.youngs.dailynet.data.network
 
+import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.model.AnalysisRequest
 import com.youngs.dailynet.data.model.AnalysisResponse
 import com.youngs.dailynet.data.model.SettlementModel
@@ -14,15 +15,20 @@ class GeminiManager @Inject constructor(
 ) {
     suspend fun analyzeFoodAndExercise(
         settlement: SettlementModel,
-        userHeight: Float,
-        isMale: Boolean
+        userProfile: UserProfileEntity,
     ): AnalysisResponse? {
         return withContext(Dispatchers.IO) {
             try {
+                val sendWeight = if (settlement.currentWeight == 0f) {
+                    userProfile.initialWeight
+                } else {
+                    settlement.currentWeight
+                }
+
                 val request = AnalysisRequest(
-                    weight = settlement.currentWeight,
-                    height = userHeight,
-                    isMale = isMale,
+                    weight = sendWeight,
+                    height = userProfile.height,
+                    isMale = userProfile.isMale,
                     breakfast = settlement.breakfast,
                     lunch = settlement.lunch,
                     dinner = settlement.dinner,

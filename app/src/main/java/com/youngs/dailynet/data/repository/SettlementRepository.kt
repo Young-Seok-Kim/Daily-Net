@@ -4,7 +4,9 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.snapshots
+import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.local.entity.dao.SettlementDao
+import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
 import com.youngs.dailynet.data.model.SettlementModel
 import com.youngs.dailynet.data.network.GeminiManager
 import kotlinx.coroutines.flow.Flow
@@ -56,9 +58,9 @@ class SettlementRepository @Inject constructor(
         }
     }
 
-    suspend fun analyzeAndSave(settlement: SettlementModel, userHeight: Float): SettlementModel {
+    suspend fun analyzeAndSave(settlement: SettlementModel, userProfile: UserProfileEntity): SettlementModel {
         val analysisResponse =
-            geminiManager.analyzeFoodAndExercise(settlement, userHeight, settlement.isMale)
+            geminiManager.analyzeFoodAndExercise(settlement, userProfile)
                 ?: throw Exception("서버 분석 중 오류가 발생했습니다.")
 
 
