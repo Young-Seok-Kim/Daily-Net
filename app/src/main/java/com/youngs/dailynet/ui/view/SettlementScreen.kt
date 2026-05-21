@@ -24,7 +24,7 @@ import com.youngs.dailynet.ui.viewmodel.MainViewModel
 fun SettlementScreen(
     mainViewModel: MainViewModel,
     onBack: () -> Unit,
-    isReadOnly: Boolean = false, // 💡 1. 읽기 전용 모드 파라미터 추가
+    isReadOnly: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     BackHandler(onBack = onBack)

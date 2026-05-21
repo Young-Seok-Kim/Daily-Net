@@ -60,13 +60,6 @@ fun getWeekOfMonthText(dateString: String): String {
     }
 }
 
-fun calculateWeeklyCalories(settlements: List<SettlementModel>, targetWeekId: Int): Int {
-    return settlements
-        .filter { getWeekIdentifier(it.date) == targetWeekId }
-        .sumOf { it.netCalories }
-}
-
-
 fun getDayOfWeekText(dateString: String): String {
     return try {
         val date =

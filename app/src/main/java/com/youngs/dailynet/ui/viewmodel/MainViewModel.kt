@@ -195,40 +195,34 @@ class MainViewModel @Inject constructor(
     fun onToastShown() { toastMessage = null }
 
     init {
-//        loadOrCreateTodayDraft()
+        initializeTodayData()
     }
 
-    /**
-     * [로직 보정] 최초 진입 시점에만 가장 최근 몸무게를 깔끔하게 자동 주입합니다.
-     */
-    fun loadOrCreateTodayDraft() = viewModelScope.launch {
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+    fun initializeTodayData() = viewModelScope.launch {
+        try {
+            // 1. 먼저 최근 몸무게를 DB에서 확실하게 가져와 cachedWeight를 채웁니다.
+            val latestWeight = repository.getLatestWeight()
+            cachedWeight = latestWeight
 
-        // 1. 이미 저장된 데이터가 있는지 확인
-        val savedDraft = repository.getSettlementByDate(today)
+            // 2. 최근 몸무게 조회가 완전히 '끝난 후'에 오늘치 초안 생성을 시작합니다.
+            val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            val savedDraft = repository.getSettlementByDate(today)
 
-        if (savedDraft != null) {
-            // 💡 오늘치 데이터가 있으면 그걸 바로 적용
-            _uiState.value = savedDraft
-            cachedWeight = savedDraft.currentWeight
-        } else {
-            // 💡 없으면 몸무게만 채운 빈 모델을 즉시 생성
-            _uiState.value = SettlementModel(
-                date = today,
-                weight = 0f,
-                currentWeight = cachedWeight,
-                breakfast = "",
-                lunch = "",
-                dinner = "",
-                snack = "",
-                exercise = "",
-                remark = "",
-                analysisResult = "",
-                netCalories = 0,
-                hasExercise = false,
-                finalized = false,
-                analyzing = false
-            )
+            if (savedDraft != null) {
+                _uiState.value = savedDraft
+                cachedWeight = savedDraft.currentWeight
+            } else {
+                // 이제 위에서 보장된 cachedWeight가 안전하게 주입됩니다.
+                _uiState.value = SettlementModel(
+                    date = today,
+                    weight = 0f,
+                    currentWeight = cachedWeight,
+                    breakfast = "", lunch = "", dinner = "", snack = "", exercise = "", remark = "",
+                    analysisResult = "", netCalories = 0, hasExercise = false, finalized = false, analyzing = false
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
