@@ -18,9 +18,8 @@ exports.analyzeDiet = onRequest({
         } = req.body;
 
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        // 모델 2.5 Flash 설정
         const model = genAI.getGenerativeModel({
-            model: "gemini-2.5-flash",
+            model: "gemini-2.5-flash-lite",
             generationConfig: { responseMimeType: "application/json" }
         });
 

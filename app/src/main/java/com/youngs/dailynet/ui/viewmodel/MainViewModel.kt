@@ -44,6 +44,8 @@ class MainViewModel @Inject constructor(
     private val _isMale = MutableStateFlow(true)
     val isMale = _isMale.asStateFlow()
 
+    var cachedWeight: Float = 0f
+
     fun setGender(isMale: Boolean) {
         _isMale.value = isMale
     }
@@ -87,7 +89,8 @@ class MainViewModel @Inject constructor(
                 _uiState.update { it.copy(weight = weight, currentWeight = weight) } // 💡 진입 시점 일치를 위해 currentWeight도 세팅
             } catch (e: Exception) {
                 e.printStackTrace()
-                toastMessage = "프로필 저장 실패: ${e.message}"
+                val ToastMessage = "프로필 저장 실패: ${e.message}"
+                onToastShown(ToastMessage)
             }
         }
     }
@@ -131,8 +134,6 @@ class MainViewModel @Inject constructor(
 
                     _isMale.value = isMale
                     showProfileDialog = false
-
-                    loadTodayDraft()
                 } else {
                     showProfileDialog = true
                 }
@@ -175,7 +176,6 @@ class MainViewModel @Inject constructor(
     var toastMessage by mutableStateOf<String?>(null)
         private set
 
-    // MainViewModel.kt
     val weeklyCaloriesMap: StateFlow<Map<Int, Int>> = allSettlements
         .map { list ->
             list.groupBy { getWeekIdentifier(it.date) }
@@ -193,28 +193,40 @@ class MainViewModel @Inject constructor(
     fun onToastShown() { toastMessage = null }
 
     init {
-        loadTodayDraft()
+//        loadOrCreateTodayDraft()
     }
 
     /**
      * [로직 보정] 최초 진입 시점에만 가장 최근 몸무게를 깔끔하게 자동 주입합니다.
      */
-    fun loadTodayDraft() = viewModelScope.launch {
+    fun loadOrCreateTodayDraft() = viewModelScope.launch {
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+
+        // 1. 이미 저장된 데이터가 있는지 확인
         val savedDraft = repository.getSettlementByDate(today)
 
-        val latestWeight = settlementDao.getLatestWeight()
-        val profile = userProfileDao.getProfile()
-        val defaultWeight = latestWeight ?: profile?.initialWeight ?: 0f
-
         if (savedDraft != null) {
+            // 💡 오늘치 데이터가 있으면 그걸 바로 적용
             _uiState.value = savedDraft
-            // 기존 데이터는 있으나 현재 체중 기록만 0인 경우 방어 코드
-            if (savedDraft.currentWeight == 0f && defaultWeight > 0f) {
-                _uiState.update { it.copy(currentWeight = defaultWeight, weight = defaultWeight) }
-            }
+            cachedWeight = savedDraft.currentWeight
         } else {
-            // 💡 오늘 자 새로운 정산 작성이면 최초 진입할 때 룸의 최근 몸무게를 currentWeight에 미리 꽂아줍니다.
-            _uiState.update { it.copy(weight = defaultWeight, currentWeight = defaultWeight) }
+            // 💡 없으면 몸무게만 채운 빈 모델을 즉시 생성
+            _uiState.value = SettlementModel(
+                date = today,
+                weight = 0f,
+                currentWeight = cachedWeight,
+                breakfast = "",
+                lunch = "",
+                dinner = "",
+                snack = "",
+                exercise = "",
+                remark = "",
+                analysisResult = "",
+                netCalories = 0,
+                hasExercise = false,
+                finalized = false,
+                analyzing = false
+            )
         }
     }
 
@@ -267,14 +279,17 @@ class MainViewModel @Inject constructor(
                     userHeight
                 )
                 _uiState.update { analyzedData.copy(analyzing = false) }
-                toastMessage = "분석 및 저장이 완료되었습니다."
+                val savedWeight = _uiState.value.currentWeight
+                cachedWeight = savedWeight
+                onToastShown("분석 및 저장이 완료되었습니다.")
 
                 // 💡 여기서만 화면 이동(onSuccess) 실행
                 onSuccess()
             } catch (e: Exception) {
                 _uiState.update { it.copy(analyzing = false) }
-                toastMessage = "오류 발생: ${e.message}"
 
+                val ToastMessage = "오류 발생: ${e.message}"
+                onToastShown(ToastMessage)
                 // 💡 실패 시 화면 이동 없이 현재 데이터 유지(onFailure 호출)
                 onFailure(e.message ?: "알 수 없는 오류")
             }
@@ -282,6 +297,7 @@ class MainViewModel @Inject constructor(
     }
     private val _isLoggingOut = MutableStateFlow(false)
     val isLoggingOut = _isLoggingOut.asStateFlow() // 외부에서는 읽기만 가능
+
     fun logout(context: Context, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
             try {
@@ -312,5 +328,10 @@ class MainViewModel @Inject constructor(
                 _isLoggingOut.value = false
             }
         }
+    }
+    // 토스트를 보여준 후 반드시 호출해야 함
+    fun onToastShown(message : String) {
+        toastMessage = message
+        toastMessage = null
     }
 }
