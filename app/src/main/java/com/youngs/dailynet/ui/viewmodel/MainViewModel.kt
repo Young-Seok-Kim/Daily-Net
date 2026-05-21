@@ -61,7 +61,7 @@ class MainViewModel @Inject constructor(
 
     private val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
-    fun saveInitialProfile(height: Float, weight: Float, isMale: Boolean, birthDate: String) {
+    fun saveInitialProfile(googleName : String, height: Float, weight: Float, isMale: Boolean, birthDate: String) {
         val uid = currentUserId ?: return
 
         viewModelScope.launch {
@@ -69,6 +69,7 @@ class MainViewModel @Inject constructor(
                 val timestamp = System.currentTimeMillis()
 
                 val serverProfile = mapOf(
+                    "googleName " to googleName,
                     "height" to height,
                     "initialWeight" to weight,
                     "isMale" to isMale,

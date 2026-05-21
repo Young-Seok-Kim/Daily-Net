@@ -20,7 +20,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -173,8 +172,8 @@ fun MainScreen(
     // ✨ 프로필(키/체중)이 없을 경우 팝업 표시
     if (mainViewModel.showProfileDialog) {
         ProfileSetupDialog(
-            onConfirm = { height, weight, isMale, birthDate ->
-                mainViewModel.saveInitialProfile(height, weight, isMale, birthDate)
+            onConfirm = { googleName, height, weight, isMale, birthDate ->
+                mainViewModel.saveInitialProfile(googleName, height, weight, isMale, birthDate)
             }
         )
     }
@@ -382,7 +381,12 @@ fun WeekDivider(headerText: String, weeklyCalories: Int) {
  */
 @Composable
 fun ProfileSetupDialog(
-    onConfirm: (height: Float, weight: Float, isMale: Boolean, birthDate: String) -> Unit
+    onConfirm: (googleName: String,
+                height: Float,
+                weight: Float,
+                isMale: Boolean,
+                birthDate: String
+            ) -> Unit
 ) {
     var birthDateText by remember { mutableStateOf("2000-01-01") } // 기본값
     var heightText by remember { mutableStateOf("") }
@@ -487,9 +491,10 @@ fun ProfileSetupDialog(
                 onClick = {
                     val h = heightText.toFloatOrNull() ?: 0f
                     val w = weightText.toFloatOrNull() ?: 0f
+                    val googleName = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.displayName ?: "사용자"
                     // 날짜 형식이 최소한의 형태를 갖췄는지 체크
                     if (h > 0f && w > 0f && birthDateText.contains("-")) {
-                        onConfirm(h, w, selectedIsMale, birthDateText)
+                        onConfirm(googleName, h, w, selectedIsMale, birthDateText)
                     }
                 },
                 // 모든 필드가 채워졌을 때만 버튼 활성화

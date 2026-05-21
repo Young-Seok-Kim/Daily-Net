@@ -51,8 +51,10 @@ class AuthViewModel @Inject constructor(
                 signInResult.addOnCompleteListener { task ->
                     if (task.isSuccessful) {
                         _user.value = auth.currentUser
+                        android.util.Log.d("AuthViewModel", "구글 로그인 유저 이름: ${auth.currentUser?.displayName}")
                     }
                 }
+
                 onResult(true)
             } catch (e: Exception) {
                 e.printStackTrace()
