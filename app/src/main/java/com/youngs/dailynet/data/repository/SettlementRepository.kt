@@ -6,7 +6,6 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.snapshots
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.local.entity.dao.SettlementDao
-import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
 import com.youngs.dailynet.data.model.SettlementModel
 import com.youngs.dailynet.data.network.GeminiManager
 import kotlinx.coroutines.flow.Flow
@@ -87,6 +86,10 @@ class SettlementRepository @Inject constructor(
         } catch (e: Exception) {
             null
         }
+    }
+    suspend fun getLatestWeight(): Float {
+        val latestWeight = settlementDao.getLatestWeight()
+        return latestWeight ?: 0f
     }
 
     suspend fun clearAllLocalData() {

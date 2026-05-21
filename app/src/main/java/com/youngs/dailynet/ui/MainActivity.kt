@@ -38,9 +38,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             DailyNetTheme {
                 val user by authViewModel.user.collectAsState()
+                val mainViewModel: MainViewModel = hiltViewModel()
 
                 var currentScreen by remember { mutableStateOf("main") } // "main", "input", "detail"
                 var selectedDate by remember { mutableStateOf("") }     // 상세 화면에 넘겨줄 날짜
+
+                mainViewModel.initializeTodayData()
 
                 LaunchedEffect(user) {
                     if (user == null) {
@@ -59,11 +62,11 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.Companion.padding(innerPadding)
                         )
                     } else {
-                        val mainViewModel: MainViewModel = hiltViewModel()
-
                         when (currentScreen) {
 
                             "input" -> {
+                                mainViewModel.initializeTodayData()
+
                                 SettlementScreen(
                                     mainViewModel = mainViewModel,
                                     onBack = { currentScreen = "main" },
@@ -91,9 +94,7 @@ class MainActivity : ComponentActivity() {
                                 MainScreen(
                                     mainViewModel = mainViewModel,
                                     onNavigateToInput = {
-//                                        mainViewModel.prepareNewSettlement()
-//                                        mainViewModel.resetStateForNewInput()
-                                        mainViewModel.loadOrCreateTodayDraft() // 오늘 날짜 로드 후 이동
+                                        mainViewModel.initializeTodayData()
                                         currentScreen = "input"
                                     },
                                     onNavigateToDetail = { date ->
