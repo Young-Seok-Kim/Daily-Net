@@ -27,10 +27,27 @@ fun SettlementScreen(
     isReadOnly: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    BackHandler(onBack = onBack)
+    BackHandler(enabled = true) {
+        mainViewModel.clearTodayDraft()
+        onBack()
+    }
 
     val uiState by mainViewModel.uiState.collectAsState()
     val context = LocalContext.current
+
+    var weightInput by remember { mutableStateOf("") }
+
+    LaunchedEffect(uiState.currentWeight) {
+        // 사용자가 타이핑 중인 게 아니고, DB 등에서 가져온 값이 0이 아닐 때만 텍스트 입력창 초기화
+        if (weightInput.isEmpty() && uiState.currentWeight > 0f) {
+            // 소수점 아래가 0이면 정수형태로, 아니면 소수점 그대로 노출
+            weightInput = if (uiState.currentWeight % 1f == 0f) {
+                uiState.currentWeight.toInt().toString()
+            } else {
+                uiState.currentWeight.toString()
+            }
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
 
@@ -72,9 +89,14 @@ fun SettlementScreen(
                     }
 
                     OutlinedTextField(
-                        // 0f(다 지운 상태)면 빈칸을 보여주고, 값이 있으면 소수점 그대로 노출
-                        value = if (uiState.currentWeight == 0f) "" else uiState.currentWeight.toString(),
-                        onValueChange = { mainViewModel.updateField("currentWeight", it) },
+                        value = weightInput, // 👈 임시 변수를 꽂아 유저가 타이핑한 흐름을 그대로 유지시킵니다.
+                        onValueChange = { text ->
+                            // 숫자와 소수점 하나만 입력 가능하도록 필터링 (잘못된 입력 방지)
+                            if (text.isEmpty() || text.matches(Regex("""^\d*\.?\d*$"""))) {
+                                weightInput = text
+                                mainViewModel.updateField("currentWeight", text) // ViewModel에는 실시간 파싱 전달
+                            }
+                        },
                         label = { Text("현재 체중 (kg)") },
                         placeholder = { Text("예: 75.5") },
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -82,7 +104,6 @@ fun SettlementScreen(
                         singleLine = true,
                         enabled = !isReadOnly
                     )
-
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
                     mainViewModel.categoryList.forEach { category ->
