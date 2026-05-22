@@ -57,6 +57,7 @@ fun SettlementScreen(
                 mainViewModel.onToastShown()
 
                 if (message.contains("완료")) {
+                    mainViewModel.clearTodayDraft()
                     onBack()
                 }
             }
@@ -134,8 +135,8 @@ fun SettlementScreen(
                         Button(
                             onClick = {
                                 mainViewModel.analyzeAndFinalize(
-                                    onSuccess = { onBack() },
-                                    onFailure = { /* 토스트로 처리됨 */ }
+                                    onSuccess = { },
+                                    onFailure = { }
                                 )
                             },
                             modifier = Modifier.fillMaxWidth().height(50.dp),

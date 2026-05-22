@@ -6,7 +6,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -18,12 +17,19 @@ import com.youngs.dailynet.data.repository.SettlementRepository
 import com.youngs.dailynet.ui.view.getWeekIdentifier
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 
 data class CategoryInfo(
@@ -39,7 +45,7 @@ class MainViewModel @Inject constructor(
     private val userProfileDao: UserProfileDao,
     private val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore
-) : ViewModel() {
+) : BaseViewModel() {
 
     private val _isMale = MutableStateFlow(true)
     val isMale = _isMale.asStateFlow()
@@ -93,8 +99,8 @@ class MainViewModel @Inject constructor(
                 _uiState.update { it.copy(weight = weight, currentWeight = weight) } // 💡 진입 시점 일치를 위해 currentWeight도 세팅
             } catch (e: Exception) {
                 e.printStackTrace()
-                val ToastMessage = "프로필 저장 실패: ${e.message}"
-                onToastShown(ToastMessage)
+                showToast("프로필 저장 실패: ${e.message}")
+
             }
         }
     }
@@ -175,9 +181,6 @@ class MainViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(SettlementModel(date = today))
     val uiState = _uiState.asStateFlow()
 
-    var toastMessage by mutableStateOf<String?>(null)
-        private set
-
     val weeklyCaloriesMap: StateFlow<Map<Int, Int>> = allSettlements
         .map { list ->
             list.groupBy { getWeekIdentifier(it.date) }
@@ -191,8 +194,6 @@ class MainViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyMap()
         )
-
-    fun onToastShown() { toastMessage = null }
 
     init {
         initializeTodayData()
@@ -269,9 +270,9 @@ class MainViewModel @Inject constructor(
                 .collection("settlements").document(date)
                 .delete()
                 .await()
-            onToastShown("정산 기록이 삭제 되었습니다.")
+            showToast("정산 기록이 삭제 되었습니다.")
         } catch (e: Exception) {
-            onToastShown("삭제 실패: ${e.message}")
+            showToast("삭제 실패: ${e.message}")
         }
     }
 
@@ -297,18 +298,18 @@ class MainViewModel @Inject constructor(
                 // 3. Firebase Authentication 유저 계정 탈퇴 처리
                 currentUser.delete().await()
 
-                onToastShown("회원탈퇴가 정상적으로 처리되었습니다.")
+                showToast("회원탈퇴가 정상적으로 처리되었습니다.")
                 onResult(true)
             } else {
-                onToastShown("인증 정보가 만료되었습니다. 다시 로그인 해주세요.")
+                showToast("인증 정보가 만료되었습니다. 다시 로그인 해주세요.")
                 onResult(false)
             }
         } catch (e: Exception) {
             // Firebase 보안 규칙 상, 로그인한 지 오래된 유저는 계정 삭제 시 '상대적 최근 인증(Requires Recent Login)' 에러가 발생할 수 있습니다.
             if (e.message?.contains("CREDENTIAL_TOO_OLD_LOGIN_AGAIN") == true) {
-                onToastShown("보안을 위해 재인증이 필요합니다. 로그아웃 후 다시 로그인하여 시도해 주세요.")
+                showToast("보안을 위해 재인증이 필요합니다. 로그아웃 후 다시 로그인하여 시도해 주세요.")
             } else {
-                onToastShown("회원탈퇴 실패: ${e.localizedMessage}")
+                showToast("회원탈퇴 실패: ${e.localizedMessage}")
             }
             onResult(false)
         }
@@ -324,7 +325,6 @@ class MainViewModel @Inject constructor(
 
             try {
                 val profile = userProfileDao.getProfile() ?: throw Exception("유저 프로필 정보가 없습니다. 설정을 먼저 완료해주세요.")
-                val userHeight = profile.height
 
                 val analyzedData = repository.analyzeAndSave(
                     currentState.copy(isMale = _isMale.value),
@@ -333,15 +333,14 @@ class MainViewModel @Inject constructor(
                 _uiState.update { analyzedData.copy(analyzing = false) }
                 val savedWeight = _uiState.value.currentWeight
                 cachedWeight = savedWeight
-                onToastShown("분석 및 저장이 완료되었습니다.")
+                showToast("분석 및 저장이 완료되었습니다.")
 
-                clearTodayDraft()
-                onSuccess()
+//                clearTodayDraft()
+//                onSuccess()
             } catch (e: Exception) {
                 _uiState.update { it.copy(analyzing = false) }
 
-                val ToastMessage = "오류 발생: ${e.message}"
-                onToastShown(ToastMessage)
+                showToast("오류 발생: ${e.message}")
                 // 💡 실패 시 화면 이동 없이 현재 데이터 유지(onFailure 호출)
                 onFailure(e.message ?: "알 수 없는 오류")
             }
@@ -399,10 +398,5 @@ class MainViewModel @Inject constructor(
                 _isLoggingOut.value = false
             }
         }
-    }
-    // 토스트를 보여준 후 반드시 호출해야 함
-    fun onToastShown(message : String) {
-        toastMessage = message
-        toastMessage = null
     }
 }
