@@ -334,9 +334,6 @@ class MainViewModel @Inject constructor(
                 val savedWeight = _uiState.value.currentWeight
                 cachedWeight = savedWeight
                 showToast("분석 및 저장이 완료되었습니다.")
-
-//                clearTodayDraft()
-//                onSuccess()
             } catch (e: Exception) {
                 _uiState.update { it.copy(analyzing = false) }
 
