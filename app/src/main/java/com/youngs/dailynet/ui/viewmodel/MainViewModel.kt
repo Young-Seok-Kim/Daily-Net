@@ -335,6 +335,7 @@ class MainViewModel @Inject constructor(
                 cachedWeight = savedWeight
                 onToastShown("분석 및 저장이 완료되었습니다.")
 
+                clearTodayDraft()
                 onSuccess()
             } catch (e: Exception) {
                 _uiState.update { it.copy(analyzing = false) }
@@ -345,6 +346,27 @@ class MainViewModel @Inject constructor(
                 onFailure(e.message ?: "알 수 없는 오류")
             }
         }
+    }
+
+    fun clearTodayDraft() {
+        // 오늘의 정산을 새로 입력할때
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        _uiState.value = SettlementModel(
+            date = today,
+            weight = 0f,
+            currentWeight = cachedWeight, // 기존에 저장해 둔 최근 몸무게만 유지
+            breakfast = "",
+            lunch = "",
+            dinner = "",
+            snack = "",
+            exercise = "",
+            remark = "",
+            analysisResult = "",
+            netCalories = 0,
+            hasExercise = false,
+            finalized = false,
+            analyzing = false
+        )
     }
 
     fun logout(context: Context, onResult: (Boolean) -> Unit) {
