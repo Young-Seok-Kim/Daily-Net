@@ -201,6 +201,8 @@ class MainViewModel @Inject constructor(
 
     fun initializeTodayData() = viewModelScope.launch {
         try {
+            if (_uiState.value.analyzing) return@launch
+
             // 1. 먼저 최근 몸무게를 DB에서 확실하게 가져와 cachedWeight를 채웁니다.
             val latestWeight = repository.getLatestWeight()
             cachedWeight = latestWeight

@@ -35,6 +35,13 @@ fun SettlementScreen(
     val uiState by mainViewModel.uiState.collectAsState()
     val context = LocalContext.current
 
+    BackHandler(enabled = true) {
+        if (!uiState.analyzing) {
+            mainViewModel.clearTodayDraft()
+        }
+        onBack()
+    }
+
     var weightInput by remember { mutableStateOf("") }
 
     LaunchedEffect(uiState.currentWeight) {
