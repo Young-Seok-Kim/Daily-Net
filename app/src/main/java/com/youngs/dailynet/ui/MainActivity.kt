@@ -86,7 +86,7 @@ class MainActivity : ComponentActivity() {
                                     onBack = {
                                         currentScreen = "main"
                                     },
-                                    isReadOnly = true
+                                    isReadOnly = false
                                 )
                             }
 
