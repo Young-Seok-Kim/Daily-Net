@@ -1,6 +1,6 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-
+// 서버 배포 명령어 : firebase deploy --only functions
 exports.analyzeDiet = onRequest({
     region: "asia-northeast3",
     cors: true,
@@ -42,6 +42,7 @@ const prompt = `
       - '닭가슴살 1개(100g)'는 반드시 110~160kcal 사이로 계산하세요.
        - 양이 명시되지 않았다면 성인 1인분(표준 중량)을 기준으로 하되, 터무니없는 고칼로리(예: 닭가슴살 500kcal) 산출을 절대 금지합니다.
        - 메뉴명이 아닌 식당이름을 명시했을경우 해당 식당에서 사용자가 먹은 메뉴를 예상하여 예상한 메뉴를 기준으로 칼로리를 계산하십시오.
+       - 사용자가 비고 혹은 운동에 도보를 명시했을경우 사용자의 키, 몸무게에 따른 소모 칼로리를에 추가하여 계산하십시오.
     2. **단계별 사고(Chain of Thought)**: 내부적으로 [메뉴명 -> 예상 중량(g) -> 100g당 칼로리 -> 최종 칼로리] 단계를 거쳐 계산한 뒤 결과값만 JSON에 담으세요.
     3. **전문적 묘사**: 'descriptions'에는 해당 식단의 [장점/단점/개선점]을 탄단지 비율을 포함하여 20자 내외로 코멘트하세요.
     4. **종합 평가**: 사용자의 BMR과 활동량을 고려하여, 현재 식단이 체중 감량에 미치는 영향을 영양학적으로 평가하세요.
