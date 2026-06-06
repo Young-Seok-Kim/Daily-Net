@@ -40,3 +40,9 @@ Thumbs.db
 
 # [Kotlin / 기타]
 .kotlin/
+
+# [Android Root - 실수로 생성된 Node 파일 방지]
+/node_modules/
+/package.json
+/package-lock.json
+
