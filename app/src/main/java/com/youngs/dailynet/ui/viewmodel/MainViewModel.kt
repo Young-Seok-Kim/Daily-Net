@@ -1,6 +1,7 @@
 package com.youngs.dailynet.ui.viewmodel
 
 import android.content.Context
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -46,6 +47,8 @@ class MainViewModel @Inject constructor(
     private val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore
 ) : BaseViewModel() {
+
+    val mainListState = LazyListState()
 
     private val _isMale = MutableStateFlow(true)
     val isMale = _isMale.asStateFlow()
