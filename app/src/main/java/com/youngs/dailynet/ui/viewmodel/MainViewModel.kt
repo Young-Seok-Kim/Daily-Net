@@ -50,6 +50,12 @@ class MainViewModel @Inject constructor(
 
     val mainListState = LazyListState()
 
+    private val _isPagingLoading = MutableStateFlow(false)
+    val isPagingLoading = _isPagingLoading.asStateFlow()
+
+    val isLastPageReached: Boolean
+        get() = repository.isLastPageReached
+
     private val _isMale = MutableStateFlow(true)
     val isMale = _isMale.asStateFlow()
 
@@ -118,6 +124,7 @@ class MainViewModel @Inject constructor(
                     showProfileDialog = false
                     _isMale.value = localProfile.isMale
 
+                    repository.resetPagingState()
                     repository.fetchAndSyncFromFirebase()
 
                     return@launch
@@ -143,6 +150,7 @@ class MainViewModel @Inject constructor(
                         )
                     )
 
+                    repository.resetPagingState()
                     repository.fetchAndSyncFromFirebase()
 
                     _isMale.value = isMale
@@ -153,6 +161,25 @@ class MainViewModel @Inject constructor(
             } catch (e: Exception) {
                 e.printStackTrace()
                 showProfileDialog = true
+            }
+        }
+    }
+
+    fun loadMoreSettlements() {
+        // 💡 1. 진입하자마자 '동기적'으로 즉시 상태를 검사하고 리턴합니다.
+        if (repository.isLastPageReached || _isPagingLoading.value) return
+
+        // 💡 2. 코루틴을 열기 전에 '즉시' 로딩 상태를 true로 잠가서 중복 연타를 원천 차단합니다.
+        _isPagingLoading.value = true
+
+        viewModelScope.launch {
+            try {
+                repository.fetchAndSyncFromFirebase()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                // 💡 3. 성공하든 에러가 나든 마지막엔 확실하게 락을 해제합니다.
+                _isPagingLoading.value = false
             }
         }
     }
