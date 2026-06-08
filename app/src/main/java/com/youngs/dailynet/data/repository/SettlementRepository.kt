@@ -1,6 +1,7 @@
 package com.youngs.dailynet.data.repository
 
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.snapshots
@@ -22,6 +23,12 @@ class SettlementRepository @Inject constructor(
     private val settlementDao: SettlementDao,
     private val appDatabase: com.youngs.dailynet.data.local.AppDatabase,
 ) {
+    private var lastVisibleDocument: DocumentSnapshot? = null
+    var isLastPageReached = false
+        private set
+
+    private val PAGE_SIZE = 20L
+
     private val userSettlementsCollection
         get() = firestore.collection("users")
             .document(auth.currentUser?.uid ?: "guest")
