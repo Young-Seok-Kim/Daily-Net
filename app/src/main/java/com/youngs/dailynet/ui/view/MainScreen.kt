@@ -108,6 +108,34 @@ fun MainScreen(
     var showLogoutLoading by remember { mutableStateOf(false) }
     var selectedDateToDelete by remember { mutableStateOf<String?>(null) }
     var showWithdrawConfirmDialog by remember { mutableStateOf(false) }
+    val isPagingLoading by mainViewModel.isPagingLoading.collectAsState()
+    val isLastPageReached = mainViewModel.isLastPageReached
+
+
+    val listState = mainViewModel.mainListState
+
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val layoutInfo = listState.layoutInfo
+            val totalItemsCount = layoutInfo.totalItemsCount
+            val lastVisibleItemIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+
+            // 💡 [해결]
+            // 1. 끝에서 2번째 인덱스에 도달했고
+            // 2. '현재 로딩 중이 아니며' (isPagingLoading == false)
+            // 3. '마지막 페이지도 아닐 때' (isLastPageReached == false)
+            // 세 조건이 모두 맞을 때만 true를 반환하여 중복 트리거를 원천 차단합니다.
+            totalItemsCount > 0 &&
+                    lastVisibleItemIndex >= (totalItemsCount - 2) &&
+                    !isPagingLoading &&
+                    !isLastPageReached
+        }
+    }
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore) {
+            mainViewModel.loadMoreSettlements()
+        }
+    }
 
     if (selectedDateToDelete != null) {
         AlertDialog(
@@ -249,14 +277,8 @@ fun MainScreen(
                     if (index == 0 || currentWeekId != getWeekIdentifier(settlements[index - 1].date)) {
                         WeekDivider(
                             headerText = weekDisplayText,
-                            weeklyCalories = totalWeeklyNet // 💡 여기에 합계 전달
+                            weeklyCalories = totalWeeklyNet
                         )
-                    } else {
-                        val previousWeekId = getWeekIdentifier(settlements[index - 1].date)
-                        if (currentWeekId != previousWeekId) {
-                            // 주차가 바뀌면 헤더 표시
-                            WeekDivider(headerText = weekDisplayText, totalWeeklyNet)
-                        }
                     }
 
                     SettlementHistoryItem(
@@ -264,6 +286,22 @@ fun MainScreen(
                         onClick = { onNavigateToDetail(item.date) },
                         onLongClick = { selectedDateToDelete = item.date }
                     )
+                }
+
+                if (isPagingLoading) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                        }
+                    }
+                }
+                item {
+                    Spacer(modifier = Modifier.height(80.dp))
                 }
             }
 
