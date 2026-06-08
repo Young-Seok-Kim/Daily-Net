@@ -27,7 +27,7 @@ class SettlementRepository @Inject constructor(
     var isLastPageReached = false
         private set
 
-    private val PAGE_SIZE = 5L
+    private val PAGE_SIZE = 7L
 
     private val userSettlementsCollection
         get() = firestore.collection("users")
