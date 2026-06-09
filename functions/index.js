@@ -47,6 +47,7 @@ const prompt = `
     3. **전문적 묘사**: 'descriptions'에는 해당 식단의 [장점/단점/개선점]을 탄단지 비율을 포함하여 20자 내외로 코멘트하세요.
     4. **종합 평가**: 사용자의 BMR과 활동량을 고려하여, 현재 식단이 체중 감량에 미치는 영향을 영양학적으로 평가하세요.
     5. **형식 엄수**: (이하 JSON 구조 동일)
+    - **주의**: 'calories' 객체 내부의 모든 값(breakfast, lunch, dinner, snack, exercise)은 부호(+, -)를 제외한 **순수 '양수(Positive Integer)' 숫자**로만 입력하세요. (예: 운동으로 400kcal 소모 시 -400이 아닌 400으로 입력)
     {
         "calories": {
             "breakfast": 0,
@@ -79,8 +80,10 @@ const prompt = `
 
         const bmr = Math.round(10 * weight + 6.25 * height - 5 * calculateAge(birthDate) + (isMale ? 5 : -161));
 
+        const exerciseCalories = Math.abs(data.calories.exercise || 0);
+
         const totalIn = (data.calories.breakfast || 0) + (data.calories.lunch || 0) + (data.calories.dinner || 0) + (data.calories.snack || 0);
-        const totalOut = bmr + (data.calories.exercise || 0);
+        const totalOut = bmr + exerciseCalories;
         const netCalories = totalIn - totalOut;
 
         const feedback = `
