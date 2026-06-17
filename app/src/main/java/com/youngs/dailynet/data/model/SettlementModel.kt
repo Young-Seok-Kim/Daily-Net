@@ -19,7 +19,6 @@ data class SettlementModel(
     // 💡 Firestore 필드명(exercise)과 일치시킴
     val exercise: String = "",
     val remark: String = "",
-    val weight: Float = 0f,
     val isMale: Boolean = true,
 
     val netCalories: Int = 0,

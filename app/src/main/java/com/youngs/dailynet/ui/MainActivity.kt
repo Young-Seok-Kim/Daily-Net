@@ -78,7 +78,9 @@ class MainActivity : ComponentActivity() {
                                 // [과거 기록 상세] - 읽기 전용 모드
                                 // 💡 화면이 뜰 때 해당 날짜 데이터를 불러오도록 설정
                                 LaunchedEffect(selectedDate) {
-                                    mainViewModel.loadDateData(selectedDate)
+                                    if (selectedDate.isNotEmpty()) {
+                                        mainViewModel.loadDateData(selectedDate)
+                                    }
                                 }
 
                                 SettlementScreen(

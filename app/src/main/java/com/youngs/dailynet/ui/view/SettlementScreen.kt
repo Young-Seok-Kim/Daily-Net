@@ -46,13 +46,14 @@ fun SettlementScreen(
 
     LaunchedEffect(uiState.currentWeight) {
         // 사용자가 타이핑 중인 게 아니고, DB 등에서 가져온 값이 0이 아닐 때만 텍스트 입력창 초기화
-        if (weightInput.isEmpty() && uiState.currentWeight > 0f) {
-            // 소수점 아래가 0이면 정수형태로, 아니면 소수점 그대로 노출
+        if (uiState.currentWeight > 0f) {
             weightInput = if (uiState.currentWeight % 1f == 0f) {
                 uiState.currentWeight.toInt().toString()
             } else {
                 uiState.currentWeight.toString()
             }
+        } else if (uiState.currentWeight == 0f) {
+            weightInput = ""
         }
     }
 
@@ -90,12 +91,6 @@ fun SettlementScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(16.dp)
                 ) {
-                    LaunchedEffect(uiState.weight) {
-                        if (uiState.currentWeight == 0f && uiState.weight > 0f) {
-                            mainViewModel.updateField("currentWeight", uiState.weight.toString())
-                        }
-                    }
-
                     OutlinedTextField(
                         value = weightInput, // 👈 임시 변수를 꽂아 유저가 타이핑한 흐름을 그대로 유지시킵니다.
                         onValueChange = { text ->
