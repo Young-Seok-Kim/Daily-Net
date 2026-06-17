@@ -105,7 +105,7 @@ class MainViewModel @Inject constructor(
 
                 _isMale.value = isMale
                 showProfileDialog = false
-                _uiState.update { it.copy(currentWeight = weight) } // 💡 진입 시점 일치를 위해 currentWeight도 세팅
+                _uiState.update { it.copy(weight = weight) }
             } catch (e: Exception) {
                 e.printStackTrace()
                 showToast("프로필 저장 실패: ${e.message}")
@@ -225,43 +225,37 @@ class MainViewModel @Inject constructor(
             initialValue = emptyMap()
         )
 
-    init {
-        initializeTodayData()
-    }
 
-    fun initializeTodayData() = viewModelScope.launch {
+    fun prepareSettlementData(targetDate: String) = viewModelScope.launch {
         try {
             if (_uiState.value.analyzing) return@launch
 
-            // 1. 먼저 최근 몸무게를 DB에서 확실하게 가져와 cachedWeight를 채웁니다.
-            val latestWeight = repository.getLatestWeight()
-            cachedWeight = latestWeight
-
-            // 2. 최근 몸무게 조회가 완전히 '끝난 후'에 오늘치 초안 생성을 시작합니다.
-            val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-            val savedDraft = repository.getSettlementByDate(today)
+            val savedDraft = repository.getSettlementByDate(targetDate)
+            val lastRecordedWeight = repository.getLatestWeight(targetDate)
 
             if (savedDraft != null) {
-                _uiState.value = savedDraft
-                cachedWeight = savedDraft.currentWeight
+                if (savedDraft.weight > 0f) {
+                    _uiState.value = savedDraft
+                    cachedWeight = savedDraft.weight
+                } else {
+                    // 💡 [수정] 이전 몸무게를 캐시에 넣음과 동시에, 화면 상태(uiState)에도 카피해서 넣어줍니다!
+                    cachedWeight = lastRecordedWeight
+                    _uiState.value = savedDraft.copy(weight = lastRecordedWeight)
+                }
             } else {
-                // 이제 위에서 보장된 cachedWeight가 안전하게 주입됩니다.
+                if (lastRecordedWeight > 0f) {
+                    cachedWeight = lastRecordedWeight
+                }
+
                 _uiState.value = SettlementModel(
-                    date = today,
-                    currentWeight = cachedWeight,
+                    date = targetDate,
+                    weight = cachedWeight,
                     breakfast = "", lunch = "", dinner = "", snack = "", exercise = "", remark = "",
                     analysisResult = "", netCalories = 0, hasExercise = false, finalized = false, analyzing = false
                 )
             }
         } catch (e: Exception) {
             e.printStackTrace()
-        }
-    }
-
-    fun loadDateData(date: String) = viewModelScope.launch {
-        val savedData = repository.getSettlementByDate(date)
-        if (savedData != null) {
-            _uiState.value = savedData
         }
     }
 
@@ -273,11 +267,11 @@ class MainViewModel @Inject constructor(
                 "dinner" -> current.copy(dinner = text)
                 "snack" -> current.copy(snack = text)
                 "remark" -> current.copy(remark = text)
-                "currentWeight" -> {
+                "weight" -> {
                     // 💡 [백스페이스 버그 해결] 사용자가 다 지웠을 때(" ")는 0f로 변환하되,
                     // UI 단에서 좀비처럼 살아나지 않도록 상태 필드 분리 바인딩의 기반을 마련합니다.
                     val weightVal = text.toFloatOrNull() ?: 0f
-                    current.copy(currentWeight = weightVal)
+                    current.copy(weight = weightVal)
                 }
                 "exercise" -> {
                     current.copy(
@@ -362,7 +356,7 @@ class MainViewModel @Inject constructor(
                     profile
                 )
                 _uiState.update { analyzedData.copy(analyzing = false) }
-                val savedWeight = _uiState.value.currentWeight
+                val savedWeight = _uiState.value.weight
                 cachedWeight = savedWeight
                 showToast("분석 및 저장이 완료되었습니다.")
             } catch (e: Exception) {
@@ -380,7 +374,7 @@ class MainViewModel @Inject constructor(
         val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
         _uiState.value = SettlementModel(
             date = today,
-            currentWeight = cachedWeight, // 기존에 저장해 둔 최근 몸무게만 유지
+            weight = cachedWeight, // 기존에 저장해 둔 최근 몸무게만 유지
             breakfast = "",
             lunch = "",
             dinner = "",

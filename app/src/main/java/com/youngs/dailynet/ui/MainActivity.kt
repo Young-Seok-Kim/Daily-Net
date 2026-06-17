@@ -25,6 +25,9 @@ import com.youngs.dailynet.ui.view.SettlementScreen
 import com.youngs.dailynet.ui.viewmodel.AuthViewModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 
 @AndroidEntryPoint
@@ -42,8 +45,6 @@ class MainActivity : ComponentActivity() {
 
                 var currentScreen by remember { mutableStateOf("main") } // "main", "input", "detail"
                 var selectedDate by remember { mutableStateOf("") }     // 상세 화면에 넘겨줄 날짜
-
-                mainViewModel.initializeTodayData()
 
                 LaunchedEffect(user) {
                     if (user == null) {
@@ -65,7 +66,7 @@ class MainActivity : ComponentActivity() {
                         when (currentScreen) {
 
                             "input" -> {
-                                mainViewModel.initializeTodayData()
+                                mainViewModel.prepareSettlementData(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()))
 
                                 SettlementScreen(
                                     mainViewModel = mainViewModel,
@@ -75,11 +76,9 @@ class MainActivity : ComponentActivity() {
                             }
 
                             "detail" -> {
-                                // [과거 기록 상세] - 읽기 전용 모드
-                                // 💡 화면이 뜰 때 해당 날짜 데이터를 불러오도록 설정
                                 LaunchedEffect(selectedDate) {
                                     if (selectedDate.isNotEmpty()) {
-                                        mainViewModel.loadDateData(selectedDate)
+                                        mainViewModel.prepareSettlementData(selectedDate)
                                     }
                                 }
 
@@ -96,7 +95,6 @@ class MainActivity : ComponentActivity() {
                                 MainScreen(
                                     mainViewModel = mainViewModel,
                                     onNavigateToInput = {
-                                        mainViewModel.initializeTodayData()
                                         currentScreen = "input"
                                     },
                                     onNavigateToDetail = { date ->

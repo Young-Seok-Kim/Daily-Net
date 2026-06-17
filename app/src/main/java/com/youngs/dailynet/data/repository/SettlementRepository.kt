@@ -141,11 +141,10 @@ class SettlementRepository @Inject constructor(
             null
         }
     }
-    suspend fun getLatestWeight(): Float {
-        val latestWeight = settlementDao.getLatestWeight()
+    suspend fun getLatestWeight(targetDate: String): Float {
+        val latestWeight = settlementDao.getLatestWeightBefore(targetDate)
         return latestWeight ?: 0f
     }
-
     suspend fun clearAllLocalData() {
         // Room DB의 모든 테이블 데이터를 삭제합니다.
         appDatabase.clearAllTables()
