@@ -26,49 +26,7 @@ exports.analyzeDiet = onRequest({
 // 상단에 성별 텍스트 변환 로직 추가 (genderText 대응)
 const genderText = isMale ? '남성' : '여성';
 
-const prompt = `
-    당신은 15년 경력의 [베테랑 전문 다이어트 영양사]입니다.
-    사용자의 식단과 운동 데이터를 분석하여, 정중하지만 냉철하게 영양 성적표를 작성하세요.
-
-    [사용자 데이터]
-    - 신체: ${height}cm, ${weight}kg, ${genderText}
-    - 식사: 아침(${breakfast}), 점심(${lunch}), 저녁(${dinner}), 간식(${snack})
-    - 활동: ${exercise}
-    - 비고: ${remark}
-
-    [분석 및 응답 지침] - **Lite 모델 최적화 버전**
-    1. **칼로리 산출 로직 고정**:
-       - 모든 음식은 식약처 표준 영양 성분 DB를 기준으로 합니다.
-      - '닭가슴살 1개(100g)'는 반드시 110~160kcal 사이로 계산하세요.
-       - 양이 명시되지 않았다면 성인 1인분(표준 중량)을 기준으로 하되, 터무니없는 고칼로리(예: 닭가슴살 500kcal) 산출을 절대 금지합니다.
-       - 메뉴명이 아닌 식당이름을 명시했을경우 해당 식당에서 사용자가 먹은 메뉴를 예상하여 예상한 메뉴를 기준으로 칼로리를 계산하십시오.
-       - 사용자가 비고 혹은 운동에 도보를 명시했을경우 사용자의 키, 몸무게에 따른 소모 칼로리를에 추가하여 계산하십시오.
-    2. **단계별 사고(Chain of Thought)**: 내부적으로 [메뉴명 -> 예상 중량(g) -> 100g당 칼로리 -> 최종 칼로리] 단계를 거쳐 계산한 뒤 결과값만 JSON에 담으세요.
-    3. **전문적 묘사**: 'descriptions'에는 해당 식단의 [장점/단점/개선점]을 탄단지 비율을 포함하여 20자 내외로 코멘트하세요.
-    4. **종합 평가**: 사용자의 BMR과 활동량을 고려하여, 현재 식단이 체중 감량에 미치는 영향을 영양학적으로 평가하세요.
-    5. **형식 엄수**: (이하 JSON 구조 동일)
-    - **주의**: 'calories' 객체 내부의 모든 값(breakfast, lunch, dinner, snack, exercise)은 부호(+, -)를 제외한 **순수 '양수(Positive Integer)' 숫자**로만 입력하세요. (예: 운동으로 400kcal 소모 시 -400이 아닌 400으로 입력)
-    {
-        "calories": {
-            "breakfast": 0,
-            "lunch": 0,
-            "dinner": 0,
-            "snack": 0,
-            "exercise": 0
-        },
-        "descriptions": {
-                    "breakfast": "메뉴명 + 영양학적 한줄평",
-                    "lunch": "메뉴명 + 영양학적 한줄평",
-                    "dinner": "메뉴명 + 영양학적 한줄평",
-                    "snack": "메뉴명 + 영양학적 한줄평"
-                },
-        "evaluation": "오늘 식단에 대한 전문적인 종합 평가 한 줄"
-    }
-`;
-        const result = await model.generateContent(prompt);
-        const data = JSON.parse(result.response.text());
-
-        // 기초대사량(BMR) 계산
+// 1. 나이 및 기초대사량(BMR) 계산
         const calculateAge = (dateStr) => {
             if (!dateStr) return 29;
             const birth = new Date(dateStr);
@@ -77,25 +35,115 @@ const prompt = `
             if (today.getMonth() < birth.getMonth() || (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) age--;
             return age;
         };
+        const age = calculateAge(birthDate);
+        const bmr = Math.round(10 * weight + 6.25 * height - 5 * age + (isMale ? 5 : -161));
 
-        const bmr = Math.round(10 * weight + 6.25 * height - 5 * calculateAge(birthDate) + (isMale ? 5 : -161));
+        // 💡 [추가] 체중 감량을 위한 하루 권장 영양 섭취량 계산 (일반 활동 계수 1.375 적용 후 500kcal 감량)
+        const tdee = Math.round(bmr * 1.375);
+        const recommendedCalories = Math.round(tdee - 500); // 안전한 다이어트를 위한 권장 칼로리 목표
+
+        // 다이어트 권장 탄단지 비율 (4:4:2 가이드라인 산출)
+        const recCarb = Math.round((recommendedCalories * 0.4) / 4);
+        const recProtein = Math.round((recommendedCalories * 0.4) / 4);
+        const recFat = Math.round((recommendedCalories * 0.2) / 9);
+
+const prompt = `
+            당신은 15년 경력의 [베테랑 전문 다이어트 영양사]입니다.
+            사용자의 식단과 운동 데이터를 분석하여, 정중하지만 냉철하게 영양 성적표를 작성하세요.
+
+            [사용자 데이터]
+            - 신체: ${height}cm, ${weight}kg, ${genderText} (만 ${age}세)
+            - 식사: 아침(${breakfast}), 점심(${lunch}), 저녁(${dinner}), 간식(${snack})
+            - 활동: ${exercise}
+            - 비고: ${remark}
+            - 목표 권장 칼로리: 하루 ${recommendedCalories} kcal 섭취 권장
+
+            [분석 및 응답 지침] - **Lite 모델 최적화 버전**
+            1. **칼로리 산출 로직 고정**:
+               - 모든 음식은 식약처 표준 영양 성분 DB를 기준으로 합니다.
+               - 양이 명시되지 않았다면 성인 1인분(표준 중량)을 기준으로 하되, 터무니없는 고칼로리 산출을 절대 금지합니다.
+               - 메뉴명이 아닌 식당이름을 명시했을경우 해당 식당에서 사용자가 먹은 메뉴를 예상하여 예상한 메뉴를 기준으로 칼로리를 계산하십시오.
+               - 사용자가 비고 혹은 운동에 도보를 명시했을경우 사용자의 키, 몸무게에 따른 소모 칼로리를에 추가하여 계산하십시오.
+            2. **단계별 사고(Chain of Thought)**: 내부적으로 [메뉴명 -> 예상 중량(g) -> 100g당 칼로리 -> 최종 칼로리] 단계를 거쳐 계산한 뒤 결과값만 JSON에 담으세요.
+            3. **전문적 묘사**: 'descriptions'에는 해당 식단의 [장점/단점/개선점]을 탄단지 비율을 포함하여 20자 내외로 코멘트하세요.
+            4. **종합 평가**: 사용자의 목표 권장 칼로리(${recommendedCalories} kcal)와 비교하여, 현재 식단이 체중 감량 및 영양 균형에 미치는 영향을 영양학적으로 평가하세요.
+            5. **형식 엄수**: (반드시 아래 JSON 형태 그대로 응답해야 합니다)
+            {
+                "calories": {
+                    "breakfast": 0,
+                    "lunch": 0,
+                    "dinner": 0,
+                    "snack": 0,
+                    "exercise": 0
+                },
+                "macros": {
+                    "breakfast": { "carb": 0, "protein": 0, "fat": 0 },
+                    "lunch": { "carb": 0, "protein": 0, "fat": 0 },
+                    "dinner": { "carb": 0, "protein": 0, "fat": 0 },
+                    "snack": { "carb": 0, "protein": 0, "fat": 0 }
+                },
+                "descriptions": {
+                    "breakfast": "메뉴명 + 영양학적 한줄평",
+                    "lunch": "메뉴명 + 영양학적 한줄평",
+                    "dinner": "메뉴명 + 영양학적 한줄평",
+                    "snack": "메뉴명 + 영양학적 한줄평"
+                },
+                "evaluation": "오늘 식단에 대한 전문적인 종합 평가 한 줄"
+            }
+        `;
+
+        const result = await model.generateContent(prompt);
+        const data = JSON.parse(result.response.text());
 
         const exerciseCalories = Math.abs(data.calories.exercise || 0);
-
         const totalIn = (data.calories.breakfast || 0) + (data.calories.lunch || 0) + (data.calories.dinner || 0) + (data.calories.snack || 0);
         const totalOut = bmr + exerciseCalories;
         const netCalories = totalIn - totalOut;
 
+        const bMacros = data.macros?.breakfast || { carb: 0, protein: 0, fat: 0 };
+                const lMacros = data.macros?.lunch || { carb: 0, protein: 0, fat: 0 };
+                const dMacros = data.macros?.dinner || { carb: 0, protein: 0, fat: 0 };
+                const sMacros = data.macros?.snack || { carb: 0, protein: 0, fat: 0 };
+
+                const totalCarb = (bMacros.carb || 0) + (lMacros.carb || 0) + (dMacros.carb || 0) + (sMacros.carb || 0);
+                const totalProtein = (bMacros.protein || 0) + (lMacros.protein || 0) + (dMacros.protein || 0) + (sMacros.protein || 0);
+                const totalFat = (bMacros.fat || 0) + (lMacros.fat || 0) + (dMacros.fat || 0) + (sMacros.fat || 0);
+// 🎯 식사 항목별 탄단지 변수 가독성 좋게 매핑
+        const bCarb = bMacros.carb || 0, bProg = bMacros.protein || 0, bFat = bMacros.fat || 0;
+        const lCarb = lMacros.carb || 0, lProg = lMacros.protein || 0, lFat = lMacros.fat || 0;
+        const dCarb = dMacros.carb || 0, dProg = dMacros.protein || 0, dFat = dMacros.fat || 0;
+        const sCarb = sMacros.carb || 0, sProg = sMacros.protein || 0, sFat = sMacros.fat || 0;
+
         const feedback = `
-        📊 영양 분석 리포트
+📋 오늘의 영양 분석 리포트
 
 🍳 아침: ${data.descriptions.breakfast} (+${data.calories.breakfast}kcal)
+   [탄 ${bCarb}g | 단 ${bProg}g | 지 ${bFat}g]
+
 🍳 점심: ${data.descriptions.lunch} (+${data.calories.lunch}kcal)
+   [탄 ${lCarb}g | 단 ${lProg}g | 지 ${lFat}g]
+
 🍳 저녁: ${data.descriptions.dinner} (+${data.calories.dinner}kcal)
+   [탄 ${dCarb}g | 단 ${dProg}g | 지 ${dFat}g]
+
 🍰 간식: ${data.descriptions.snack} (+${data.calories.snack}kcal)
+   [탄 ${sCarb}g | 단 ${sProg}g | 지 ${sFat}g]
+
 🔥 운동: ${exercise || '없음'} (-${data.calories.exercise}kcal)
 
-        ---
+---
+
+🎯 다이어트 권장 목표 가이드
+• 하루 권장 섭취량: ${recommendedCalories} kcal
+• 추천 탄단지: 탄 ${recCarb}g | 단 ${recProtein}g | 지 ${recFat}g
+• 나의 오늘 섭취량: ${totalIn} kcal (${totalIn > recommendedCalories ? '⚠️ 권장 초과' : '✅ 권장 이내'})
+
+📊 나의 오늘 실제 탄단지 총합
+• 탄수화물: ${totalCarb}g / ${recCarb}g
+• 단백질: ${totalProtein}g / ${recProtein}g
+• 지방: ${totalFat}g / ${recFat}g
+
+---
 
 🍎 인입 (IN): +${totalIn} kcal
 🏃 배출 (OUT): -${totalOut} kcal (기초대사 ${bmr} 포함)
@@ -105,12 +153,10 @@ const prompt = `
 ${data.evaluation}
         `.trim();
 
-        // 성공 응답
         res.status(200).json({
             net_calories: netCalories,
             feedback: feedback
         });
-
     } catch (error) {
         console.error("Internal Error:", error.message);
         res.status(500).json({
