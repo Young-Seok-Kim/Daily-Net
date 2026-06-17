@@ -105,7 +105,7 @@ class MainViewModel @Inject constructor(
 
                 _isMale.value = isMale
                 showProfileDialog = false
-                _uiState.update { it.copy(weight = weight, currentWeight = weight) } // 💡 진입 시점 일치를 위해 currentWeight도 세팅
+                _uiState.update { it.copy(currentWeight = weight) } // 💡 진입 시점 일치를 위해 currentWeight도 세팅
             } catch (e: Exception) {
                 e.printStackTrace()
                 showToast("프로필 저장 실패: ${e.message}")
@@ -248,7 +248,6 @@ class MainViewModel @Inject constructor(
                 // 이제 위에서 보장된 cachedWeight가 안전하게 주입됩니다.
                 _uiState.value = SettlementModel(
                     date = today,
-                    weight = 0f,
                     currentWeight = cachedWeight,
                     breakfast = "", lunch = "", dinner = "", snack = "", exercise = "", remark = "",
                     analysisResult = "", netCalories = 0, hasExercise = false, finalized = false, analyzing = false
@@ -278,7 +277,7 @@ class MainViewModel @Inject constructor(
                     // 💡 [백스페이스 버그 해결] 사용자가 다 지웠을 때(" ")는 0f로 변환하되,
                     // UI 단에서 좀비처럼 살아나지 않도록 상태 필드 분리 바인딩의 기반을 마련합니다.
                     val weightVal = text.toFloatOrNull() ?: 0f
-                    current.copy(currentWeight = weightVal, weight = weightVal)
+                    current.copy(currentWeight = weightVal)
                 }
                 "exercise" -> {
                     current.copy(
@@ -381,7 +380,6 @@ class MainViewModel @Inject constructor(
         val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
         _uiState.value = SettlementModel(
             date = today,
-            weight = 0f,
             currentWeight = cachedWeight, // 기존에 저장해 둔 최근 몸무게만 유지
             breakfast = "",
             lunch = "",
