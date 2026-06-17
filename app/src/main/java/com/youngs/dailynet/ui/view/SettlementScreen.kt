@@ -2,7 +2,6 @@ package com.youngs.dailynet.ui.view
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -11,9 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -44,15 +41,15 @@ fun SettlementScreen(
 
     var weightInput by remember { mutableStateOf("") }
 
-    LaunchedEffect(uiState.currentWeight) {
+    LaunchedEffect(uiState.weight) {
         // 사용자가 타이핑 중인 게 아니고, DB 등에서 가져온 값이 0이 아닐 때만 텍스트 입력창 초기화
-        if (uiState.currentWeight > 0f) {
-            weightInput = if (uiState.currentWeight % 1f == 0f) {
-                uiState.currentWeight.toInt().toString()
+        if (uiState.weight > 0f) {
+            weightInput = if (uiState.weight % 1f == 0f) {
+                uiState.weight.toInt().toString()
             } else {
-                uiState.currentWeight.toString()
+                uiState.weight.toString()
             }
-        } else if (uiState.currentWeight == 0f) {
+        } else if (uiState.weight == 0f) {
             weightInput = ""
         }
     }
@@ -97,7 +94,7 @@ fun SettlementScreen(
                             // 숫자와 소수점 하나만 입력 가능하도록 필터링 (잘못된 입력 방지)
                             if (text.isEmpty() || text.matches(Regex("""^\d*\.?\d*$"""))) {
                                 weightInput = text
-                                mainViewModel.updateField("currentWeight", text) // ViewModel에는 실시간 파싱 전달
+                                mainViewModel.updateField("weight", text) // ViewModel에는 실시간 파싱 전달
                             }
                         },
                         label = { Text("현재 체중 (kg)") },

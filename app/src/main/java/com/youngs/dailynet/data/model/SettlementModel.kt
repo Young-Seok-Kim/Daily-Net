@@ -2,7 +2,6 @@ package com.youngs.dailynet.data.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import com.google.firebase.firestore.PropertyName
 
 @Entity(tableName = "daily_drafts")
 data class SettlementModel(
@@ -23,7 +22,7 @@ data class SettlementModel(
 
     val netCalories: Int = 0,
     val hasExercise: Boolean = false,
-    val currentWeight: Float = 0f,
+    val weight: Float = 0f,
     val tags: List<String> = listOf(),
     val note: String = "",           // 제미나이 피드백
     val details: List<Map<String, Any>> = listOf(),

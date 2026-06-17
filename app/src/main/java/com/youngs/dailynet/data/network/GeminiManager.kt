@@ -19,10 +19,10 @@ class GeminiManager @Inject constructor(
     ): AnalysisResponse? {
         return withContext(Dispatchers.IO) {
             try {
-                val sendWeight = if (settlement.currentWeight == 0f) {
+                val sendWeight = if (settlement.weight == 0f) {
                     userProfile.initialWeight
                 } else {
-                    settlement.currentWeight
+                    settlement.weight
                 }
 
                 val request = AnalysisRequest(

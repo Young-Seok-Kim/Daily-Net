@@ -18,8 +18,11 @@ interface SettlementDao {
     @Query("SELECT * FROM daily_drafts ORDER BY date DESC")
     fun getAllSettlementsRoomFlow(): Flow<List<SettlementModel>>
 
-    @Query("SELECT currentWeight FROM daily_drafts WHERE currentWeight > 0.0 ORDER BY date DESC LIMIT 1")
+    @Query("SELECT weight FROM daily_drafts WHERE weight > 0.0 ORDER BY date DESC LIMIT 1")
     suspend fun getLatestWeight(): Float?
+
+    @Query("SELECT weight FROM daily_drafts WHERE weight > 0.0 AND date < :targetDate ORDER BY date DESC LIMIT 1")
+    suspend fun getLatestWeightBefore(targetDate: String): Float?
 
     @Query("DELETE FROM daily_drafts WHERE date = :date")
     suspend fun deleteByDate(date: String)
