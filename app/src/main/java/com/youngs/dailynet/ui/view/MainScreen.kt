@@ -341,14 +341,14 @@ fun MainScreen(
                         }
 
                         // 회원탈퇴 버튼
-//                        TextButton(
-//                            onClick = {
-//                                showSheet = false // 바텀시트를 먼저 닫아 UI 유연성 확보
-//                                showWithdrawConfirmDialog = true
-//                            },
-//                        ) {
-//                            Text("회원탈퇴", color = MaterialTheme.colorScheme.error)
-//                        }
+                        TextButton(
+                            onClick = {
+                                showSheet = false // 바텀시트를 먼저 닫아 UI 유연성 확보
+                                showWithdrawConfirmDialog = true
+                            },
+                        ) {
+                            Text("회원탈퇴", color = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
             }

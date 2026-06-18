@@ -16,7 +16,7 @@ android {
         applicationId = "com.youngs.dailynet"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
+        versionCode = 2
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -94,16 +94,18 @@ dependencies {
 
     implementation(libs.play.billing)
     implementation(libs.play.billing.ktx)
-
 }
+
 // 2. 파일 맨 하단에 이 블록을 정확하게 넣어주세요.
 secrets {
     // 읽어올 파일 지정
     propertiesFileName = "local.properties"
-
-    // 기본값 파일이 없으면 에러 나니까, 없다면 이 줄은 아예 지우거나 빈 파일 만드세요.
-//    defaultPropertiesFileName = "local.defaults.properties"
-
-    // ✨ 핵심: local.properties에 있는 모든 키를 BuildConfig에 자동으로 추가함
     ignoreList.add("sdk.dir") // sdk.dir 같은 건 필드 만들 필요 없으니 제외
+}
+android {
+    val vName = defaultConfig.versionName
+    val vCode = defaultConfig.versionCode
+
+    // 빌드 결과물(AAB, APK 등)의 기본 생성 이름을 프로젝트단에서 강제 지정
+    base.archivesName.set("DailyNet_v${vName}_b${vCode}")
 }
