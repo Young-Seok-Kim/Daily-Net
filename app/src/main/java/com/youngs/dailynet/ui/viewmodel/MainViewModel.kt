@@ -15,6 +15,7 @@ import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.local.entity.dao.SettlementDao
 import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
 import com.youngs.dailynet.data.model.SettlementModel
+import com.youngs.dailynet.data.network.BillingManager.Companion.PRODUCT_ID_MONTHLY
 import com.youngs.dailynet.data.repository.SettlementRepository
 import com.youngs.dailynet.ui.view.getWeekIdentifier
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -369,7 +370,6 @@ class MainViewModel @Inject constructor(
                 val profile = userProfileDao.getProfile() ?: throw Exception("유저 프로필 정보가 없습니다. 설정을 먼저 완료해주세요.")
 
                 // 💡 [검증] 로컬 DB에 저장된 날짜와 실제 오늘 날짜 비교
-                // todo 구독 테스트 할때는 디버그 해제
                 if (!BuildConfig.DEBUG && !profile.isSubscribed && profile.lastAnalyzedDate == todayDateStr) {
                     throw Exception("하루에 한 번만 무료 분석이 가능합니다. 무제한 분석을 원하시면 프리미엄을 구독해 보세요!")
                 }
@@ -457,7 +457,7 @@ class MainViewModel @Inject constructor(
 
     // 👑 유저가 화면에서 구독하기 버튼을 누를 때 호출할 함수
     fun startSubscription(activity: android.app.Activity) {
-        billingManager.launchBillingFlow(activity, "premium_sub_monthly")
+        billingManager.launchBillingFlow(activity, PRODUCT_ID_MONTHLY)
         /*
         todo : 콘솔에 등록한 상품 ID, 플레이스토어에 등록한 이후 상품 id 수정
          */
