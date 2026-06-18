@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.youngs.dailynet.data.local.entity.dao.SettlementDao
+import com.youngs.dailynet.data.local.entity.dao.DailyRecordDao
 import com.youngs.dailynet.data.local.AppDatabase
 import com.youngs.dailynet.data.network.DailyNetApiService
 import dagger.Module
@@ -90,7 +90,7 @@ object AppModule {
     }
 
     @Provides
-    fun provideSettlementDao(db: AppDatabase): SettlementDao = db.settlementDao()
+    fun provideDailyRecordDao(db: AppDatabase): DailyRecordDao = db.dailyRecordDao()
 
     @Provides
     fun provideUserProfileDao(db: AppDatabase): UserProfileDao = db.userProfileDao()

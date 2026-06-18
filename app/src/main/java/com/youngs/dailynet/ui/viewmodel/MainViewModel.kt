@@ -10,13 +10,12 @@ import androidx.credentials.CredentialManager
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.youngs.dailynet.BuildConfig
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
-import com.youngs.dailynet.data.local.entity.dao.SettlementDao
+import com.youngs.dailynet.data.local.entity.dao.DailyRecordDao
 import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
-import com.youngs.dailynet.data.model.SettlementModel
+import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.data.network.BillingManager.Companion.PRODUCT_ID_MONTHLY
-import com.youngs.dailynet.data.repository.SettlementRepository
+import com.youngs.dailynet.data.repository.DailyRecordRepository
 import com.youngs.dailynet.ui.view.getWeekIdentifier
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -43,8 +42,8 @@ data class CategoryInfo(
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
-    private val repository: SettlementRepository,
-    private val settlementDao: SettlementDao,
+    private val repository: DailyRecordRepository,
+    private val dailyRecordDao: DailyRecordDao,
     private val userProfileDao: UserProfileDao,
     val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
@@ -183,7 +182,7 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun loadMoreSettlements() {
+    fun loadMoreDailyRecords() {
         // 💡 1. 진입하자마자 '동기적'으로 즉시 상태를 검사하고 리턴합니다.
         if (repository.isLastPageReached || _isPagingLoading.value) return
 
@@ -202,14 +201,14 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    val allSettlements: StateFlow<List<SettlementModel>> = repository.getAllSettlementsRoom()
+    val allDailyRecord: StateFlow<List<DailyRecordModel>> = repository.getAllDailyRecordRoom()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
-    val totalNetCalories: StateFlow<Int> = allSettlements
+    val totalNetCalories: StateFlow<Int> = allDailyRecord
         .map { list -> list.sumOf { it.netCalories } }
         .stateIn(
             scope = viewModelScope,
@@ -226,10 +225,10 @@ class MainViewModel @Inject constructor(
         CategoryInfo("비고", "오늘의 특이사항 \n ex)삼겹살 먹을 때 비계 떼고 살코기 위주로 먹었고, 쌈을 많이 싸먹었어요.\n도보를 6000보 걸었어요.", "remark")
     )
 
-    private val _uiState = MutableStateFlow(SettlementModel(date = today))
+    private val _uiState = MutableStateFlow(DailyRecordModel(date = today))
     val uiState = _uiState.asStateFlow()
 
-    val weeklyCaloriesMap: StateFlow<Map<Int, Int>> = allSettlements
+    val weeklyCaloriesMap: StateFlow<Map<Int, Int>> = allDailyRecord
         .map { list ->
             list.groupBy { getWeekIdentifier(it.date) }
                 .mapValues { entry ->
@@ -244,11 +243,11 @@ class MainViewModel @Inject constructor(
         )
 
 
-    fun prepareSettlementData(targetDate: String) = viewModelScope.launch {
+    fun prepareDailyRecordData(targetDate: String) = viewModelScope.launch {
         try {
             if (_uiState.value.analyzing) return@launch
 
-            val savedDraft = repository.getSettlementByDate(targetDate)
+            val savedDraft = repository.getDailyRecordByDate(targetDate)
             val lastRecordedWeight = repository.getLatestWeight(targetDate)
 
             if (savedDraft != null) {
@@ -265,7 +264,7 @@ class MainViewModel @Inject constructor(
                     cachedWeight = lastRecordedWeight
                 }
 
-                _uiState.value = SettlementModel(
+                _uiState.value = DailyRecordModel(
                     date = targetDate,
                     weight = cachedWeight,
                     breakfast = "", lunch = "", dinner = "", snack = "", exercise = "", remark = "",
@@ -302,10 +301,10 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun deleteSettlement(date: String) = viewModelScope.launch {
+    fun deleteDailyRecord(date: String) = viewModelScope.launch {
         try {
             // 1. Room 삭제
-            settlementDao.deleteByDate(date)
+            dailyRecordDao.deleteByDate(date)
 
             // 2. Firebase 삭제 (Firestore 경로에 맞게 작성)
             val userId = auth.currentUser?.uid ?: return@launch
@@ -335,7 +334,7 @@ class MainViewModel @Inject constructor(
                 // 2. 로컬 Room DB 데이터 전체 삭제 (현재 로그인했던 유저의 기록 초기화)
                 // 데이터 혼선을 방지하기 위해 clearAllTables 또는 기존 Dao의 삭제 메서드를 호출합니다.
                 // 예: settlementDao.deleteAll()이 구현되어 있다면 사용, 없다면 아래 쿼리 기반 메서드 추가 필요
-                settlementDao.clearAllSettlements()
+                dailyRecordDao.clearAllDailyRecord()
                 userProfileDao.clearProfile()
 
                 // 3. Firebase Authentication 유저 계정 탈퇴 처리
@@ -433,7 +432,7 @@ class MainViewModel @Inject constructor(
     fun clearTodayDraft() {
         // 오늘의 정산을 새로 입력할때
         val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-        _uiState.value = SettlementModel(
+        _uiState.value = DailyRecordModel(
             date = today,
             weight = cachedWeight, // 기존에 저장해 둔 최근 몸무게만 유지
             breakfast = "",

@@ -6,8 +6,8 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.snapshots
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
-import com.youngs.dailynet.data.local.entity.dao.SettlementDao
-import com.youngs.dailynet.data.model.SettlementModel
+import com.youngs.dailynet.data.local.entity.dao.DailyRecordDao
+import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.data.network.GeminiManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -16,11 +16,11 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class SettlementRepository @Inject constructor(
+class DailyRecordRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
     private val auth: FirebaseAuth,
     private val geminiManager: GeminiManager,
-    private val settlementDao: SettlementDao,
+    private val dailyRecordDao: DailyRecordDao,
     private val appDatabase: com.youngs.dailynet.data.local.AppDatabase,
 ) {
     private var lastVisibleDocument: DocumentSnapshot? = null
@@ -29,7 +29,7 @@ class SettlementRepository @Inject constructor(
 
     private val PAGE_SIZE = 7L
 
-    private val userSettlementsCollection
+    private val userDailyRecordCollection
         get() = firestore.collection("users")
             .document(auth.currentUser?.uid ?: "guest")
             .collection("settlements")
@@ -37,17 +37,17 @@ class SettlementRepository @Inject constructor(
     /**
      * 1. 실시간 리스트 조회 (Firestore 감시)
      */
-    fun getAllSettlementsFirebase(): Flow<List<SettlementModel>> {
-        return userSettlementsCollection
+    fun getAllDailyRecordFirebase(): Flow<List<DailyRecordModel>> {
+        return userDailyRecordCollection
             .orderBy("date", Query.Direction.DESCENDING)
             .snapshots()
             .map { snapshot ->
-                snapshot.toObjects(SettlementModel::class.java)
+                snapshot.toObjects(DailyRecordModel::class.java)
             }
     }
 
-    fun getAllSettlementsRoom(): Flow<List<SettlementModel>> {
-        return settlementDao.getAllSettlementsRoomFlow()
+    fun getAllDailyRecordRoom(): Flow<List<DailyRecordModel>> {
+        return dailyRecordDao.getAllDailyRecordRoomFlow()
     }
 
 //    suspend fun fetchAndSyncFromFirebase() {
@@ -69,7 +69,7 @@ class SettlementRepository @Inject constructor(
 
         try {
             // 기본 쿼리: 날짜 내림차순 정렬 + 20개 제한
-            var query = userSettlementsCollection
+            var query = userDailyRecordCollection
                 .orderBy("date", Query.Direction.DESCENDING)
                 .limit(PAGE_SIZE)
 
@@ -94,9 +94,9 @@ class SettlementRepository @Inject constructor(
             }
 
             // Room DB에 누적 캐싱 (기존 데이터를 지우지 않고 추가/업데이트)
-            val serverList = snapshot.toObjects(SettlementModel::class.java)
+            val serverList = snapshot.toObjects(DailyRecordModel::class.java)
             serverList.forEach { model ->
-                settlementDao.insertOrUpdate(model)
+                dailyRecordDao.insertOrUpdate(model)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -111,38 +111,38 @@ class SettlementRepository @Inject constructor(
         isLastPageReached = false
     }
 
-    suspend fun analyzeAndSave(settlement: SettlementModel, userProfile: UserProfileEntity): SettlementModel {
+    suspend fun analyzeAndSave(dailyRecordModel: DailyRecordModel, userProfile: UserProfileEntity): DailyRecordModel {
         val analysisResponse =
-            geminiManager.analyzeFoodAndExercise(settlement, userProfile)
+            geminiManager.analyzeFoodAndExercise(dailyRecordModel, userProfile)
                 ?: throw Exception("서버 분석 중 오류가 발생했습니다.")
 
 
-        val finalizedModel = settlement.copy(
+        val finalizedModel = dailyRecordModel.copy(
             netCalories = analysisResponse.netCalories,
             analysisResult = analysisResponse.feedback,
             finalized = true,
             analyzing = false
         )
 
-        userSettlementsCollection.document(finalizedModel.date).set(finalizedModel).await()
-        settlementDao.insertOrUpdate(finalizedModel)
+        userDailyRecordCollection.document(finalizedModel.date).set(finalizedModel).await()
+        dailyRecordDao.insertOrUpdate(finalizedModel)
 
         return finalizedModel
     }
 
-    suspend fun getSettlementByDate(date: String): SettlementModel? {
-        val localData = settlementDao.getSettlementByDate(date) // room에서 먼저 데이터를 가져옴
+    suspend fun getDailyRecordByDate(date: String): DailyRecordModel? {
+        val localData = dailyRecordDao.getDailyRecordByDate(date) // room에서 먼저 데이터를 가져옴
         if (localData != null) return localData
 
         return try {
-            val snapshot = userSettlementsCollection.document(date).get().await() // room에서 가져온 데이터가 없으면 firebase에서 가져옴
-            snapshot.toObject(SettlementModel::class.java)
+            val snapshot = userDailyRecordCollection.document(date).get().await() // room에서 가져온 데이터가 없으면 firebase에서 가져옴
+            snapshot.toObject(DailyRecordModel::class.java)
         } catch (e: Exception) {
             null
         }
     }
     suspend fun getLatestWeight(targetDate: String): Float {
-        val latestWeight = settlementDao.getLatestWeightBefore(targetDate)
+        val latestWeight = dailyRecordDao.getLatestWeightBefore(targetDate)
         return latestWeight ?: 0f
     }
     suspend fun clearAllLocalData() {
