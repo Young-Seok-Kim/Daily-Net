@@ -16,7 +16,7 @@ open class BaseViewModel : ViewModel() {
     }
 
     // 💡 자식 ViewModel들이 편하게 토스트를 구울 수 있도록 헬퍼 함수 제공
-    protected fun showToast(message: String) {
+    fun showToast(message: String) {
         toastMessage = message
     }
 }

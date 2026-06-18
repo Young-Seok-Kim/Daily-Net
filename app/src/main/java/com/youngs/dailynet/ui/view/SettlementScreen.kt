@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.youngs.dailynet.ui.viewmodel.BaseViewModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -134,17 +135,11 @@ fun SettlementScreen(
                         Spacer(modifier = Modifier.height(24.dp))
                         Button(
                             onClick = {
-                                mainViewModel.analyzeAndFinalize(
-                                    onSuccess = { },
-                                    onFailure = { errorMessage ->
-                                        // 👑 에러 메시지에 '무제한' 또는 '구독' 단어가 포함되어 있다면 구독창 발동!
-                                        if (errorMessage.contains("무제한") || errorMessage.contains("구독")) {
-                                            activity?.let {
-                                                mainViewModel.startSubscription(it)
-                                            }
-                                        }
-                                    }
-                                )
+
+                                activity?.let {
+                                    // 👑 통합 정책 함수 호출
+                                    mainViewModel.checkAndAnalyze(it)
+                                }
                             },
                             modifier = Modifier.fillMaxWidth().height(50.dp),
                             enabled = !uiState.analyzing // 분석 중엔 버튼 클릭 방지
