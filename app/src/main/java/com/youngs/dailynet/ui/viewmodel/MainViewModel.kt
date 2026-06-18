@@ -94,12 +94,13 @@ class MainViewModel @Inject constructor(
                 val timestamp = System.currentTimeMillis()
 
                 val serverProfile = mapOf(
-                    "googleName " to googleName,
+                    "googleName" to googleName,
                     "height" to height,
                     "initialWeight" to weight,
                     "isMale" to isMale,
                     "birthDate" to birthDate,
-                    "createdAt" to timestamp
+                    "createdAt" to timestamp,
+                    "isSubscribed" to false
                 )
                 firestore.collection("users").document(uid).set(serverProfile).await()
 
@@ -109,7 +110,8 @@ class MainViewModel @Inject constructor(
                         initialWeight = weight,
                         isMale = isMale,
                         birthDate = birthDate,
-                        createdAt = timestamp
+                        createdAt = timestamp,
+                        isSubscribed = false
                     )
                 )
 
@@ -370,7 +372,7 @@ class MainViewModel @Inject constructor(
                 val profile = userProfileDao.getProfile() ?: throw Exception("유저 프로필 정보가 없습니다. 설정을 먼저 완료해주세요.")
 
                 // 💡 [검증] 로컬 DB에 저장된 날짜와 실제 오늘 날짜 비교
-                if (!BuildConfig.DEBUG && !profile.isSubscribed && profile.lastAnalyzedDate == todayDateStr) {
+                if (/*!BuildConfig.DEBUG && */!profile.isSubscribed && profile.lastAnalyzedDate == todayDateStr) {
                     throw Exception("하루에 한 번만 무료 분석이 가능합니다. 무제한 분석을 원하시면 프리미엄을 구독해 보세요!")
                 }
 

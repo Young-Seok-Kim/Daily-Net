@@ -2,6 +2,7 @@ package com.youngs.dailynet.data.network
 
 import android.app.Activity
 import android.content.Context
+import android.util.Log
 import com.android.billingclient.api.*
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,6 +49,7 @@ class BillingManager @Inject constructor(
 
     // 프리미엄 구독 창 띄우기
     fun launchBillingFlow(activity: Activity, productId: String) {
+        Log.d("Billing", "isReady: ${_isReady.value}")
         if (!_isReady.value) return
 
         val productList = listOf(
