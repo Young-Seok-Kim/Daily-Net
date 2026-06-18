@@ -53,6 +53,7 @@ app/release/*.aab
 app/release/*.json
 app/release/*.mapping
 app/release/*.txt
+app/release/
 
 # [서명 키(Keystore) - 보안 필수]
 *.jks
