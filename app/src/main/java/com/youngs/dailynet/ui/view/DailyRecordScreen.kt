@@ -14,12 +14,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.youngs.dailynet.ui.viewmodel.BaseViewModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettlementScreen(
+fun DailyRecordScreen(
     mainViewModel: MainViewModel,
     onBack: () -> Unit,
     isReadOnly: Boolean = false,

@@ -21,7 +21,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.youngs.dailynet.ui.theme.DailyNetTheme
 import com.youngs.dailynet.ui.view.LoginScreen
 import com.youngs.dailynet.ui.view.MainScreen
-import com.youngs.dailynet.ui.view.SettlementScreen
+import com.youngs.dailynet.ui.view.DailyRecordScreen
 import com.youngs.dailynet.ui.viewmodel.AuthViewModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -66,9 +66,9 @@ class MainActivity : ComponentActivity() {
                         when (currentScreen) {
 
                             "input" -> {
-                                mainViewModel.prepareSettlementData(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()))
+                                mainViewModel.prepareDailyRecordData(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()))
 
-                                SettlementScreen(
+                                DailyRecordScreen(
                                     mainViewModel = mainViewModel,
                                     onBack = { currentScreen = "main" },
                                     isReadOnly = false
@@ -78,11 +78,11 @@ class MainActivity : ComponentActivity() {
                             "detail" -> {
                                 LaunchedEffect(selectedDate) {
                                     if (selectedDate.isNotEmpty()) {
-                                        mainViewModel.prepareSettlementData(selectedDate)
+                                        mainViewModel.prepareDailyRecordData(selectedDate)
                                     }
                                 }
 
-                                SettlementScreen(
+                                DailyRecordScreen(
                                     mainViewModel = mainViewModel,
                                     onBack = {
                                         currentScreen = "main"

@@ -4,7 +4,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 @Entity(tableName = "daily_drafts")
-data class SettlementModel(
+data class DailyRecordModel(
     @PrimaryKey
     val date: String = "",           // yyyy-MM-dd
     val title: String = "",

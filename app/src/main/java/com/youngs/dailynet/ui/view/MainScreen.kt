@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.youngs.dailynet.data.model.SettlementModel
+import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -102,7 +102,7 @@ fun MainScreen(
     onNavigateToLogin: () -> Unit,
 ) {
     var loadingMessage by remember { mutableStateOf<String?>(null) }
-    val settlements by mainViewModel.allSettlements.collectAsState()
+    val dailyRecords by mainViewModel.allDailyRecord.collectAsState()
     val totalCalories by mainViewModel.totalNetCalories.collectAsState()
     val weeklyCaloriesMap by mainViewModel.weeklyCaloriesMap.collectAsState()
     var showLogoutLoading by remember { mutableStateOf(false) }
@@ -133,7 +133,7 @@ fun MainScreen(
     }
     LaunchedEffect(shouldLoadMore) {
         if (shouldLoadMore) {
-            mainViewModel.loadMoreSettlements()
+            mainViewModel.loadMoreDailyRecords()
         }
     }
 
@@ -145,7 +145,7 @@ fun MainScreen(
             confirmButton = {
                 TextButton(onClick = {
                     selectedDateToDelete?.let { date ->
-                        mainViewModel.deleteSettlement(date)
+                        mainViewModel.deleteDailyRecord(date)
                     }
                     selectedDateToDelete = null
                 }) { Text("삭제", color = MaterialTheme.colorScheme.error) }
@@ -253,7 +253,7 @@ fun MainScreen(
                 item {
                     SummaryHeaderCard(
                         totalCalories = totalCalories,
-                        latestDate = settlements.firstOrNull()?.date ?: "기록 없음"
+                        latestDate = dailyRecords.firstOrNull()?.date ?: "기록 없음"
                     )
                 }
 
@@ -266,7 +266,7 @@ fun MainScreen(
                 }
 
                 itemsIndexed(
-                    items = settlements,
+                    items = dailyRecords,
                     key = { _, item -> item.date }
                 ) { index, item ->
                     val currentWeekId = getWeekIdentifier(item.date)
@@ -274,14 +274,14 @@ fun MainScreen(
 
                     val totalWeeklyNet = weeklyCaloriesMap[currentWeekId] ?: 0
 
-                    if (index == 0 || currentWeekId != getWeekIdentifier(settlements[index - 1].date)) {
+                    if (index == 0 || currentWeekId != getWeekIdentifier(dailyRecords[index - 1].date)) {
                         WeekDivider(
                             headerText = weekDisplayText,
                             weeklyCalories = totalWeeklyNet
                         )
                     }
 
-                    SettlementHistoryItem(
+                    DailyRecordHistoryItem(
                         item = item,
                         onClick = { onNavigateToDetail(item.date) },
                         onLongClick = { selectedDateToDelete = item.date }
@@ -611,8 +611,8 @@ fun SummaryHeaderCard(totalCalories: Int, latestDate: String) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun SettlementHistoryItem(
-    item: SettlementModel,
+fun DailyRecordHistoryItem(
+    item: DailyRecordModel,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {

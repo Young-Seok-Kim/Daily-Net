@@ -4,19 +4,19 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import com.youngs.dailynet.data.model.SettlementModel
+import com.youngs.dailynet.data.model.DailyRecordModel
 import kotlinx.coroutines.flow.Flow // 👈 추가
 
 @Dao
-interface SettlementDao {
+interface DailyRecordDao {
     @Query("SELECT * FROM daily_drafts WHERE date = :date")
-    suspend fun getSettlementByDate(date: String): SettlementModel?
+    suspend fun getDailyRecordByDate(date: String): DailyRecordModel?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertOrUpdate(settlement: SettlementModel)
+    suspend fun insertOrUpdate(dailyRecord: DailyRecordModel)
 
     @Query("SELECT * FROM daily_drafts ORDER BY date DESC")
-    fun getAllSettlementsRoomFlow(): Flow<List<SettlementModel>>
+    fun getAllDailyRecordRoomFlow(): Flow<List<DailyRecordModel>>
 
     @Query("SELECT weight FROM daily_drafts WHERE weight > 0.0 ORDER BY date DESC LIMIT 1")
     suspend fun getLatestWeight(): Float?
@@ -28,5 +28,5 @@ interface SettlementDao {
     suspend fun deleteByDate(date: String)
 
     @Query("DELETE FROM daily_drafts")
-    suspend fun clearAllSettlements()
+    suspend fun clearAllDailyRecord()
 }
