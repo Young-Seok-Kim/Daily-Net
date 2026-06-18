@@ -52,6 +52,8 @@ class MainViewModel @Inject constructor(
 ) : BaseViewModel() {
 
     init {
+        syncSubscriptionStatus()
+
         // 👑 결제 성공 시 구독 권한 갱신 콜백 연결
         billingManager.onPurchaseSuccess = { purchase ->
             updateSubscriptionStatus()
@@ -372,7 +374,7 @@ class MainViewModel @Inject constructor(
                 val profile = userProfileDao.getProfile() ?: throw Exception("유저 프로필 정보가 없습니다. 설정을 먼저 완료해주세요.")
 
                 // 💡 [검증] 로컬 DB에 저장된 날짜와 실제 오늘 날짜 비교
-                if (/*!BuildConfig.DEBUG && */!profile.isSubscribed && profile.lastAnalyzedDate == todayDateStr) {
+                if (!BuildConfig.DEBUG && !profile.isSubscribed && profile.lastAnalyzedDate == todayDateStr) {
                     throw Exception("하루에 한 번만 무료 분석이 가능합니다. 무제한 분석을 원하시면 프리미엄을 구독해 보세요!")
                 }
 
@@ -460,9 +462,6 @@ class MainViewModel @Inject constructor(
     // 👑 유저가 화면에서 구독하기 버튼을 누를 때 호출할 함수
     fun startSubscription(activity: android.app.Activity) {
         billingManager.launchBillingFlow(activity, PRODUCT_ID_MONTHLY)
-        /*
-        todo : 콘솔에 등록한 상품 ID, 플레이스토어에 등록한 이후 상품 id 수정
-         */
     }
 
     // 👑 결제 성공 시 Firestore 서버와 로컬 DB를 동기화하는 함수
@@ -480,6 +479,28 @@ class MainViewModel @Inject constructor(
             showToast("👑 프리미엄 멤버십이 활성화되었습니다!")
         } catch (e: Exception) {
             showToast("구독 갱신 실패: ${e.message}")
+        }
+    }
+
+    fun syncSubscriptionStatus() = viewModelScope.launch {
+        val uid = currentUserId ?: return@launch
+
+        // 1. 구글 결제 서버에 진짜 구독 중인지 확인
+        billingManager.checkSubscriptionStatus { isSubscribed ->
+            viewModelScope.launch {
+                // 2. 파이어베이스와 로컬 DB 업데이트
+                firestore.collection("users").document(uid).update("isSubscribed", isSubscribed).await()
+
+                val profile = userProfileDao.getProfile()
+                if (profile != null) {
+                    userProfileDao.insertProfile(profile.copy(isSubscribed = isSubscribed))
+                }
+
+                if (!isSubscribed) {
+                    // 구독이 만료된 경우 로그 출력 혹은 알림
+                    println("👑 구독 정보가 만료되었습니다. 로컬 DB 동기화 완료.")
+                }
+            }
         }
     }
 }
