@@ -3,7 +3,7 @@ package com.youngs.dailynet.data.model
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "daily_drafts")
+@Entity(tableName = "daily_records")
 data class DailyRecordModel(
     @PrimaryKey
     val date: String = "",           // yyyy-MM-dd
