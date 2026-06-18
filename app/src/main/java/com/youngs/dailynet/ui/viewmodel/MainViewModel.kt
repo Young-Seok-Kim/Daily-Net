@@ -378,7 +378,7 @@ class MainViewModel @Inject constructor(
                     analyzeAndFinalize(onSuccess = {}, onFailure = {})
                 } else {
                     // 비구독자 + 오늘 이미 분석함 -> 구독 유도
-                    showToast("프리미엄 멤버십으로 정밀한 식단 분석을 받아보세요!")
+                    showToast("무료 버전은 일일 1회 분석만 가능합니다.\n프리미엄 멤버십으로 정밀한 식단 분석을 받아보세요!")
                     startSubscription(activity)
                 }
             }
