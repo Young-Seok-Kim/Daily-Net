@@ -19,6 +19,7 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
+import com.youngs.dailynet.data.network.BillingManager
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
@@ -93,4 +94,12 @@ object AppModule {
 
     @Provides
     fun provideUserProfileDao(db: AppDatabase): UserProfileDao = db.userProfileDao()
+
+    @Provides
+    @Singleton
+    fun provideBillingManager(
+        @ApplicationContext context: Context
+    ): BillingManager {
+        return BillingManager(context)
+    }
 }

@@ -12,5 +12,7 @@ data class UserProfileEntity(
     val isMale: Boolean = true,
     val initialWeight: Float,
     val birthDate: String,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val lastAnalyzedDate: String = "",
+    val isSubscribed: Boolean = false
 )

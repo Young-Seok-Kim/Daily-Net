@@ -92,6 +92,9 @@ dependencies {
 
     implementation(libs.firebase.appcheck.playintegrity)
 
+    implementation(libs.play.billing)
+    implementation(libs.play.billing.ktx)
+
 }
 // 2. 파일 맨 하단에 이 블록을 정확하게 넣어주세요.
 secrets {
