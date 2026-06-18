@@ -14,6 +14,10 @@ class BillingManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) : PurchasesUpdatedListener {
 
+    companion object {
+        const val PRODUCT_ID_MONTHLY = "dailynet_pro_monthly"
+    }
+
     private var billingClient: BillingClient = BillingClient.newBuilder(context)
         .setListener(this)
         .enablePendingPurchases()
