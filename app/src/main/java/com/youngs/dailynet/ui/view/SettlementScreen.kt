@@ -31,6 +31,7 @@ fun SettlementScreen(
 
     val uiState by mainViewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val activity = context as? android.app.Activity
 
     BackHandler(enabled = true) {
         if (!uiState.analyzing) {
@@ -135,7 +136,14 @@ fun SettlementScreen(
                             onClick = {
                                 mainViewModel.analyzeAndFinalize(
                                     onSuccess = { },
-                                    onFailure = { }
+                                    onFailure = { errorMessage ->
+                                        // 👑 에러 메시지에 '무제한' 또는 '구독' 단어가 포함되어 있다면 구독창 발동!
+                                        if (errorMessage.contains("무제한") || errorMessage.contains("구독")) {
+                                            activity?.let {
+                                                mainViewModel.startSubscription(it)
+                                            }
+                                        }
+                                    }
                                 )
                             },
                             modifier = Modifier.fillMaxWidth().height(50.dp),

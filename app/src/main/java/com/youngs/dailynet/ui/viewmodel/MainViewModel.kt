@@ -10,6 +10,7 @@ import androidx.credentials.CredentialManager
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.youngs.dailynet.BuildConfig
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.local.entity.dao.SettlementDao
 import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
@@ -45,8 +46,16 @@ class MainViewModel @Inject constructor(
     private val settlementDao: SettlementDao,
     private val userProfileDao: UserProfileDao,
     private val auth: FirebaseAuth,
-    private val firestore: FirebaseFirestore
+    private val firestore: FirebaseFirestore,
+    private val billingManager: com.youngs.dailynet.data.network.BillingManager // 👑 결제 매니저 주입
 ) : BaseViewModel() {
+
+    init {
+        // 👑 결제 성공 시 구독 권한 갱신 콜백 연결
+        billingManager.onPurchaseSuccess = { purchase ->
+            updateSubscriptionStatus()
+        }
+    }
 
     val mainListState = LazyListState()
 
@@ -119,48 +128,53 @@ class MainViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val localProfile = userProfileDao.getProfile()
-                if (localProfile != null) {
-                    showProfileDialog = false
-                    _isMale.value = localProfile.isMale
-
-                    repository.resetPagingState()
-                    repository.fetchAndSyncFromFirebase()
-
-                    return@launch
-                }
-
+                // 1. Firestore에서 최신 정보 먼저 땡겨오기 (로그인 후 최초 기기 연동이나 데이터 동기화를 위해)
                 val document = firestore.collection("users").document(uid).get().await()
-                val serverHeight = document.getDouble("height")
 
-                if (document.exists() && serverHeight != null && serverHeight > 0.0) {
+                if (document.exists() && document.getDouble("height") != null) {
+                    val serverHeight = document.getDouble("height")!!.toFloat()
                     val initialWeight = (document.getDouble("initialWeight") ?: 0.0).toFloat()
                     val isMale = document.getBoolean("isMale") ?: true
                     val birthDate = document.getString("birthDate") ?: ""
                     val createdAt = document.getLong("createdAt") ?: System.currentTimeMillis()
+                    // 💡 서버에 저장되어 있던 마지막 분석일 획득
+                    val lastAnalyzedDate = document.getString("lastAnalyzedDate") ?: ""
+                    val isSubscribed = document.getBoolean("isSubscribed") == true
 
-                    // 1. 프로필 복원
+                    // 2. 서버 데이터로 로컬 DB 갱신 (마지막 분석일 포함)
                     userProfileDao.insertProfile(
                         UserProfileEntity(
-                            height = serverHeight.toFloat(),
+                            height = serverHeight,
                             initialWeight = initialWeight,
                             isMale = isMale,
                             birthDate = birthDate,
-                            createdAt = createdAt
+                            createdAt = createdAt,
+                            lastAnalyzedDate = lastAnalyzedDate,
+                            isSubscribed = isSubscribed
                         )
                     )
 
-                    repository.resetPagingState()
-                    repository.fetchAndSyncFromFirebase()
-
                     _isMale.value = isMale
                     showProfileDialog = false
+
+                    repository.resetPagingState()
+                    repository.fetchAndSyncFromFirebase()
                 } else {
+                    // 서버에 데이터가 아예 없으면 프로필 설정 팝업 띄우기
                     showProfileDialog = true
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                showProfileDialog = true
+                // 네트워크 에러 등으로 실패 시, 차선책으로 로컬에 있는 기존 프로필이라도 로드
+                val localProfile = userProfileDao.getProfile()
+                if (localProfile != null) {
+                    showProfileDialog = false
+                    _isMale.value = localProfile.isMale
+                    repository.resetPagingState()
+                    repository.fetchAndSyncFromFirebase()
+                } else {
+                    showProfileDialog = true
+                }
             }
         }
     }
@@ -345,16 +359,36 @@ class MainViewModel @Inject constructor(
         onFailure: (String) -> Unit
     ) {
         viewModelScope.launch {
+            val uid = currentUserId ?: return@launch
             val currentState = _uiState.value
+
+            val todayDateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
             _uiState.update { it.copy(analyzing = true) }
 
             try {
                 val profile = userProfileDao.getProfile() ?: throw Exception("유저 프로필 정보가 없습니다. 설정을 먼저 완료해주세요.")
 
+                // 💡 [검증] 로컬 DB에 저장된 날짜와 실제 오늘 날짜 비교
+                // todo 구독 테스트 할때는 디버그 해제
+                if (!BuildConfig.DEBUG && !profile.isSubscribed && profile.lastAnalyzedDate == todayDateStr) {
+                    throw Exception("하루에 한 번만 무료 분석이 가능합니다. 무제한 분석을 원하시면 프리미엄을 구독해 보세요!")
+                }
+
                 val analyzedData = repository.analyzeAndSave(
                     currentState.copy(isMale = _isMale.value),
                     profile
                 )
+
+                // 💡 [성공 시 1] 로컬 DB의 lastAnalyzedDate 업데이트
+                userProfileDao.insertProfile(
+                    profile.copy(lastAnalyzedDate = todayDateStr)
+                )
+
+                // 💡 [성공 시 2] 파이어베이스 Firestore 유저 문서에도 오늘 날짜 업데이트
+                firestore.collection("users").document(uid)
+                    .update("lastAnalyzedDate", todayDateStr)
+                    .await()
+
                 _uiState.update { analyzedData.copy(analyzing = false) }
                 val savedWeight = _uiState.value.weight
                 cachedWeight = savedWeight
@@ -418,6 +452,32 @@ class MainViewModel @Inject constructor(
             } finally {
                 _isLoggingOut.value = false
             }
+        }
+    }
+
+    // 👑 유저가 화면에서 구독하기 버튼을 누를 때 호출할 함수
+    fun startSubscription(activity: android.app.Activity) {
+        billingManager.launchBillingFlow(activity, "premium_sub_monthly")
+        /*
+        todo : 콘솔에 등록한 상품 ID, 플레이스토어에 등록한 이후 상품 id 수정
+         */
+    }
+
+    // 👑 결제 성공 시 Firestore 서버와 로컬 DB를 동기화하는 함수
+    private fun updateSubscriptionStatus() = viewModelScope.launch {
+        val uid = currentUserId ?: return@launch
+        try {
+            // 1. 원격 Firestore 업데이트
+            firestore.collection("users").document(uid).update("isSubscribed", true).await()
+
+            // 2. 로컬 Room DB 동기화
+            val profile = userProfileDao.getProfile()
+            if (profile != null) {
+                userProfileDao.insertProfile(profile.copy(isSubscribed = true))
+            }
+            showToast("👑 프리미엄 멤버십이 활성화되었습니다!")
+        } catch (e: Exception) {
+            showToast("구독 갱신 실패: ${e.message}")
         }
     }
 }
