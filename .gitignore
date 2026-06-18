@@ -46,3 +46,14 @@ Thumbs.db
 /package.json
 /package-lock.json
 
+
+# [Release 빌드 산출물]
+app/release/*.apk
+app/release/*.aab
+app/release/*.json
+app/release/*.mapping
+app/release/*.txt
+
+# [서명 키(Keystore) - 보안 필수]
+*.jks
+*.keystore
