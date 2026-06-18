@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.util.Log
 import com.android.billingclient.api.*
+import com.youngs.dailynet.util.AdminConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -108,7 +109,12 @@ class BillingManager @Inject constructor(
         }
     }
 
-    fun checkSubscriptionStatus(onResult: (Boolean) -> Unit) {
+    fun checkSubscriptionStatus(userEmail: String?, onResult: (Boolean) -> Unit) {
+
+        if (AdminConfig.isUserAdmin(userEmail)) {
+            onResult(true)
+            return
+        }
         // 👑 구글 서버에 현재 유저의 구독권 정보를 물어봅니다.
         billingClient.queryPurchasesAsync(
             QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS).build()
@@ -121,5 +127,6 @@ class BillingManager @Inject constructor(
                 onResult(false)
             }
         }
+
     }
 }

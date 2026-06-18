@@ -46,14 +46,12 @@ class MainViewModel @Inject constructor(
     private val repository: SettlementRepository,
     private val settlementDao: SettlementDao,
     private val userProfileDao: UserProfileDao,
-    private val auth: FirebaseAuth,
+    val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
-    private val billingManager: com.youngs.dailynet.data.network.BillingManager // 👑 결제 매니저 주입
+    val billingManager: com.youngs.dailynet.data.network.BillingManager // 👑 결제 매니저 주입
 ) : BaseViewModel() {
 
     init {
-        syncSubscriptionStatus()
-
         // 👑 결제 성공 시 구독 권한 갱신 콜백 연결
         billingManager.onPurchaseSuccess = { purchase ->
             updateSubscriptionStatus()
@@ -85,6 +83,7 @@ class MainViewModel @Inject constructor(
 
     private val currentUserId: String?
         get() = auth.currentUser?.uid
+
 
     private val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
@@ -359,6 +358,33 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 👑 [핵심 수정] 구독 상태와 무료 분석 여부를 통합 체크하여 분석 시작
+     */
+    fun checkAndAnalyze(activity: android.app.Activity) {
+        val user = auth.currentUser ?: return
+        val todayDateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+
+        viewModelScope.launch {
+            val profile = userProfileDao.getProfile()
+
+            // 1. 구독 상태 확인 (관리자 포함)
+            billingManager.checkSubscriptionStatus(user.email) { isSubscribed ->
+                // 💡 무료 분석 조건: 구독 중 OR 오늘 아직 분석 안 함
+                val canAnalyze = isSubscribed || (profile != null && profile.lastAnalyzedDate != todayDateStr)
+
+                if (canAnalyze) {
+                    // 분석 시작
+                    analyzeAndFinalize(onSuccess = {}, onFailure = {})
+                } else {
+                    // 비구독자 + 오늘 이미 분석함 -> 구독 유도
+                    showToast("프리미엄 멤버십으로 정밀한 식단 분석을 받아보세요!")
+                    startSubscription(activity)
+                }
+            }
+        }
+    }
+
     fun analyzeAndFinalize(
         onSuccess: () -> Unit,
         onFailure: (String) -> Unit
@@ -372,11 +398,6 @@ class MainViewModel @Inject constructor(
 
             try {
                 val profile = userProfileDao.getProfile() ?: throw Exception("유저 프로필 정보가 없습니다. 설정을 먼저 완료해주세요.")
-
-                // 💡 [검증] 로컬 DB에 저장된 날짜와 실제 오늘 날짜 비교
-                if (!BuildConfig.DEBUG && !profile.isSubscribed && profile.lastAnalyzedDate == todayDateStr) {
-                    throw Exception("하루에 한 번만 무료 분석이 가능합니다. 무제한 분석을 원하시면 프리미엄을 구독해 보세요!")
-                }
 
                 val analyzedData = repository.analyzeAndSave(
                     currentState.copy(isMale = _isMale.value),
@@ -406,6 +427,8 @@ class MainViewModel @Inject constructor(
             }
         }
     }
+
+
 
     fun clearTodayDraft() {
         // 오늘의 정산을 새로 입력할때
@@ -483,10 +506,12 @@ class MainViewModel @Inject constructor(
     }
 
     fun syncSubscriptionStatus() = viewModelScope.launch {
-        val uid = currentUserId ?: return@launch
+        val user = auth.currentUser ?: return@launch
+        val uid = user.uid
+        val email = user.email
 
         // 1. 구글 결제 서버에 진짜 구독 중인지 확인
-        billingManager.checkSubscriptionStatus { isSubscribed ->
+        billingManager.checkSubscriptionStatus(email) { isSubscribed ->
             viewModelScope.launch {
                 // 2. 파이어베이스와 로컬 DB 업데이트
                 firestore.collection("users").document(uid).update("isSubscribed", isSubscribed).await()

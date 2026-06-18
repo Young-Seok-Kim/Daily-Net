@@ -6,7 +6,8 @@ exports.analyzeDiet = onRequest({
     cors: true,
     secrets: ["GEMINI_API_KEY"],
     // [보안] 인증된 앱의 요청만 허용 (App Check 필수 활성화 필요)
-    enforceAppCheck: true
+    enforceAppCheck: true,
+    timeoutSeconds: 120,
 }, async (req, res) => {
 
     try {
@@ -92,7 +93,8 @@ const prompt = `
             }
         `;
 
-        const result = await model.generateContent(prompt);
+//        const result = await model.generateContent(prompt);
+        const result = await generateWithRetry(model, prompt);
         const data = JSON.parse(result.response.text());
 
         const exerciseCalories = Math.abs(data.calories.exercise || 0);
@@ -129,7 +131,7 @@ const prompt = `
 🍰 간식: ${data.descriptions.snack} (+${data.calories.snack}kcal)
    [탄 ${sCarb}g | 단 ${sProg}g | 지 ${sFat}g]
 
-🔥 운동: ${exercise || '없음'} (-${data.calories.exercise}kcal)
+🔥 운동: ${exercise || '없음'} (-${exerciseCalories}kcal)
 
 ---
 
@@ -165,3 +167,24 @@ ${data.evaluation}
         });
     }
 });
+
+async function generateWithRetry(model, prompt, maxRetries = 3) {
+    let lastError;
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            return await model.generateContent(prompt);
+        } catch (error) {
+            lastError = error;
+            // 503 과부하 에러일 경우에만 재시도
+            if (error.message.includes("503") || error.message.includes("high demand")) {
+                const delay = Math.pow(2, i) * 1000; // 1초, 2초, 4초 대기
+                console.warn(`Gemini 503 에러 발생, ${i + 1}회 재시도 중... (${delay}ms 대기)`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                continue;
+            }
+            // 다른 에러면 즉시 종료
+            throw error;
+        }
+    }
+    throw lastError;
+}
