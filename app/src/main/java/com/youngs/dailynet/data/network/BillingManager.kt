@@ -107,4 +107,19 @@ class BillingManager @Inject constructor(
             }
         }
     }
+
+    fun checkSubscriptionStatus(onResult: (Boolean) -> Unit) {
+        // 👑 구글 서버에 현재 유저의 구독권 정보를 물어봅니다.
+        billingClient.queryPurchasesAsync(
+            QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS).build()
+        ) { billingResult, purchaseList ->
+            if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                // 현재 활성화된 구독권이 하나라도 있으면 true
+                val isSubscribed = purchaseList.any { it.purchaseState == Purchase.PurchaseState.PURCHASED }
+                onResult(isSubscribed)
+            } else {
+                onResult(false)
+            }
+        }
+    }
 }
