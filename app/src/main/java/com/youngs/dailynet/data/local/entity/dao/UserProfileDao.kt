@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -16,7 +17,7 @@ interface UserProfileDao {
 
     // 2. 단일 행 조회 (id = 0으로 명확하게 지정)
     @Query("SELECT * FROM user_profile WHERE id = 0")
-    suspend fun getProfile(): UserProfileEntity?
+    suspend fun getProfile(): UserProfileEntity
 
     // 3. Flow 형태로 프로필 실시간 관찰 (UI 데이터 바인딩용)
     @Query("SELECT * FROM user_profile WHERE id = 0")
@@ -24,4 +25,8 @@ interface UserProfileDao {
 
     @Query("DELETE FROM user_profile")
     suspend fun clearProfile()
+
+    @Transaction
+    @Query("UPDATE user_profile SET todayAnalysisCount = :count, lastAnalyzedDate = :date WHERE id = 0")
+    suspend fun updateAnalysisInfo(count: Int, date: String) : Int
 }

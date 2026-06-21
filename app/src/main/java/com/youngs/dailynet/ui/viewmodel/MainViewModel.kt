@@ -1,6 +1,7 @@
 package com.youngs.dailynet.ui.viewmodel
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,8 +51,9 @@ class MainViewModel @Inject constructor(
     val billingManager: com.youngs.dailynet.data.network.BillingManager // 👑 결제 매니저 주입
 ) : BaseViewModel() {
 
+    private val UNINITIALIZED = -1 // 오늘 횟수 가져오는데 실패하면 _todayCount를 -1로 셋팅해서 다시 시도하도록 유도함
+
     init {
-        // 👑 결제 성공 시 구독 권한 갱신 콜백 연결
         billingManager.onPurchaseSuccess = { purchase ->
             updateSubscriptionStatus()
         }
@@ -86,7 +88,13 @@ class MainViewModel @Inject constructor(
 
     private val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
-    fun saveInitialProfile(googleName : String, height: Float, weight: Float, isMale: Boolean, birthDate: String) {
+    fun saveInitialProfile(
+        googleName: String,
+        height: Float,
+        weight: Float,
+        isMale: Boolean,
+        birthDate: String
+    ) {
         val uid = currentUserId ?: return
 
         viewModelScope.launch {
@@ -222,7 +230,11 @@ class MainViewModel @Inject constructor(
         CategoryInfo("저녁", "예: 샐러드, 스테이크, 흰쌀밥 1공기, 고등어 등등", "dinner"),
         CategoryInfo("간식", "예: 아메리카노, 견과류", "snack"),
         CategoryInfo("운동", "예: 스쿼트 100개, 런닝 5km", "exercise"),
-        CategoryInfo("비고", "오늘의 특이사항 \n ex)삼겹살 먹을 때 비계 떼고 살코기 위주로 먹었고, 쌈을 많이 싸먹었어요.\n도보를 6000보 걸었어요.", "remark")
+        CategoryInfo(
+            "비고",
+            "오늘의 특이사항 \n ex)삼겹살 먹을 때 비계 떼고 살코기 위주로 먹었고, 쌈을 많이 싸먹었어요.\n도보를 6000보 걸었어요.",
+            "remark"
+        )
     )
 
     private val _uiState = MutableStateFlow(DailyRecordModel(date = today))
@@ -267,8 +279,17 @@ class MainViewModel @Inject constructor(
                 _uiState.value = DailyRecordModel(
                     date = targetDate,
                     weight = cachedWeight,
-                    breakfast = "", lunch = "", dinner = "", snack = "", exercise = "", remark = "",
-                    analysisResult = "", netCalories = 0, hasExercise = false, finalized = false, analyzing = false
+                    breakfast = "",
+                    lunch = "",
+                    dinner = "",
+                    snack = "",
+                    exercise = "",
+                    remark = "",
+                    analysisResult = "",
+                    netCalories = 0,
+                    hasExercise = false,
+                    finalized = false,
+                    analyzing = false
                 )
             }
         } catch (e: Exception) {
@@ -290,12 +311,14 @@ class MainViewModel @Inject constructor(
                     val weightVal = text.toFloatOrNull() ?: 0f
                     current.copy(weight = weightVal)
                 }
+
                 "exercise" -> {
                     current.copy(
                         exercise = text,
                         hasExercise = text.isNotBlank()
                     )
                 }
+
                 else -> current
             }
         }
@@ -318,105 +341,115 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun withdrawAccount(context: android.content.Context, onResult: (Boolean) -> Unit) = viewModelScope.launch {
-        try {
-            val currentUser = auth.currentUser
-            if (currentUser != null) {
-                val userId = currentUser.uid
 
-                // 1. 원격 Firebase Firestore 데이터 삭제
-                // (유저 메타데이터 및 하위 정산 기록 컬렉션 삭제)
-                // 주의: 프로덕션 환경에서 하위 컬렉션이 많다면 Cloud Functions나 반복문 분할 삭제가 안전합니다.
-                firestore.collection("users").document(userId)
-                    .delete()
-                    .await()
+    fun withdrawAccount(context: android.content.Context, onResult: (Boolean) -> Unit) =
+        viewModelScope.launch {
+            try {
+                val currentUser = auth.currentUser
+                if (currentUser != null) {
+                    val userId = currentUser.uid
 
-                // 2. 로컬 Room DB 데이터 전체 삭제 (현재 로그인했던 유저의 기록 초기화)
-                // 데이터 혼선을 방지하기 위해 clearAllTables 또는 기존 Dao의 삭제 메서드를 호출합니다.
-                // 예: settlementDao.deleteAll()이 구현되어 있다면 사용, 없다면 아래 쿼리 기반 메서드 추가 필요
-                dailyRecordDao.clearAllDailyRecord()
-                userProfileDao.clearProfile()
+                    // 1. 원격 Firebase Firestore 데이터 삭제
+                    // (유저 메타데이터 및 하위 정산 기록 컬렉션 삭제)
+                    // 주의: 프로덕션 환경에서 하위 컬렉션이 많다면 Cloud Functions나 반복문 분할 삭제가 안전합니다.
+                    firestore.collection("users").document(userId)
+                        .delete()
+                        .await()
 
-                // 3. Firebase Authentication 유저 계정 탈퇴 처리
-                currentUser.delete().await()
+                    // 2. 로컬 Room DB 데이터 전체 삭제 (현재 로그인했던 유저의 기록 초기화)
+                    // 데이터 혼선을 방지하기 위해 clearAllTables 또는 기존 Dao의 삭제 메서드를 호출합니다.
+                    // 예: settlementDao.deleteAll()이 구현되어 있다면 사용, 없다면 아래 쿼리 기반 메서드 추가 필요
+                    dailyRecordDao.clearAllDailyRecord()
+                    userProfileDao.clearProfile()
 
-                showToast("회원탈퇴가 정상적으로 처리되었습니다.")
-                onResult(true)
-            } else {
-                showToast("인증 정보가 만료되었습니다. 다시 로그인 해주세요.")
+                    // 3. Firebase Authentication 유저 계정 탈퇴 처리
+                    currentUser.delete().await()
+
+                    showToast("회원탈퇴가 정상적으로 처리되었습니다.")
+                    onResult(true)
+                } else {
+                    showToast("인증 정보가 만료되었습니다. 다시 로그인 해주세요.")
+                    onResult(false)
+                }
+            } catch (e: Exception) {
+                // Firebase 보안 규칙 상, 로그인한 지 오래된 유저는 계정 삭제 시 '상대적 최근 인증(Requires Recent Login)' 에러가 발생할 수 있습니다.
+                if (e.message?.contains("CREDENTIAL_TOO_OLD_LOGIN_AGAIN") == true) {
+                    showToast("보안을 위해 재인증이 필요합니다. 로그아웃 후 다시 로그인하여 시도해 주세요.")
+                } else {
+                    showToast("회원탈퇴 실패: ${e.localizedMessage}")
+                }
                 onResult(false)
             }
-        } catch (e: Exception) {
-            // Firebase 보안 규칙 상, 로그인한 지 오래된 유저는 계정 삭제 시 '상대적 최근 인증(Requires Recent Login)' 에러가 발생할 수 있습니다.
-            if (e.message?.contains("CREDENTIAL_TOO_OLD_LOGIN_AGAIN") == true) {
-                showToast("보안을 위해 재인증이 필요합니다. 로그아웃 후 다시 로그인하여 시도해 주세요.")
-            } else {
-                showToast("회원탈퇴 실패: ${e.localizedMessage}")
-            }
-            onResult(false)
         }
-    }
 
-    /**
-     * 👑 [핵심 수정] 구독 상태와 무료 분석 여부를 통합 체크하여 분석 시작
-     */
+
     fun checkAndAnalyze(activity: android.app.Activity) {
-        val user = auth.currentUser ?: return
-        val todayDateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        val uid = currentUserId ?: return
 
         viewModelScope.launch {
-            val profile = userProfileDao.getProfile()
+            try {
+                val profile = userProfileDao.getProfile()
+                // 1. 구독 상태 확인 (관리자 포함)
+                billingManager.checkSubscriptionStatus(auth.currentUser?.email) { isSubscribed ->
+                    viewModelScope.launch {
 
-            // 1. 구독 상태 확인 (관리자 포함)
-            billingManager.checkSubscriptionStatus(user.email) { isSubscribed ->
-                // 💡 무료 분석 조건: 구독 중 OR 오늘 아직 분석 안 함
-                val canAnalyze = isSubscribed || (profile != null && profile.lastAnalyzedDate != todayDateStr)
+                        if (isSubscribed) {
+                            analyzeAndFinalize(onSuccess = {
+                                showToast("분석 및 저장이 완료되었습니다.")
+                            }, onFailure = {})
+                        } else {
 
-                if (canAnalyze) {
-                    // 분석 시작
-                    analyzeAndFinalize(onSuccess = {}, onFailure = {})
-                } else {
-                    // 비구독자 + 오늘 이미 분석함 -> 구독 유도
-                    showToast("무료 버전은 일일 1회 분석만 가능합니다.\n프리미엄 멤버십으로 정밀한 식단 분석을 받아보세요!")
-                    startSubscription(activity)
+                            if (profile.lastAnalyzedDate == today && profile.todayAnalysisCount >= 3) {
+                                showToast("오늘 분석 횟수(3회)를 초과했습니다.")
+                                startSubscription(activity)
+                                return@launch
+                            }
+
+                            analyzeAndFinalize(
+                                onSuccess = { count -> showToast("분석 완료! 오늘 $count/3회 분석했습니다.") },
+                                onFailure = { showToast("분석 실패: $it") }
+                            )
+                        }
+                    }
                 }
+            } catch (e: Exception) {
+                showToast("데이터 확인 실패: ${e.message}")
             }
         }
     }
 
     fun analyzeAndFinalize(
-        onSuccess: () -> Unit,
+        onSuccess: ( newCount: Int ) -> Unit,
         onFailure: (String) -> Unit
     ) {
         viewModelScope.launch {
             val uid = currentUserId ?: return@launch
             val currentState = _uiState.value
-
-            val todayDateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
             _uiState.update { it.copy(analyzing = true) }
 
             try {
-                val profile = userProfileDao.getProfile() ?: throw Exception("유저 프로필 정보가 없습니다. 설정을 먼저 완료해주세요.")
+                val latestProfile = userProfileDao.getProfile()
 
                 val analyzedData = repository.analyzeAndSave(
                     currentState.copy(isMale = _isMale.value),
-                    profile
+                    latestProfile
                 )
 
-                // 💡 [성공 시 1] 로컬 DB의 lastAnalyzedDate 업데이트
-                userProfileDao.insertProfile(
-                    profile.copy(lastAnalyzedDate = todayDateStr)
-                )
+                val newCount = if (latestProfile.lastAnalyzedDate != today) 1 else (latestProfile.todayAnalysisCount + 1)
+
+                // 1. 로컬 DB 갱신 (마지막 분석일 + 횟수)
+                userProfileDao.updateAnalysisInfo(newCount, today)
+                Log.d("DB_DEBUG", "최종 DB 확인: " + userProfileDao.getProfile())
 
                 // 💡 [성공 시 2] 파이어베이스 Firestore 유저 문서에도 오늘 날짜 업데이트
-                firestore.collection("users").document(uid)
-                    .update("lastAnalyzedDate", todayDateStr)
-                    .await()
+                firestore.collection("users").document(uid).update(
+                    mapOf("todayAnalysisCount" to newCount, "lastAnalyzedDate" to today)
+                ).await()
 
                 _uiState.update { analyzedData.copy(analyzing = false) }
                 val savedWeight = _uiState.value.weight
                 cachedWeight = savedWeight
-                showToast("분석 및 저장이 완료되었습니다.")
+                onSuccess(newCount)
             } catch (e: Exception) {
                 _uiState.update { it.copy(analyzing = false) }
 
@@ -426,7 +459,6 @@ class MainViewModel @Inject constructor(
             }
         }
     }
-
 
 
     fun clearTodayDraft() {
@@ -513,7 +545,8 @@ class MainViewModel @Inject constructor(
         billingManager.checkSubscriptionStatus(email) { isSubscribed ->
             viewModelScope.launch {
                 // 2. 파이어베이스와 로컬 DB 업데이트
-                firestore.collection("users").document(uid).update("isSubscribed", isSubscribed).await()
+                firestore.collection("users").document(uid).update("isSubscribed", isSubscribed)
+                    .await()
 
                 val profile = userProfileDao.getProfile()
                 if (profile != null) {

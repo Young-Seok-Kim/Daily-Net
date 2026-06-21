@@ -14,5 +14,6 @@ data class UserProfileEntity(
     val birthDate: String,
     val createdAt: Long = System.currentTimeMillis(),
     val lastAnalyzedDate: String = "",
-    val isSubscribed: Boolean = false
+    val isSubscribed: Boolean = false,
+    val todayAnalysisCount: Int = 0
 )
