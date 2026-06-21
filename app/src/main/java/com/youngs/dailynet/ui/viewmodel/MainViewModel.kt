@@ -429,6 +429,7 @@ class MainViewModel @Inject constructor(
 
             try {
                 val latestProfile = userProfileDao.getProfile()
+                Log.d("CRITICAL_DEBUG", "DB 읽기 직후 값: ${latestProfile.lastAnalyzedDate}") // 이게 1999인지 확인!
 
                 val analyzedData = repository.analyzeAndSave(
                     currentState.copy(isMale = _isMale.value),
