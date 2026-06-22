@@ -64,6 +64,7 @@ class MainViewModel @Inject constructor(
     private val _isPagingLoading = MutableStateFlow(false)
     val isPagingLoading = _isPagingLoading.asStateFlow()
 
+
     val isLastPageReached: Boolean
         get() = repository.isLastPageReached
 
@@ -107,6 +108,8 @@ class MainViewModel @Inject constructor(
                     "initialWeight" to weight,
                     "isMale" to isMale,
                     "birthDate" to birthDate,
+                    "todayAnalysisCount" to 0,
+                    "lastAnalyzedDate" to "",
                     "createdAt" to timestamp,
                     "isSubscribed" to false
                 )
@@ -147,6 +150,7 @@ class MainViewModel @Inject constructor(
                     val initialWeight = (document.getDouble("initialWeight") ?: 0.0).toFloat()
                     val isMale = document.getBoolean("isMale") ?: true
                     val birthDate = document.getString("birthDate") ?: ""
+                    val todayAnalysisCount = (document.getLong("todayAnalysisCount") ?: 0L).toInt()
                     val createdAt = document.getLong("createdAt") ?: System.currentTimeMillis()
                     // 💡 서버에 저장되어 있던 마지막 분석일 획득
                     val lastAnalyzedDate = document.getString("lastAnalyzedDate") ?: ""
@@ -159,6 +163,7 @@ class MainViewModel @Inject constructor(
                             initialWeight = initialWeight,
                             isMale = isMale,
                             birthDate = birthDate,
+                            todayAnalysisCount = todayAnalysisCount,
                             createdAt = createdAt,
                             lastAnalyzedDate = lastAnalyzedDate,
                             isSubscribed = isSubscribed
@@ -384,8 +389,6 @@ class MainViewModel @Inject constructor(
 
 
     fun checkAndAnalyze(activity: android.app.Activity) {
-        val uid = currentUserId ?: return
-
         viewModelScope.launch {
             try {
                 val profile = userProfileDao.getProfile()
@@ -429,18 +432,22 @@ class MainViewModel @Inject constructor(
 
             try {
                 val latestProfile = userProfileDao.getProfile()
-                Log.d("CRITICAL_DEBUG", "DB 읽기 직후 값: ${latestProfile.lastAnalyzedDate}") // 이게 1999인지 확인!
+
+                val newCount = if (latestProfile.lastAnalyzedDate == today) {
+                    (latestProfile.todayAnalysisCount + 1)
+                } else {
+                    1
+                }
 
                 val analyzedData = repository.analyzeAndSave(
                     currentState.copy(isMale = _isMale.value),
                     latestProfile
                 )
 
-                val newCount = if (latestProfile.lastAnalyzedDate != today) 1 else (latestProfile.todayAnalysisCount + 1)
 
                 // 1. 로컬 DB 갱신 (마지막 분석일 + 횟수)
-                userProfileDao.updateAnalysisInfo(newCount, today)
-                Log.d("DB_DEBUG", "최종 DB 확인: " + userProfileDao.getProfile())
+                val refreshedProfile = userProfileDao.updateAndGetLatest(newCount, today)
+                Log.d("DB_DEBUG", "방금 DB에 저장된 최신 값: ${refreshedProfile?.todayAnalysisCount}")
 
                 // 💡 [성공 시 2] 파이어베이스 Firestore 유저 문서에도 오늘 날짜 업데이트
                 firestore.collection("users").document(uid).update(
@@ -450,6 +457,10 @@ class MainViewModel @Inject constructor(
                 _uiState.update { analyzedData.copy(analyzing = false) }
                 val savedWeight = _uiState.value.weight
                 cachedWeight = savedWeight
+
+                val checkProfile = userProfileDao.getProfile()
+                Log.d("DB_DEBUG", "수정 직후 강제 재조회 값: ${checkProfile?.todayAnalysisCount}")
+
                 onSuccess(newCount)
             } catch (e: Exception) {
                 _uiState.update { it.copy(analyzing = false) }

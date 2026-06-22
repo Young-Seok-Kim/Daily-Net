@@ -29,4 +29,10 @@ interface UserProfileDao {
     @Transaction
     @Query("UPDATE user_profile SET todayAnalysisCount = :count, lastAnalyzedDate = :date WHERE id = 0")
     suspend fun updateAnalysisInfo(count: Int, date: String) : Int
+
+    @Transaction
+    suspend fun updateAndGetLatest(count: Int, date: String): UserProfileEntity? {
+        updateAnalysisInfo(count, date)
+        return getProfile()
+    }
 }
