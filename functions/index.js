@@ -66,16 +66,20 @@ const prompt = `
                - 메뉴명이 아닌 식당이름을 명시했을경우 해당 식당에서 사용자가 먹은 메뉴를 예상하여 예상한 메뉴를 기준으로 칼로리를 계산하십시오.
                - 사용자가 비고 혹은 운동에 도보를 명시했을경우 사용자의 키, 몸무게에 따른 소모 칼로리를에 추가하여 계산하십시오.
             2. **단계별 사고(Chain of Thought)**: 내부적으로 [메뉴명 -> 예상 중량(g) -> 100g당 칼로리 -> 최종 칼로리] 단계를 거쳐 계산한 뒤 결과값만 JSON에 담으세요.
-            3. **전문적 묘사**: 'descriptions'에는 해당 식단의 [장점/단점/개선점]을 탄단지 비율을 포함하여 20자 내외로 코멘트하세요.
+            3. **전문적 묘사**: 'descriptions'에는 해당 식단의 각 메뉴별로 [장점/단점/개선점]을 탄단지 비율을 포함하여 20자 이내로 코멘트하세요.
             4. **종합 평가**: 사용자의 목표 권장 칼로리(${recommendedCalories} kcal)와 비교하여, 현재 식단이 체중 감량 및 영양 균형에 미치는 영향을 영양학적으로 평가하세요.
             5. **형식 엄수**: (반드시 아래 JSON 형태 그대로 응답해야 합니다)
+                - 반드시 아래 JSON 형태를 유지하십시오.
+               - 각 끼니의 [calories] 객체와 [macros] 객체, 그리고 [meals] 리스트를 모두 포함해야 합니다.
+               - 운동을 안 했더라도 "calories": { "exercise": 0 }을 반드시 포함하십시오.
+               - Markdown 형식(\`\`\`json) 없이 오직 순수 JSON 문자열만 응답하십시오.
             {
-                "calories": {
-                    "breakfast": 0,
-                    "lunch": 0,
-                    "dinner": 0,
-                    "snack": 0,
-                    "exercise": 0
+                "calories": { "breakfast": 0, "lunch": 0, "dinner": 0, "snack": 0, "exercise": 0 },
+                "meals": {
+                    "breakfast": [{ "name": "메뉴1", "kcal": 0 }, { "name": "메뉴2", "kcal": 0 }],
+                    "lunch": [{ "name": "메뉴1", "kcal": 0 }, { "name": "메뉴2", "kcal": 0 }],
+                    "dinner": [{ "name": "메뉴1", "kcal": 0 }, { "name": "메뉴2", "kcal": 0 }],
+                    "snack": [{ "name": "메뉴1", "kcal": 0 }, { "name": "메뉴2", "kcal": 0 }]
                 },
                 "macros": {
                     "breakfast": { "carb": 0, "protein": 0, "fat": 0 },
@@ -93,9 +97,21 @@ const prompt = `
             }
         `;
 
-//        const result = await model.generateContent(prompt);
         const result = await generateWithRetry(model, prompt);
-        const data = JSON.parse(result.response.text());
+        let rawText = result.response.text();
+        // 마크다운 코드 블록 태그 제거
+        rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+
+        const data = JSON.parse(rawText);
+
+        const mealCalories = data.calories || { breakfast: 0, lunch: 0, dinner: 0, snack: 0, exercise: 0 };
+        const mealMacros = data.macros || { breakfast: {carb:0, protein:0, fat:0}, lunch: {carb:0, protein:0, fat:0}, dinner: {carb:0, protein:0, fat:0}, snack: {carb:0, protein:0, fat:0} };
+        const mealDescriptions = data.descriptions || { breakfast: "", lunch: "", dinner: "", snack: "" };
+
+        const buildMenuList = (mealArray) => {
+            if (!Array.isArray(mealArray)) return "정보 없음";
+            return mealArray.map(m => `${m.name || '알 수 없음'}(${m.kcal || 0}kcal)`).join(", ");
+        };
 
         const exerciseCalories = Math.abs(data.calories.exercise || 0);
         const totalIn = (data.calories.breakfast || 0) + (data.calories.lunch || 0) + (data.calories.dinner || 0) + (data.calories.snack || 0);
@@ -116,20 +132,30 @@ const prompt = `
         const dCarb = dMacros.carb || 0, dProg = dMacros.protein || 0, dFat = dMacros.fat || 0;
         const sCarb = sMacros.carb || 0, sProg = sMacros.protein || 0, sFat = sMacros.fat || 0;
 
+        // 메뉴 리스트의 kcal을 모두 더하는 함수
+        const sumKcal = (mealArray) => {
+            if (!Array.isArray(mealArray)) return 0;
+            return mealArray.reduce((acc, m) => acc + (m.kcal || 0), 0);
+        };
+
         const feedback = `
 📋 오늘의 영양 분석 리포트
 
-🍳 아침: ${data.descriptions.breakfast} (+${data.calories.breakfast}kcal)
-   [탄 ${bCarb}g | 단 ${bProg}g | 지 ${bFat}g]
+🍳 아침: ${buildMenuList(data.meals?.breakfast)} (합계: ${sumKcal(data.meals?.breakfast)}kcal)
+   [탄 ${data.macros?.breakfast?.carb.toFixed(1) || 0}g | 단 ${data.macros?.breakfast?.protein.toFixed(1) || 0}g | 지 ${data.macros?.breakfast?.fat.toFixed(1) || 0}g]
+   💡 ${data.descriptions?.breakfast || ""}
 
-🍳 점심: ${data.descriptions.lunch} (+${data.calories.lunch}kcal)
-   [탄 ${lCarb}g | 단 ${lProg}g | 지 ${lFat}g]
+🍳 점심: ${buildMenuList(data.meals?.lunch)} (합계: ${sumKcal(data.meals?.lunch)}kcal)
+   [탄 ${data.macros?.lunch?.carb.toFixed(1) || 0}g | 단 ${data.macros?.lunch?.protein.toFixed(1) || 0}g | 지 ${data.macros?.lunch?.fat.toFixed(1) || 0}g]
+   💡 ${data.descriptions?.lunch || ""}
 
-🍳 저녁: ${data.descriptions.dinner} (+${data.calories.dinner}kcal)
-   [탄 ${dCarb}g | 단 ${dProg}g | 지 ${dFat}g]
+🍳 저녁: ${buildMenuList(data.meals?.dinner)} (합계: ${sumKcal(data.meals?.dinner)}kcal)
+   [탄 ${data.macros?.dinner?.carb.toFixed(1) || 0}g | 단 ${data.macros?.dinner?.protein.toFixed(1) || 0}g | 지 ${data.macros?.dinner?.fat.toFixed(1) || 0}g]
+   💡 ${data.descriptions?.dinner || ""}
 
-🍰 간식: ${data.descriptions.snack} (+${data.calories.snack}kcal)
-   [탄 ${sCarb}g | 단 ${sProg}g | 지 ${sFat}g]
+🍰 간식: ${buildMenuList(data.meals?.snack)} (합계: ${sumKcal(data.meals?.snack)}kcal)
+   [탄 ${data.macros?.snack?.carb.toFixed(1) || 0}g | 단 ${data.macros?.snack?.protein.toFixed(1) || 0}g | 지 ${data.macros?.snack?.fat.toFixed(1) || 0}g]
+   💡 ${data.descriptions?.snack || ""}
 
 🔥 운동: ${exercise || '없음'} (-${exerciseCalories}kcal)
 
