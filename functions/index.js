@@ -167,9 +167,9 @@ const prompt = `
 • 나의 오늘 섭취량: ${totalIn} kcal (${totalIn > recommendedCalories ? '⚠️ 권장 초과' : '✅ 권장 이내'})
 
 📊 나의 오늘 실제 탄단지 총합
-• 탄수화물: ${totalCarb}g / ${recCarb}g
-• 단백질: ${totalProtein}g / ${recProtein}g
-• 지방: ${totalFat}g / ${recFat}g
+• 탄수화물: ${Number(totalCarb.toFixed(1))}g / ${recCarb}g
+• 단백질: ${Number(totalProtein.toFixed(1))}g / ${recProtein}g
+• 지방: ${Number(totalFat.toFixed(1))}g / ${recFat}g
 
 ---
 
