@@ -436,25 +436,28 @@ fun WeekDivider(headerText: String, weeklyCalories: Int) {
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            // Material3 기준 HorizontalDivider 사용 (Divider도 무방)
+            // 주별 구분선: 두께는 얇게, 대신 일별 테두리보다 진한 색으로 구분
             HorizontalDivider(
                 modifier = Modifier.weight(1f),
-                color = MaterialTheme.colorScheme.outlineVariant
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
                 text = "$headerText ",
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp)
             )
             Text(
                 text = "(${weeklyCalories} kcal)",
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                style = MaterialTheme.typography.labelMedium,
                 color = if (weeklyCalories <= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
             )
 
             HorizontalDivider(
                 modifier = Modifier.weight(1f),
-                color = MaterialTheme.colorScheme.outlineVariant
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
