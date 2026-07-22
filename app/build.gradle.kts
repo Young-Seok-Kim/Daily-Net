@@ -16,8 +16,8 @@ android {
         applicationId = "com.youngs.dailynet"
         minSdk = 26
         targetSdk = 36
-        versionCode = 12
-        versionName = "1.5"
+        versionCode = 14
+        versionName = "1.6.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -195,8 +195,8 @@ class MainViewModel @Inject constructor(
                     _isMale.value = isMale
                     showProfileDialog = false
 
-                    repository.resetPagingState()
-                    repository.fetchAndSyncFromFirebase()
+                    // 첫 로드 시 전체 데이터를 한 번에 가져온다 (페이징 없이)
+                    repository.fetchAllFromFirebase()
                 } else {
                     // 서버에 데이터가 아예 없으면 프로필 설정 팝업 띄우기
                     showProfileDialog = true
@@ -208,8 +208,8 @@ class MainViewModel @Inject constructor(
                 if (localProfile != null) {
                     showProfileDialog = false
                     _isMale.value = localProfile.isMale
-                    repository.resetPagingState()
-                    repository.fetchAndSyncFromFirebase()
+                    // 첫 로드 시 전체 데이터를 한 번에 가져온다 (페이징 없이)
+                    repository.fetchAllFromFirebase()
                 } else {
                     showProfileDialog = true
                 }

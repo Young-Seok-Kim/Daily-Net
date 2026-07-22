@@ -104,6 +104,29 @@ class DailyRecordRepository @Inject constructor(
     }
 
     /**
+     * 첫 로그인/최초 로드 시 전체 정산 기록을 한 번에 가져와 Room에 캐싱한다.
+     * (페이징 없이 단일 쿼리로 모두 조회 → 스크롤로 내려받을 필요 없음)
+     */
+    suspend fun fetchAllFromFirebase() {
+        try {
+            val snapshot = userDailyRecordCollection
+                .orderBy("date", Query.Direction.DESCENDING)
+                .get()
+                .await()
+
+            val serverList = snapshot.toObjects(DailyRecordModel::class.java)
+            serverList.forEach { model ->
+                dailyRecordDao.insertOrUpdate(model)
+            }
+            // 전체를 다 가져왔으므로 추가 페이징 불필요
+            lastVisibleDocument = snapshot.documents.lastOrNull()
+            isLastPageReached = true
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    /**
      * 💡 [추가] 로그아웃 혹은 계정 전환 시 페이징 상태를 초기화해 주어야 합니다.
      */
     fun resetPagingState() {

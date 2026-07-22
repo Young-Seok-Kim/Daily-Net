@@ -130,36 +130,12 @@ fun DailyRecordScreen(
         }
     }
 
-    // ── 분석 결과 타자기 스트리밍 상태 ──
-    var streamedResult by remember { mutableStateOf("") }
-    var isStreaming by remember { mutableStateOf(false) }
+    // ── 분석 결과: 스트리밍 없이 한 번에 전체 표시 ──
+    val streamedResult = uiState.analysisResult
+    val isStreaming = false
     LaunchedEffect(uiState.analysisResult, shouldStream) {
-        val full = uiState.analysisResult
-        when {
-            full.isEmpty() -> {
-                streamedResult = ""
-                isStreaming = false
-            }
-            // 방금 분석한 결과만 한 줄씩 스트리밍
-            shouldStream -> {
-                isStreaming = true
-                streamedResult = ""
-                val sb = StringBuilder()
-                full.split("\n").forEachIndexed { idx, line ->
-                    if (idx > 0) sb.append("\n")
-                    sb.append(line)
-                    streamedResult = sb.toString()
-                    delay(55L)
-                }
-                isStreaming = false
-                mainViewModel.onResultStreamed()
-            }
-            // 저장된 기록을 다시 볼 때는 즉시 전체 표시
-            else -> {
-                streamedResult = full
-                isStreaming = false
-            }
-        }
+        // 방금 분석한 결과 플래그만 초기화 (표시는 즉시 전체)
+        if (shouldStream) mainViewModel.onResultStreamed()
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
