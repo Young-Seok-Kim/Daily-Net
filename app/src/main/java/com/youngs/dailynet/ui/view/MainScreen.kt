@@ -39,6 +39,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
+import androidx.core.content.edit
+import com.youngs.dailynet.util.Constants
 import com.youngs.dailynet.util.HolidayProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -70,7 +72,7 @@ fun getWeekOfMonthText(dateString: String): String {
         val week = calendar.get(Calendar.WEEK_OF_MONTH)
 
         // "05월 3주차" 형식으로 반환
-        String.format("%02d월 %d주차", month, week)
+        String.format(Locale.getDefault(), "%02d월 %d주차", month, week)
     } catch (e: Exception) {
         dateString // 에러 시 기본 날짜 반환
     }
@@ -512,7 +514,7 @@ fun ProfileSetupDialog(
                                 context,
                                 { _, year, month, dayOfMonth ->
                                     birthDateText =
-                                        String.format("%d-%02d-%02d", year, month + 1, dayOfMonth)
+                                        String.format(Locale.getDefault(), "%d-%02d-%02d", year, month + 1, dayOfMonth)
                                 },
                                 currentCal.get(Calendar.YEAR),
                                 currentCal.get(Calendar.MONTH),
@@ -731,14 +733,14 @@ fun StatTile(modifier: Modifier, label: String, value: String, valueColor: Color
 fun RecentTrendChart(records: List<DailyRecordModel>, onDayClick: (String) -> Unit) {
     val context = LocalContext.current
     val prefs = remember {
-        context.getSharedPreferences("user_prefs", android.content.Context.MODE_PRIVATE)
+        context.getSharedPreferences(Constants.PREFS_NAME, android.content.Context.MODE_PRIVATE)
     }
     // 열림/닫힘 상태를 저장해 앱 재실행 시에도 유지
-    var expanded by remember { mutableStateOf(prefs.getBoolean("trend_expanded", true)) }
+    var expanded by remember { mutableStateOf(prefs.getBoolean(Constants.KEY_TREND_EXPANDED, true)) }
 
     // 기기 캘린더(구글 '대한민국의 휴일' 등)에서 공휴일 로드 → 색상에 반영
     var calendarHolidays by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var calPermTry by remember { mutableStateOf(0) }
+    var calPermTry by remember { mutableIntStateOf(0) }
     val calendarPermLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted -> if (granted) calPermTry++ }
@@ -790,7 +792,7 @@ fun RecentTrendChart(records: List<DailyRecordModel>, onDayClick: (String) -> Un
                     .clip(RoundedCornerShape(10.dp))
                     .clickable {
                         expanded = !expanded
-                        prefs.edit().putBoolean("trend_expanded", expanded).apply()
+                        prefs.edit { putBoolean(Constants.KEY_TREND_EXPANDED, expanded) }
                     }
                     .padding(vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,

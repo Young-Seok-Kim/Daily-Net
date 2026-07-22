@@ -7,6 +7,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.youngs.dailynet.data.local.entity.dao.DailyRecordDao
 import com.youngs.dailynet.data.local.AppDatabase
 import com.youngs.dailynet.data.network.DailyNetApiService
+import com.youngs.dailynet.util.Constants
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
