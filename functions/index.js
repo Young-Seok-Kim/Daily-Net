@@ -15,13 +15,21 @@ exports.analyzeDiet = onRequest({
         const {
             weight, height, isMale, birthDate,
             breakfast, lunch, dinner, snack,
-            exercise, remark
+            exercise, remark, steps
         } = req.body;
+        const stepCount = Number(steps) || 0;
 
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         const model = genAI.getGenerativeModel({
+            // 정확도를 위해 flash 모델 유지 (lite 아님)
             model: "gemini-2.5-flash",
-            generationConfig: { responseMimeType: "application/json" }
+            generationConfig: {
+                responseMimeType: "application/json",
+                temperature: 0.4,        // 칼로리 산출 일관성 향상
+                maxOutputTokens: 4096,
+                // ⚡ 속도 개선의 핵심: 기본 'thinking' 지연 제거 (프롬프트의 단계별 사고 지시로 보완)
+                thinkingConfig: { thinkingBudget: 0 }
+            }
         });
 
 // 상단에 성별 텍스트 변환 로직 추가 (genderText 대응)
@@ -56,6 +64,7 @@ const prompt = `
             - 신체: ${height}cm, ${weight}kg, ${genderText} (만 ${age}세)
             - 식사: 아침(${breakfast}), 점심(${lunch}), 저녁(${dinner}), 간식(${snack})
             - 활동: ${exercise}
+            - 걸음 수: ${stepCount}보 (0이면 걸음 데이터 없음)
             - 비고: ${remark}
             - 목표 권장 칼로리: 하루 ${recommendedCalories} kcal 섭취 권장
 
@@ -65,6 +74,7 @@ const prompt = `
                - 양이 명시되지 않았다면 성인 1인분(표준 중량)을 기준으로 하되, 터무니없는 고칼로리 산출을 절대 금지합니다.
                - 메뉴명이 아닌 식당이름을 명시했을경우 해당 식당에서 사용자가 먹은 메뉴를 예상하여 예상한 메뉴를 기준으로 칼로리를 계산하십시오.
                - 사용자가 비고 혹은 운동에 도보를 명시했을경우 사용자의 키, 몸무게에 따른 소모 칼로리를에 추가하여 계산하십시오.
+               - 걸음 수(${stepCount}보)가 0보다 크면, 사용자의 키/몸무게 기준 걸음당 소모 칼로리를 추정해 운동 소모 칼로리(calories.exercise)에 합산하십시오. (도보가 이미 운동/비고에 명시된 경우 중복 계산하지 않도록 주의)
             2. **단계별 사고(Chain of Thought)**: 내부적으로 [메뉴명 -> 예상 중량(g) -> 100g당 칼로리 -> 최종 칼로리] 단계를 거쳐 계산한 뒤 결과값만 JSON에 담으세요.
             3. **전문적 묘사**: 'descriptions'에는 해당 식단의 각 메뉴별로 [장점/단점/개선점]을 탄단지 비율을 포함하여 20자 이내로 코멘트하세요.
             4. **종합 평가**: 사용자의 목표 권장 칼로리(${recommendedCalories} kcal)와 비교하여, 현재 식단이 체중 감량 및 영양 균형에 미치는 영향을 영양학적으로 평가하세요.
@@ -72,6 +82,8 @@ const prompt = `
                 - 반드시 아래 JSON 형태를 유지하십시오.
                - 각 끼니의 [calories] 객체와 [macros] 객체, 그리고 [meals] 리스트를 모두 포함해야 합니다.
                - 운동을 안 했더라도 "calories": { "exercise": 0 }을 반드시 포함하십시오.
+               - [exercises] 리스트에는 사용자가 한 **운동을 항목별로 나누어** 각 운동의 소모 칼로리(kcal)를 담으세요. 걸음 수(${stepCount}보)가 0보다 크면 "걸음 ${stepCount}보" 항목도 별도로 추가하세요. 운동이 전혀 없으면 빈 배열([])로 두세요.
+               - "calories"."exercise"는 [exercises] 리스트의 모든 kcal 합계와 반드시 일치시키세요.
                - Markdown 형식(\`\`\`json) 없이 오직 순수 JSON 문자열만 응답하십시오.
             {
                 "calories": { "breakfast": 0, "lunch": 0, "dinner": 0, "snack": 0, "exercise": 0 },
@@ -81,6 +93,7 @@ const prompt = `
                     "dinner": [{ "name": "메뉴1", "kcal": 0 }, { "name": "메뉴2", "kcal": 0 }],
                     "snack": [{ "name": "메뉴1", "kcal": 0 }, { "name": "메뉴2", "kcal": 0 }]
                 },
+                "exercises": [{ "name": "운동명", "kcal": 0 }],
                 "macros": {
                     "breakfast": { "carb": 0, "protein": 0, "fat": 0 },
                     "lunch": { "carb": 0, "protein": 0, "fat": 0 },
@@ -97,12 +110,12 @@ const prompt = `
             }
         `;
 
-        const result = await generateWithRetry(model, prompt);
-        let rawText = result.response.text();
-        // 마크다운 코드 블록 태그 제거
-        rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+        // ⚙️ 생성 + JSON 파싱을 함께 재시도하여 간헐적 파싱 실패를 방지
+        const data = await generateAndParse(model, prompt);
 
-        const data = JSON.parse(rawText);
+        // 숫자/포맷 안전 헬퍼 (필드 누락 시에도 예외가 나지 않도록)
+        const n = (v) => Number(v) || 0;
+        const f1 = (v) => n(v).toFixed(1);
 
         const mealCalories = data.calories || { breakfast: 0, lunch: 0, dinner: 0, snack: 0, exercise: 0 };
         const mealMacros = data.macros || { breakfast: {carb:0, protein:0, fat:0}, lunch: {carb:0, protein:0, fat:0}, dinner: {carb:0, protein:0, fat:0}, snack: {carb:0, protein:0, fat:0} };
@@ -113,8 +126,8 @@ const prompt = `
             return mealArray.map(m => `${m.name || '알 수 없음'}(${m.kcal || 0}kcal)`).join(", ");
         };
 
-        const exerciseCalories = Math.abs(data.calories.exercise || 0);
-        const totalIn = (data.calories.breakfast || 0) + (data.calories.lunch || 0) + (data.calories.dinner || 0) + (data.calories.snack || 0);
+        const exerciseCalories = Math.abs(n(mealCalories.exercise));
+        const totalIn = n(mealCalories.breakfast) + n(mealCalories.lunch) + n(mealCalories.dinner) + n(mealCalories.snack);
         const totalOut = bmr + exerciseCalories;
         const netCalories = totalIn - totalOut;
 
@@ -138,26 +151,35 @@ const prompt = `
             return mealArray.reduce((acc, m) => acc + (m.kcal || 0), 0);
         };
 
+        // 🔥 운동별 소모 칼로리 목록 생성
+        const exerciseItems = Array.isArray(data.exercises) ? data.exercises : [];
+        const exerciseBreakdown = exerciseItems.length > 0
+            ? exerciseItems
+                .map(e => `   • ${e.name || '운동'} (-${Math.abs(e.kcal || 0)}kcal)`)
+                .join("\n")
+            : "   • 기록된 운동이 없습니다";
+
         const feedback = `
 📋 오늘의 영양 분석 리포트
 
 🍳 아침: ${buildMenuList(data.meals?.breakfast)} (합계: ${sumKcal(data.meals?.breakfast)}kcal)
-   [탄 ${data.macros?.breakfast?.carb.toFixed(1) || 0}g | 단 ${data.macros?.breakfast?.protein.toFixed(1) || 0}g | 지 ${data.macros?.breakfast?.fat.toFixed(1) || 0}g]
+   [탄 ${f1(bMacros.carb)}g | 단 ${f1(bMacros.protein)}g | 지 ${f1(bMacros.fat)}g]
    💡 ${data.descriptions?.breakfast || ""}
 
 🍳 점심: ${buildMenuList(data.meals?.lunch)} (합계: ${sumKcal(data.meals?.lunch)}kcal)
-   [탄 ${data.macros?.lunch?.carb.toFixed(1) || 0}g | 단 ${data.macros?.lunch?.protein.toFixed(1) || 0}g | 지 ${data.macros?.lunch?.fat.toFixed(1) || 0}g]
+   [탄 ${f1(lMacros.carb)}g | 단 ${f1(lMacros.protein)}g | 지 ${f1(lMacros.fat)}g]
    💡 ${data.descriptions?.lunch || ""}
 
 🍳 저녁: ${buildMenuList(data.meals?.dinner)} (합계: ${sumKcal(data.meals?.dinner)}kcal)
-   [탄 ${data.macros?.dinner?.carb.toFixed(1) || 0}g | 단 ${data.macros?.dinner?.protein.toFixed(1) || 0}g | 지 ${data.macros?.dinner?.fat.toFixed(1) || 0}g]
+   [탄 ${f1(dMacros.carb)}g | 단 ${f1(dMacros.protein)}g | 지 ${f1(dMacros.fat)}g]
    💡 ${data.descriptions?.dinner || ""}
 
 🍰 간식: ${buildMenuList(data.meals?.snack)} (합계: ${sumKcal(data.meals?.snack)}kcal)
-   [탄 ${data.macros?.snack?.carb.toFixed(1) || 0}g | 단 ${data.macros?.snack?.protein.toFixed(1) || 0}g | 지 ${data.macros?.snack?.fat.toFixed(1) || 0}g]
+   [탄 ${f1(sMacros.carb)}g | 단 ${f1(sMacros.protein)}g | 지 ${f1(sMacros.fat)}g]
    💡 ${data.descriptions?.snack || ""}
 
-🔥 운동: ${exercise || '없음'} (-${exerciseCalories}kcal)
+🔥 운동별 소모 칼로리 (총 -${exerciseCalories}kcal)
+${exerciseBreakdown}
 
 ---
 
@@ -194,21 +216,38 @@ ${data.evaluation}
     }
 });
 
-async function generateWithRetry(model, prompt, maxRetries = 3) {
+// 응답 텍스트에서 JSON 오브젝트만 안전하게 추출/파싱
+function safeParseJson(rawText) {
+    let text = (rawText || "").replace(/```json/g, "").replace(/```/g, "").trim();
+    // 앞뒤에 설명 문구가 섞여도 첫 '{' ~ 마지막 '}' 구간만 파싱
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start !== -1 && end !== -1 && end > start) {
+        text = text.substring(start, end + 1);
+    }
+    return JSON.parse(text);
+}
+
+// 생성 + JSON 파싱을 함께 재시도 (503 과부하 및 파싱 실패 모두 대응)
+async function generateAndParse(model, prompt, maxRetries = 3) {
     let lastError;
     for (let i = 0; i < maxRetries; i++) {
         try {
-            return await model.generateContent(prompt);
+            const result = await model.generateContent(prompt);
+            const rawText = result.response.text();
+            return safeParseJson(rawText); // 파싱까지 성공해야 반환
         } catch (error) {
             lastError = error;
-            // 503 과부하 에러일 경우에만 재시도
-            if (error.message.includes("503") || error.message.includes("high demand")) {
+            const msg = error.message || "";
+            const isOverload = msg.includes("503") || msg.includes("high demand");
+            const isParseError = error instanceof SyntaxError;
+            // 과부하(503) 또는 파싱 실패면 재시도, 그 외 에러는 즉시 종료
+            if (isOverload || isParseError) {
                 const delay = Math.pow(2, i) * 1000; // 1초, 2초, 4초 대기
-                console.warn(`Gemini 503 에러 발생, ${i + 1}회 재시도 중... (${delay}ms 대기)`);
+                console.warn(`재시도(${i + 1}/${maxRetries}) - 사유: ${isParseError ? "JSON 파싱 실패" : "503 과부하"} (${delay}ms 대기)`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 continue;
             }
-            // 다른 에러면 즉시 종료
             throw error;
         }
     }

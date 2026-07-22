@@ -58,3 +58,5 @@ app/release/
 # [서명 키(Keystore) - 보안 필수]
 *.jks
 *.keystore
+key.properties
+keystore.properties

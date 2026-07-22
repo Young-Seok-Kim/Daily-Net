@@ -9,5 +9,6 @@ data class AnalysisRequest(
     val dinner: String,
     val snack: String,
     val exercise: String,
-    val remark: String
+    val remark: String,
+    val steps: Int = 0
 )

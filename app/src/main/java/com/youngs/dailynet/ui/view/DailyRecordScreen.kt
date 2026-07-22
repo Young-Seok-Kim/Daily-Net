@@ -1,20 +1,38 @@
 package com.youngs.dailynet.ui.view
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
+import com.youngs.dailynet.util.StepCounterManager
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,14 +42,38 @@ fun DailyRecordScreen(
     isReadOnly: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    BackHandler(enabled = true) {
-        mainViewModel.clearTodayDraft()
-        onBack()
-    }
-
     val uiState by mainViewModel.uiState.collectAsState()
+    val shouldStream by mainViewModel.shouldStreamResult.collectAsState()
     val context = LocalContext.current
     val activity = context as? android.app.Activity
+    val stepManager = remember { StepCounterManager(context) }
+
+    // 걸음수 자동 기입 트리거 (권한 허용 후 재시도용)
+    var stepPermissionGranted by remember {
+        mutableStateOf(
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+                ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.ACTIVITY_RECOGNITION
+                ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val stepPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> stepPermissionGranted = granted }
+
+    // 오늘 날짜의 정산 화면이면 → 걸음수를 자동으로 채운다 (센서가 있는 기기 한정)
+    LaunchedEffect(uiState.date, stepPermissionGranted) {
+        if (!isReadOnly && uiState.date == mainViewModel.todayDate) {
+            if (!stepPermissionGranted) {
+                stepPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                return@LaunchedEffect
+            }
+            if (stepManager.hasStepSensor()) {
+                val todaySteps = stepManager.getTodaySteps(mainViewModel.todayDate)
+                if (todaySteps != null) mainViewModel.applyAutoSteps(todaySteps)
+            }
+        }
+    }
 
     BackHandler(enabled = true) {
         if (!uiState.analyzing) {
@@ -41,6 +83,9 @@ fun DailyRecordScreen(
     }
 
     var weightInput by remember { mutableStateOf("") }
+
+    // 걸음수 입력창 표시값 (0이면 빈칸)
+    val stepsText = if (uiState.steps > 0) uiState.steps.toString() else ""
 
     LaunchedEffect(uiState.weight) {
         // 사용자가 타이핑 중인 게 아니고, DB 등에서 가져온 값이 0이 아닐 때만 텍스트 입력창 초기화
@@ -55,134 +100,235 @@ fun DailyRecordScreen(
         }
     }
 
+    // ── 분석 결과 타자기 스트리밍 상태 ──
+    var streamedResult by remember { mutableStateOf("") }
+    var isStreaming by remember { mutableStateOf(false) }
+    LaunchedEffect(uiState.analysisResult, shouldStream) {
+        val full = uiState.analysisResult
+        when {
+            full.isEmpty() -> {
+                streamedResult = ""
+                isStreaming = false
+            }
+            // 방금 분석한 결과만 한 줄씩 스트리밍
+            shouldStream -> {
+                isStreaming = true
+                streamedResult = ""
+                val sb = StringBuilder()
+                full.split("\n").forEachIndexed { idx, line ->
+                    if (idx > 0) sb.append("\n")
+                    sb.append(line)
+                    streamedResult = sb.toString()
+                    delay(55L)
+                }
+                isStreaming = false
+                mainViewModel.onResultStreamed()
+            }
+            // 저장된 기록을 다시 볼 때는 즉시 전체 표시
+            else -> {
+                streamedResult = full
+                isStreaming = false
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
 
         LaunchedEffect(mainViewModel.toastMessage) {
             mainViewModel.toastMessage?.let { message ->
                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                 mainViewModel.onToastShown()
-
-                if (message.contains("완료")) {
-                    mainViewModel.clearTodayDraft()
-                    onBack()
-                }
+                // 💡 분석 결과 스트리밍을 볼 수 있도록 자동으로 뒤로가지 않는다.
+                //    (기록은 이미 저장되어 있으며, 사용자가 결과를 읽은 뒤 직접 뒤로가기)
             }
         }
-        Box(modifier = Modifier.fillMaxSize()) {
-            Scaffold(
-                topBar = {
-                    TopAppBar(
-                        // 💡 2. 제목 동적 변경
-                        title = { Text(if (isReadOnly) "${uiState.date} 정산 상세" else "오늘의 정산") },
-                        navigationIcon = {
-                            IconButton(onClick = onBack) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "뒤로가기")
-                            }
+
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(if (isReadOnly) "${uiState.date} 정산 상세" else "오늘의 정산") },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            if (!uiState.analyzing) mainViewModel.clearTodayDraft()
+                            onBack()
+                        }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "뒤로가기")
                         }
-                    )
-                }
-            ) { padding ->
-                Column(
-                    modifier = modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .verticalScroll(rememberScrollState())
-                        .padding(16.dp)
-                ) {
+                    }
+                )
+            }
+        ) { padding ->
+            Column(
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp)
+            ) {
+                OutlinedTextField(
+                    value = weightInput,
+                    onValueChange = { text ->
+                        if (text.isEmpty() || text.matches(Regex("""^\d*\.?\d*$"""))) {
+                            weightInput = text
+                            mainViewModel.updateField("weight", text)
+                        }
+                    },
+                    label = { Text("현재 체중 (kg)") },
+                    placeholder = { Text("예: 75.5") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    enabled = !isReadOnly
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                mainViewModel.categoryList.forEach { category ->
                     OutlinedTextField(
-                        value = weightInput, // 👈 임시 변수를 꽂아 유저가 타이핑한 흐름을 그대로 유지시킵니다.
-                        onValueChange = { text ->
-                            // 숫자와 소수점 하나만 입력 가능하도록 필터링 (잘못된 입력 방지)
-                            if (text.isEmpty() || text.matches(Regex("""^\d*\.?\d*$"""))) {
-                                weightInput = text
-                                mainViewModel.updateField("weight", text) // ViewModel에는 실시간 파싱 전달
-                            }
+                        value = when (category.fieldName) {
+                            "breakfast" -> uiState.breakfast
+                            "lunch" -> uiState.lunch
+                            "dinner" -> uiState.dinner
+                            "snack" -> uiState.snack
+                            "exercise" -> uiState.exercise
+                            "remark" -> uiState.remark
+                            else -> ""
                         },
-                        label = { Text("현재 체중 (kg)") },
-                        placeholder = { Text("예: 75.5") },
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
+                        onValueChange = { mainViewModel.updateField(category.fieldName, it) },
+                        label = { Text(category.label) },
+                        placeholder = { Text(category.hint) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        minLines = if (category.fieldName == "remark") 3 else 1,
                         enabled = !isReadOnly
                     )
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
-                    mainViewModel.categoryList.forEach { category ->
+                    // 👣 걸음수 필드는 '운동' 바로 아래에 배치 (오늘이면 자동 기입, 직접 수정도 가능)
+                    if (category.fieldName == "exercise") {
                         OutlinedTextField(
-                            value = when (category.fieldName) {
-                                "breakfast" -> uiState.breakfast
-                                "lunch" -> uiState.lunch
-                                "dinner" -> uiState.dinner
-                                "snack" -> uiState.snack
-                                "exercise" -> uiState.exercise
-                                "remark" -> uiState.remark
-                                else -> ""
+                            value = stepsText,
+                            onValueChange = { text ->
+                                if (text.isEmpty() || text.all { it.isDigit() }) {
+                                    mainViewModel.updateField("steps", text)
+                                }
                             },
-                            onValueChange = { mainViewModel.updateField(category.fieldName, it) },
-                            label = { Text(category.label) },
-                            placeholder = { Text(category.hint) },
+                            label = { Text("걸음수 👣") },
+                            placeholder = { Text("오늘 날짜면 자동으로 채워져요") },
+                            supportingText = {
+                                if (uiState.date == mainViewModel.todayDate)
+                                    Text("오늘 걸음 수가 자동 반영됩니다")
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp),
-                            minLines = if (category.fieldName == "remark") 3 else 1,
-                            enabled = !isReadOnly // 💡 4. 읽기 전용일 때 비활성화
+                            shape = RoundedCornerShape(12.dp),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            enabled = !isReadOnly
                         )
                     }
+                }
 
-                    // 💡 5. 읽기 전용 모드에서는 분석 버튼 숨기기
-                    if (!isReadOnly) {
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Button(
-                            onClick = {
-
-                                activity?.let {
-                                    // 👑 통합 정책 함수 호출
-                                    mainViewModel.checkAndAnalyze(it)
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth().height(50.dp),
-                            enabled = !uiState.analyzing // 분석 중엔 버튼 클릭 방지
-                        ) {
-                            // 분석 중일 때 로딩바 + 텍스트, 아니면 텍스트만 표시
-                            if (uiState.analyzing) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("AI 분석 중...")
-                            } else {
-                                Text("오늘의 정산 분석하기")
-                            }
+                // 💡 읽기 전용 모드에서는 분석 버튼 숨기기
+                if (!isReadOnly) {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(
+                        onClick = {
+                            activity?.let { mainViewModel.checkAndAnalyze(it) }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        enabled = !uiState.analyzing
+                    ) {
+                        if (uiState.analyzing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(22.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            AnimatedAnalyzingText()
+                        } else {
+                            Text(
+                                "오늘의 정산 분석하기",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
                     }
+                }
 
-                    // AI 분석 결과 카드 (이건 상세 보기에서도 보여야 하므로 유지)
-                    if (uiState.analysisResult.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
+                // AI 분석 결과 카드 (상세 보기에서도 표시)
+                if (uiState.analysisResult.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = "🤖 AI 분석 레포트",
                                     style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary
                                 )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = uiState.analysisResult,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
+                                if (isStreaming) {
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "분석 결과 작성 중",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                                    )
+                                }
                             }
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 12.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                            )
+                            // 타자기처럼 한 줄씩 나타나는 본문 + 커서
+                            Text(
+                                text = streamedResult + if (isStreaming) " ▍" else "",
+                                style = MaterialTheme.typography.bodyMedium,
+                                lineHeight = 22.sp
+                            )
                         }
-                        Spacer(modifier = Modifier.height(32.dp))
                     }
+                    Spacer(modifier = Modifier.height(32.dp))
                 }
             }
         }
     }
+}
+
+/** "AI가 분석 중" + 점(...)이 순차적으로 깜빡이는 텍스트 */
+@Composable
+private fun AnimatedAnalyzingText() {
+    val transition = rememberInfiniteTransition(label = "analyzing")
+    val dotCount by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 3.99f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "dots"
+    )
+    val dots = ".".repeat(dotCount.toInt())
+    Text(
+        text = "AI가 분석 중이에요$dots",
+        fontSize = 16.sp,
+        fontWeight = FontWeight.SemiBold
+    )
 }

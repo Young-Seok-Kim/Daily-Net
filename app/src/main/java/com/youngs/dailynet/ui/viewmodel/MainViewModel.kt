@@ -89,6 +89,21 @@ class MainViewModel @Inject constructor(
 
     private val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
+    /** 화면에서 "오늘 날짜인지" 판별할 수 있도록 노출 */
+    val todayDate: String get() = today
+
+    // 방금 분석을 마친 결과만 한 줄씩 스트리밍하기 위한 플래그
+    private val _shouldStreamResult = MutableStateFlow(false)
+    val shouldStreamResult = _shouldStreamResult.asStateFlow()
+    fun onResultStreamed() { _shouldStreamResult.value = false }
+
+    /** 걸음수 자동 기입 (오늘 날짜일 때만) */
+    fun applyAutoSteps(steps: Int) {
+        if (_uiState.value.date == today && !_uiState.value.analyzing) {
+            _uiState.update { it.copy(steps = steps) }
+        }
+    }
+
     fun saveInitialProfile(
         googleName: String,
         height: Float,
@@ -263,6 +278,8 @@ class MainViewModel @Inject constructor(
     fun prepareDailyRecordData(targetDate: String) = viewModelScope.launch {
         try {
             if (_uiState.value.analyzing) return@launch
+            // 저장된 기록을 불러올 때는 스트리밍하지 않고 즉시 표시
+            _shouldStreamResult.value = false
 
             val savedDraft = repository.getDailyRecordByDate(targetDate)
             val lastRecordedWeight = repository.getLatestWeight(targetDate)
@@ -323,6 +340,8 @@ class MainViewModel @Inject constructor(
                         hasExercise = text.isNotBlank()
                     )
                 }
+
+                "steps" -> current.copy(steps = text.filter { it.isDigit() }.toIntOrNull() ?: 0)
 
                 else -> current
             }
@@ -454,6 +473,8 @@ class MainViewModel @Inject constructor(
                     mapOf("todayAnalysisCount" to newCount, "lastAnalyzedDate" to today)
                 ).await()
 
+                // 방금 분석한 결과이므로 한 줄씩 스트리밍하도록 표시
+                _shouldStreamResult.value = true
                 _uiState.update { analyzedData.copy(analyzing = false) }
                 val savedWeight = _uiState.value.weight
                 cachedWeight = savedWeight

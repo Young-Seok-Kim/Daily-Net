@@ -34,7 +34,8 @@ class GeminiManager @Inject constructor(
                     dinner = dailyRecordModel.dinner,
                     snack = dailyRecordModel.snack,
                     exercise = dailyRecordModel.exercise,
-                    remark = dailyRecordModel.remark
+                    remark = dailyRecordModel.remark,
+                    steps = dailyRecordModel.steps
                 )
 
                 // 서버 호출

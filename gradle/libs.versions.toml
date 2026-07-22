@@ -1,6 +1,6 @@
 [versions]
 agp = "8.8.0"
-kotlin = "2.0.21"
+kotlin = "2.2.20"
 coreKtx = "1.15.0"
 junit = "4.13.2"
 junitVersion = "1.3.0"
@@ -15,15 +15,15 @@ secretsPlugin = "2.0.1"
 credentials = "1.2.2"
 googleid = "1.1.1"
 androidx-lifecycle-compose = "2.8.2"
-hilt = "2.51.1"
+hilt = "2.56.2"
 hiltNavigationCompose = "1.2.0"
-room = "2.6.1"
+room = "2.8.4"
 gson = "2.10.1"
 # Retrofit & OkHttp 버전
 retrofit = "2.11.0"
 okhttp = "4.12.0"
 
-playBilling = "7.0.0"
+playBilling = "9.1.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }

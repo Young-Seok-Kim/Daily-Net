@@ -10,21 +10,24 @@ plugins {
 
 android {
     namespace = "com.youngs.dailynet"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.youngs.dailynet"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 10
-        versionName = "1.3"
+        targetSdk = 36
+        versionCode = 11
+        versionName = "1.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = true
+            // Kotlin 2.2 + 현재 AGP의 R8 조합에서 R8이 Gson TypeToken의 제네릭 시그니처를
+            // 제거해 앱이 시작 시 죽는 문제가 있어 난독화를 비활성화한다.
+            // (추후 AGP 업그레이드 후 재활성화 가능)
+            isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

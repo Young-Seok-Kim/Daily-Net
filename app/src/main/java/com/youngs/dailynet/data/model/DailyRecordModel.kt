@@ -18,6 +18,7 @@ data class DailyRecordModel(
     // 💡 Firestore 필드명(exercise)과 일치시킴
     val exercise: String = "",
     val remark: String = "",
+    val steps: Int = 0,              // 걸음수 (오늘이면 자동 기입, 과거면 저장값)
     val isMale: Boolean = true,
 
     val netCalories: Int = 0,
