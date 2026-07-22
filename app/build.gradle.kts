@@ -16,8 +16,8 @@ android {
         applicationId = "com.youngs.dailynet"
         minSdk = 26
         targetSdk = 36
-        versionCode = 11
-        versionName = "1.4"
+        versionCode = 12
+        versionName = "1.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -97,6 +97,9 @@ dependencies {
 
     implementation(libs.play.billing)
     implementation(libs.play.billing.ktx)
+
+    // Health Connect: 오늘의 총 걸음 수(앱 설치 전 걸음 포함) 읽기
+    implementation("androidx.health.connect:connect-client:1.1.0")
 }
 
 // 2. 파일 맨 하단에 이 블록을 정확하게 넣어주세요.

@@ -30,7 +30,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.health.connect.client.PermissionController
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
+import com.youngs.dailynet.util.HealthStepReader
 import com.youngs.dailynet.util.StepCounterManager
 import kotlinx.coroutines.delay
 
@@ -47,30 +49,58 @@ fun DailyRecordScreen(
     val context = LocalContext.current
     val activity = context as? android.app.Activity
     val stepManager = remember { StepCounterManager(context) }
+    val healthReader = remember { HealthStepReader(context) }
 
-    // 걸음수 자동 기입 트리거 (권한 허용 후 재시도용)
-    var stepPermissionGranted by remember {
-        mutableStateOf(
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
-                ContextCompat.checkSelfPermission(
-                    context, Manifest.permission.ACTIVITY_RECOGNITION
-                ) == PackageManager.PERMISSION_GRANTED
-        )
-    }
-    val stepPermissionLauncher = rememberLauncherForActivityResult(
+    // 권한 결과 후 재실행 트리거
+    var stepRetryKey by remember { mutableStateOf(0) }
+    // 이 날짜에 대해 걸음수를 이미 반영했는지 (날짜 바뀌면 리셋)
+    var stepsApplied by remember(uiState.date) { mutableStateOf(false) }
+
+    // Health Connect 권한 런처
+    val healthPermissionLauncher = rememberLauncherForActivityResult(
+        contract = PermissionController.createRequestPermissionResultContract()
+    ) { _ -> stepRetryKey++ }
+
+    // 센서(ACTIVITY_RECOGNITION) 권한 런처
+    val sensorPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { granted -> stepPermissionGranted = granted }
+    ) { _ -> stepRetryKey++ }
 
-    // 오늘 날짜의 정산 화면이면 → 걸음수를 자동으로 채운다 (센서가 있는 기기 한정)
-    LaunchedEffect(uiState.date, stepPermissionGranted) {
-        if (!isReadOnly && uiState.date == mainViewModel.todayDate) {
-            if (!stepPermissionGranted) {
-                stepPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+    // 오늘 날짜의 정산 화면 → 오늘 총 걸음 수 자동 반영
+    LaunchedEffect(uiState.date, stepRetryKey) {
+        if (isReadOnly) return@LaunchedEffect
+        if (uiState.date != mainViewModel.todayDate) return@LaunchedEffect
+        if (stepsApplied) return@LaunchedEffect
+
+        // 1) Health Connect 우선 (앱 설치 전 걸음 포함, 오늘 총량)
+        if (healthReader.sdkAvailable()) {
+            if (healthReader.hasPermission()) {
+                val hcSteps = healthReader.getTodaySteps()
+                if (hcSteps != null) {
+                    mainViewModel.applyAutoSteps(hcSteps.toInt())
+                    stepsApplied = true
+                    return@LaunchedEffect
+                }
+            } else {
+                healthPermissionLauncher.launch(healthReader.permissions)
                 return@LaunchedEffect
             }
-            if (stepManager.hasStepSensor()) {
-                val todaySteps = stepManager.getTodaySteps(mainViewModel.todayDate)
-                if (todaySteps != null) mainViewModel.applyAutoSteps(todaySteps)
+        }
+
+        // 2) 센서 폴백 (앱 실행 이후 걸음만 측정 가능)
+        val recGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.ACTIVITY_RECOGNITION
+            ) == PackageManager.PERMISSION_GRANTED
+        if (!recGranted) {
+            sensorPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+            return@LaunchedEffect
+        }
+        if (stepManager.hasStepSensor()) {
+            val s = stepManager.getTodaySteps(mainViewModel.todayDate)
+            if (s != null) {
+                mainViewModel.applyAutoSteps(s)
+                stepsApplied = true
             }
         }
     }
@@ -146,7 +176,7 @@ fun DailyRecordScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text(if (isReadOnly) "${uiState.date} 정산 상세" else "오늘의 정산") },
+                    title = { Text("${uiState.date} ${getDayOfWeekText(uiState.date)}") },
                     navigationIcon = {
                         IconButton(onClick = {
                             if (!uiState.analyzing) mainViewModel.clearTodayDraft()

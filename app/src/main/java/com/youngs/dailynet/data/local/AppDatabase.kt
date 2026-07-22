@@ -13,7 +13,7 @@ import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
         DailyRecordModel::class,
         UserProfileEntity::class
     ],
-    version = 5, // 👈 엔티티 추가로 인해 버전을 올립니다.
+    version = 6, // 👈 steps / stepsManual 필드 추가로 스키마 변경 → 버전 상향 (파괴적 마이그레이션)
     exportSchema = false
 )
 @TypeConverters(Converters::class)

@@ -6,8 +6,9 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import android.widget.Toast
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.youngs.dailynet.BuildConfig
@@ -26,14 +27,12 @@ class AuthViewModel @Inject constructor(
 
     fun signIn(context: Context, onResult: (Boolean) -> Unit) {
         val credentialManager = CredentialManager.create(context)
-        val googleIdOption = GetGoogleIdOption.Builder()
-            .setFilterByAuthorizedAccounts(false)
-            .setServerClientId(BuildConfig.GOOGLE_WEB_CLIENT_ID)
-            .setAutoSelectEnabled(true)
-            .build()
+        // "Sign in with Google" 버튼 클릭용 옵션 → 항상 계정 선택 UI가 뜬다.
+        val signInOption =
+            GetSignInWithGoogleOption.Builder(BuildConfig.GOOGLE_WEB_CLIENT_ID).build()
 
         val request = GetCredentialRequest.Builder()
-            .addCredentialOption(googleIdOption)
+            .addCredentialOption(signInOption)
             .build()
 
         viewModelScope.launch {
@@ -43,21 +42,24 @@ class AuthViewModel @Inject constructor(
                 val googleIdToken = GoogleIdTokenCredential.createFrom(credential.data)
                 val firebaseCredential = GoogleAuthProvider.getCredential(googleIdToken.idToken, null)
 
-                // Task를 Coroutine으로 변환해서 처리하면 더 깔끔합니다 (await() 사용 가능)
-                val signInResult = auth.signInWithCredential(firebaseCredential)
-
-                // OnCompleteListener 대신 Firebase의 상태 변경을 감지하거나
-                // 아래처럼 결과에 따라 flow를 업데이트합니다.
-                signInResult.addOnCompleteListener { task ->
+                auth.signInWithCredential(firebaseCredential).addOnCompleteListener { task ->
                     if (task.isSuccessful) {
                         _user.value = auth.currentUser
-                        android.util.Log.d("AuthViewModel", "구글 로그인 유저 이름: ${auth.currentUser?.displayName}")
+                        android.util.Log.d("AuthViewModel", "구글 로그인 성공: ${auth.currentUser?.displayName}")
+                        onResult(true)
+                    } else {
+                        android.util.Log.e("AuthViewModel", "Firebase 인증 실패", task.exception)
+                        Toast.makeText(
+                            context,
+                            "로그인 실패: ${task.exception?.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        onResult(false)
                     }
                 }
-
-                onResult(true)
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.e("AuthViewModel", "로그인 오류", e)
+                Toast.makeText(context, "로그인 오류: ${e.message}", Toast.LENGTH_LONG).show()
                 onResult(false)
             }
         }

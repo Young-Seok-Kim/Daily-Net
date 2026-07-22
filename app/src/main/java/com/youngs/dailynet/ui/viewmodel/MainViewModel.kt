@@ -97,9 +97,16 @@ class MainViewModel @Inject constructor(
     val shouldStreamResult = _shouldStreamResult.asStateFlow()
     fun onResultStreamed() { _shouldStreamResult.value = false }
 
-    /** 걸음수 자동 기입 (오늘 날짜일 때만) */
+    /**
+     * 걸음수 자동 기입 (오늘 날짜 한정).
+     * 사용자가 직접 입력한 값(stepsManual=true)만 아니면, 다시 열 때마다 최신 걸음으로 갱신한다.
+     * (자동으로 채워진 값은 두 번째 기록 시 최신값으로 새로고침되고, 직접 예상 입력한 값은 유지)
+     */
     fun applyAutoSteps(steps: Int) {
-        if (_uiState.value.date == today && !_uiState.value.analyzing) {
+        if (_uiState.value.date == today &&
+            !_uiState.value.analyzing &&
+            !_uiState.value.stepsManual
+        ) {
             _uiState.update { it.copy(steps = steps) }
         }
     }
@@ -252,7 +259,7 @@ class MainViewModel @Inject constructor(
         CategoryInfo("운동", "예: 스쿼트 100개, 런닝 5km", "exercise"),
         CategoryInfo(
             "비고",
-            "오늘의 특이사항 \n ex)삼겹살 먹을 때 비계 떼고 살코기 위주로 먹었고, 쌈을 많이 싸먹었어요.\n도보를 6000보 걸었어요.",
+            "오늘의 특이사항 \n ex)삼겹살 먹을 때 비계 떼고 살코기 위주로 먹었고, 쌈을 많이 싸먹었어요.",
             "remark"
         )
     )
@@ -341,7 +348,11 @@ class MainViewModel @Inject constructor(
                     )
                 }
 
-                "steps" -> current.copy(steps = text.filter { it.isDigit() }.toIntOrNull() ?: 0)
+                // 사용자가 직접 입력하면 stepsManual = true → 이후 자동 갱신이 덮어쓰지 않음
+                "steps" -> current.copy(
+                    steps = text.filter { it.isDigit() }.toIntOrNull() ?: 0,
+                    stepsManual = true
+                )
 
                 else -> current
             }

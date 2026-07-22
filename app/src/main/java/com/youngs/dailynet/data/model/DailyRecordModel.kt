@@ -19,6 +19,7 @@ data class DailyRecordModel(
     val exercise: String = "",
     val remark: String = "",
     val steps: Int = 0,              // 걸음수 (오늘이면 자동 기입, 과거면 저장값)
+    val stepsManual: Boolean = false, // 사용자가 직접 입력했는지 (true면 자동 갱신으로 덮어쓰지 않음)
     val isMale: Boolean = true,
 
     val netCalories: Int = 0,

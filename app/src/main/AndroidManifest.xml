@@ -9,6 +9,17 @@
         android:name="android.hardware.sensor.stepcounter"
         android:required="false" />
 
+    <!-- Health Connect: 오늘 총 걸음 수 읽기 -->
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+
+    <!-- 공휴일: 기기 캘린더의 휴일 캘린더 읽기 -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+
+    <!-- Health Connect 앱(안드로이드 13 이하) 존재 여부 확인용 -->
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+    </queries>
+
     <application
         android:name=".ui.view.DailyNetApp"
         android:allowBackup="true"
@@ -30,7 +41,24 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- Health Connect 권한 사용 이유 화면 (Android 13 이하) -->
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
         </activity>
+
+        <!-- Health Connect 권한 사용 이유 화면 (Android 14 이상) -->
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".ui.MainActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
     </application>
 
 </manifest>

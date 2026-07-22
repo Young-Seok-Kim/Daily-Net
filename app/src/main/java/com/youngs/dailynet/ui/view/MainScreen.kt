@@ -6,15 +6,22 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -24,8 +31,16 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
+import com.youngs.dailynet.util.HolidayProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -69,6 +84,26 @@ fun getDayOfWeekText(dateString: String): String {
         "($dayOfWeek)"
     } catch (e: Exception) {
         ""
+    }
+}
+
+/**
+ * 날짜별 표시 색상: 일요일·공휴일=빨강, 토요일=파랑, 평일=null(기본색).
+ * 공휴일은 기기 캘린더(구글 '대한민국의 휴일' 등)에서 읽어온 날짜 집합을 사용한다.
+ */
+fun weekdayColor(dateString: String, calendarHolidays: Set<String>): Color? {
+    return try {
+        val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateString)
+            ?: return null
+        val cal = Calendar.getInstance().apply { time = date }
+        val dow = cal.get(Calendar.DAY_OF_WEEK)
+        when {
+            dow == Calendar.SUNDAY || calendarHolidays.contains(dateString) -> Color(0xFFF44336)
+            dow == Calendar.SATURDAY -> Color(0xFF2196F3)
+            else -> null
+        }
+    } catch (e: Exception) {
+        null
     }
 }
 
@@ -257,11 +292,27 @@ fun MainScreen(
                     )
                 }
 
+                // 스탯 타일 3개 (예상 체중 변화 / 기록 일수 / 평균 순칼로리)
+                item {
+                    StatTilesRow(records = dailyRecords, totalCalories = totalCalories)
+                }
+
+                // 최근 추이 미니 바 차트
+                if (dailyRecords.isNotEmpty()) {
+                    item {
+                        RecentTrendChart(
+                            records = dailyRecords,
+                            onDayClick = onNavigateToDetail
+                        )
+                    }
+                }
+
                 item {
                     Text(
                         text = "정산 기록",
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(vertical = 8.dp)
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
                     )
                 }
 
@@ -561,50 +612,247 @@ fun SummaryHeaderCard(totalCalories: Int, latestDate: String) {
         ) // 마이너스 적자 누적으로 감량 성공 시 (예: -0.5 kg)
     }
 
+    val onPrimary = MaterialTheme.colorScheme.onPrimary
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Text("현재 누적 칼로리 결산", color = Color.White.copy(alpha = 0.8f))
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // 칼로리와 예상 체중 변동량을 나란히 배치하거나 행으로 분리
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "누적 칼로리 결산",
+                style = MaterialTheme.typography.labelLarge,
+                color = onPrimary.copy(alpha = 0.85f)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "$totalCalories",
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Bold,
+                color = onPrimary
+            )
+            Text(
+                text = "kcal",
+                style = MaterialTheme.typography.labelLarge,
+                color = onPrimary.copy(alpha = 0.8f)
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            Surface(
+                color = onPrimary.copy(alpha = 0.15f),
+                shape = RoundedCornerShape(50)
             ) {
                 Text(
-                    text = "$totalCalories kcal",
-                    style = MaterialTheme.typography.displaySmall,
-                    color = Color.White
+                    text = "최근 업데이트 · $latestDate",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = onPrimary,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                 )
+            }
+        }
+    }
+}
 
-                // 예상 체중 감소량 뱃지 스타일
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = "예상 체중 변화",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.7f)
-                    )
-                    Text(
-                        text = weightText,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = if (expectedWeightChange > 0) Color(0xFFB9FFB7) else Color.White // 살이 빠지는 상태면 연두색으로 강조
-                    )
-                }
+@Composable
+fun StatTilesRow(records: List<DailyRecordModel>, totalCalories: Int) {
+    val expectedWeightChange = -totalCalories / 7700f
+    val weightText = if (expectedWeightChange <= 0)
+        String.format(Locale.getDefault(), "%.1f kg", expectedWeightChange)
+    else
+        String.format(Locale.getDefault(), "-%.1f kg", expectedWeightChange)
+    val recordDays = records.size
+    val avgNet = if (records.isNotEmpty()) records.sumOf { it.netCalories } / records.size else 0
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        StatTile(Modifier.weight(1f), "예상 체중", weightText, MaterialTheme.colorScheme.primary)
+        StatTile(Modifier.weight(1f), "기록 일수", "${recordDays}일", MaterialTheme.colorScheme.onSurface)
+        StatTile(
+            Modifier.weight(1f),
+            "평균 순칼로리",
+            "$avgNet",
+            if (avgNet <= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+        )
+    }
+}
+
+@Composable
+fun StatTile(modifier: Modifier, label: String, value: String, valueColor: Color) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 14.dp, horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = valueColor,
+                maxLines = 1
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun RecentTrendChart(records: List<DailyRecordModel>, onDayClick: (String) -> Unit) {
+    val context = LocalContext.current
+    val prefs = remember {
+        context.getSharedPreferences("user_prefs", android.content.Context.MODE_PRIVATE)
+    }
+    // 열림/닫힘 상태를 저장해 앱 재실행 시에도 유지
+    var expanded by remember { mutableStateOf(prefs.getBoolean("trend_expanded", true)) }
+
+    // 기기 캘린더(구글 '대한민국의 휴일' 등)에서 공휴일 로드 → 색상에 반영
+    var calendarHolidays by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var calPermTry by remember { mutableStateOf(0) }
+    val calendarPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) calPermTry++ }
+    LaunchedEffect(calPermTry) {
+        val granted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.READ_CALENDAR
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            calendarPermLauncher.launch(Manifest.permission.READ_CALENDAR)
+            return@LaunchedEffect
+        }
+        calendarHolidays = withContext(Dispatchers.IO) {
+            val c = Calendar.getInstance()
+            c.add(Calendar.YEAR, -1)
+            val start = c.timeInMillis
+            c.add(Calendar.YEAR, 2)
+            val end = c.timeInMillis
+            HolidayProvider(context).getHolidays(start, end)
+        }
+    }
+
+    // 이번 달 기록을 표시. 이번 달이 7개 미만이면 최근 7개로 대체. (records는 최신순 DESC)
+    val cal = Calendar.getInstance()
+    val thisMonth = String.format(
+        Locale.getDefault(), "%04d-%02d",
+        cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1
+    )
+    val monthRecords = records.filter { it.date.startsWith(thisMonth) }
+    val shown = if (monthRecords.size >= 7) monthRecords else records.take(7)
+
+    // 이상치로 막대가 뭉개지지 않도록 90퍼센타일 기준으로 정규화
+    val absList = shown.map { kotlin.math.abs(it.netCalories) }.sorted()
+    val maxAbs = (
+        if (absList.isEmpty()) 1
+        else absList[(absList.size * 9 / 10).coerceAtMost(absList.size - 1)]
+    ).coerceAtLeast(1)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // 헤더: 클릭하면 열기/닫기 (상태는 저장됨)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable {
+                        expanded = !expanded
+                        prefs.edit().putBoolean("trend_expanded", expanded).apply()
+                    }
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "최근 추이",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (expanded) "접기" else "펼치기",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider(color = Color.White.copy(alpha = 0.2f))
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "최근 업데이트: $latestDate",
-                style = MaterialTheme.typography.labelMedium,
-                color = Color.White.copy(alpha = 0.7f)
-            )
+            if (expanded) {
+                Spacer(modifier = Modifier.height(14.dp))
+                // 가로 스크롤: 최신이 오른쪽, 왼쪽으로 드래그하면 과거 날짜까지 확인 (보이는 막대만 렌더 → 가벼움)
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(165.dp),
+                    reverseLayout = true,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    items(shown, key = { it.date }) { r ->
+                        val frac = kotlin.math.abs(r.netCalories).toFloat() / maxAbs
+                        val barHeight = (frac * 80).dp.coerceAtLeast(6.dp)
+                        val barColor = if (r.netCalories <= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                        Column(
+                            modifier = Modifier
+                                .width(44.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onDayClick(r.date) },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Bottom
+                        ) {
+                            // 막대 위 값 숫자
+                            Text(
+                                text = "${r.netCalories}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = barColor,
+                                maxLines = 1
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            // 얇은 고정폭 막대
+                            Box(
+                                modifier = Modifier
+                                    .width(14.dp)
+                                    .height(barHeight)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(barColor)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            // 일요일·공휴일=빨강, 토요일=파랑, 평일=기본색
+                            val dayColor = weekdayColor(r.date, calendarHolidays)
+                            Text(
+                                text = r.date.takeLast(2),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = dayColor ?: MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            // 요일 표시 (예: 월, 화)
+                            Text(
+                                text = getDayOfWeekText(r.date).trim('(', ')'),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = dayColor
+                                    ?: MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -618,48 +866,62 @@ fun DailyRecordHistoryItem(
 ) {
 
     val dayOfWeekText = getDayOfWeekText(item.date)
+    val dayNum = item.date.takeLast(2)
 
-    OutlinedCard(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
-            )
+            ),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(14.dp)
                 .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                // 3. 날짜와 요일을 나란히 배치 (예: 2026-05-20 (수))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = item.date,
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = dayOfWeekText,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f) // 요일은 살짝 톤다운
-                    )
-                }
+            // 날짜(일) 원형 뱃지
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = dayNum,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
 
+            Spacer(modifier = Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "${item.date} $dayOfWeekText",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium
+                )
                 Spacer(modifier = Modifier.height(2.dp))
-
                 Text(
                     text = if (item.hasExercise) "운동 기록 있음 💪" else "휴식 😴",
-                    style = MaterialTheme.typography.bodySmall
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
             Text(
                 text = "${item.netCalories} kcal",
                 style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
                 color = if (item.netCalories <= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
             )
         }
