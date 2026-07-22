@@ -18,6 +18,9 @@ interface DailyRecordDao {
     @Query("SELECT * FROM daily_records ORDER BY date DESC")
     fun getAllDailyRecordRoomFlow(): Flow<List<DailyRecordModel>>
 
+    @Query("SELECT COUNT(*) FROM daily_records")
+    suspend fun getCount(): Int
+
     @Query("SELECT weight FROM daily_records WHERE weight > 0.0 ORDER BY date DESC LIMIT 1")
     suspend fun getLatestWeight(): Float?
 

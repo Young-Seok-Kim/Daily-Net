@@ -150,28 +150,8 @@ fun MainScreen(
 
     val listState = mainViewModel.mainListState
 
-    val shouldLoadMore by remember {
-        derivedStateOf {
-            val layoutInfo = listState.layoutInfo
-            val totalItemsCount = layoutInfo.totalItemsCount
-            val lastVisibleItemIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-
-            // 💡 [해결]
-            // 1. 끝에서 2번째 인덱스에 도달했고
-            // 2. '현재 로딩 중이 아니며' (isPagingLoading == false)
-            // 3. '마지막 페이지도 아닐 때' (isLastPageReached == false)
-            // 세 조건이 모두 맞을 때만 true를 반환하여 중복 트리거를 원천 차단합니다.
-            totalItemsCount > 0 &&
-                    lastVisibleItemIndex >= (totalItemsCount - 2) &&
-                    !isPagingLoading &&
-                    !isLastPageReached
-        }
-    }
-    LaunchedEffect(shouldLoadMore) {
-        if (shouldLoadMore) {
-            mainViewModel.loadMoreDailyRecords()
-        }
-    }
+    // 페이징 제거: 첫 로그인 시 checkProfile에서 전체를 한 번에 로드하고 이후엔 캐시를 사용한다.
+    // (스크롤 페이징이 먼저 돌아 전체 로드를 건너뛰던 경쟁 상태를 방지)
 
     if (selectedDateToDelete != null) {
         AlertDialog(

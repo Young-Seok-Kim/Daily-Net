@@ -103,6 +103,9 @@ class DailyRecordRepository @Inject constructor(
         }
     }
 
+    /** 로컬(Room)에 캐시된 정산 기록 개수 */
+    suspend fun getCachedRecordCount(): Int = dailyRecordDao.getCount()
+
     /**
      * 첫 로그인/최초 로드 시 전체 정산 기록을 한 번에 가져와 Room에 캐싱한다.
      * (페이징 없이 단일 쿼리로 모두 조회 → 스크롤로 내려받을 필요 없음)
