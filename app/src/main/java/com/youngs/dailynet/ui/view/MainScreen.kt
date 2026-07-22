@@ -289,13 +289,9 @@ fun MainScreen(
                 item {
                     SummaryHeaderCard(
                         totalCalories = totalCalories,
-                        latestDate = dailyRecords.firstOrNull()?.date ?: "기록 없음"
+                        latestDate = dailyRecords.firstOrNull()?.date ?: "기록 없음",
+                        records = dailyRecords
                     )
-                }
-
-                // 스탯 타일 3개 (예상 체중 변화 / 기록 일수 / 평균 순칼로리)
-                item {
-                    StatTilesRow(records = dailyRecords, totalCalories = totalCalories)
                 }
 
                 // 최근 추이 미니 바 차트
@@ -596,25 +592,16 @@ fun ProfileSetupDialog(
 }
 
 @Composable
-fun SummaryHeaderCard(totalCalories: Int, latestDate: String) {
-    // 7700kcal 기준 예상 체중 변동량 계산 (소모가 많아 마이너스인 경우가 '감소'이므로 부호를 반전)
-    // totalCalories가 마이너스(적자)일 때 체중이 감소합니다.
+fun SummaryHeaderCard(totalCalories: Int, latestDate: String, records: List<DailyRecordModel>) {
+    // 7700kcal 기준 예상 체중 변동량 (적자면 감소)
     val expectedWeightChange = -totalCalories / 7700f
-
-    // 부호에 따른 텍스트와 색상 정의
     val weightText = if (expectedWeightChange <= 0) {
-        String.format(
-            Locale.getDefault(),
-            "%.1f kg",
-            expectedWeightChange
-        ) // 플러스거나 0일 때 (예: +0.2 kg)
+        String.format(Locale.getDefault(), "%.1f kg", expectedWeightChange)
     } else {
-        String.format(
-            Locale.getDefault(),
-            "-%.1f kg",
-            expectedWeightChange
-        ) // 마이너스 적자 누적으로 감량 성공 시 (예: -0.5 kg)
+        String.format(Locale.getDefault(), "-%.1f kg", expectedWeightChange)
     }
+    val recordDays = records.size
+    val avgNet = if (records.isNotEmpty()) records.sumOf { it.netCalories } / records.size else 0
 
     val onPrimary = MaterialTheme.colorScheme.onPrimary
     Card(
@@ -626,7 +613,7 @@ fun SummaryHeaderCard(totalCalories: Int, latestDate: String) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp),
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -646,7 +633,7 @@ fun SummaryHeaderCard(totalCalories: Int, latestDate: String) {
                 style = MaterialTheme.typography.labelLarge,
                 color = onPrimary.copy(alpha = 0.8f)
             )
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Surface(
                 color = onPrimary.copy(alpha = 0.15f),
                 shape = RoundedCornerShape(50)
@@ -658,7 +645,50 @@ fun SummaryHeaderCard(totalCalories: Int, latestDate: String) {
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                 )
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider(color = onPrimary.copy(alpha = 0.2f))
+            Spacer(modifier = Modifier.height(14.dp))
+            // 카드 하단에 3개 지표
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HeroStat("예상 체중", weightText, onPrimary, Modifier.weight(1f))
+                VerticalDivider(
+                    modifier = Modifier.height(30.dp),
+                    color = onPrimary.copy(alpha = 0.2f)
+                )
+                HeroStat("기록 일수", "${recordDays}일", onPrimary, Modifier.weight(1f))
+                VerticalDivider(
+                    modifier = Modifier.height(30.dp),
+                    color = onPrimary.copy(alpha = 0.2f)
+                )
+                HeroStat("평균 순칼로리", "$avgNet", onPrimary, Modifier.weight(1f))
+            }
         }
+    }
+}
+
+@Composable
+private fun HeroStat(label: String, value: String, color: Color, modifier: Modifier) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = color,
+            maxLines = 1
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = color.copy(alpha = 0.75f)
+        )
     }
 }
 
