@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -281,7 +282,8 @@ fun MainScreen(
                     item {
                         RecentTrendChart(
                             records = dailyRecords,
-                            onDayClick = onNavigateToDetail
+                            onDayClick = onNavigateToDetail,
+                            scrollState = mainViewModel.trendChartState
                         )
                     }
                 }
@@ -730,7 +732,11 @@ fun StatTile(modifier: Modifier, label: String, value: String, valueColor: Color
 }
 
 @Composable
-fun RecentTrendChart(records: List<DailyRecordModel>, onDayClick: (String) -> Unit) {
+fun RecentTrendChart(
+    records: List<DailyRecordModel>,
+    onDayClick: (String) -> Unit,
+    scrollState: LazyListState
+) {
     val context = LocalContext.current
     val prefs = remember {
         context.getSharedPreferences(Constants.PREFS_NAME, android.content.Context.MODE_PRIVATE)
@@ -817,6 +823,7 @@ fun RecentTrendChart(records: List<DailyRecordModel>, onDayClick: (String) -> Un
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(165.dp),
+                    state = scrollState,
                     reverseLayout = true,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.Bottom

@@ -61,6 +61,9 @@ class MainViewModel @Inject constructor(
 
     val mainListState = LazyListState()
 
+    // 최근 추이 차트의 가로 스크롤 위치. 상세 화면에 갔다 돌아와도 보던 구간이 유지되도록 ViewModel에 보관
+    val trendChartState = LazyListState()
+
     private val _isPagingLoading = MutableStateFlow(false)
     val isPagingLoading = _isPagingLoading.asStateFlow()
 

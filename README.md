@@ -23,7 +23,7 @@
 ### 3. 보안 지향형 아키텍처
 * **Server-side Proxy**: Firebase Functions를 통해 AI 프롬프트를 은닉하여 비즈니스 로직 유출 및 프롬프트 인젝션을 원천 차단했습니다.
 * **Firebase App Check 도입:** 앱의 무결성을 검증하고 승인되지 않은 비인가 기기나 위변조된 앱으로부터의 백엔드(Firestore, Functions) API 호출을 차단하여 자원 어뷰징 및 비용 리스크를 방지했습니다.
-* 
+
 ---
 
 ## 🛠 기술 스택 (Tech Stack)
@@ -35,9 +35,15 @@
 | **Architecture** | MVVM, Clean Architecture, Repository Pattern |
 | **DI** | Hilt                                         |
 | **Database** | Room (Local), Firebase Firestore (Remote)    |
-| **Backend** | Firebase Functions (Node.js) ,Firebase App Check               |
+| **Backend** | Firebase Functions (Node.js), Firebase App Check |
 | **AI Engine** | Google Gemini 2.5 Flash                      |
 | **Library** | Coroutines, Flow, Retrofit2, Serialization   |
+
+| 항목 | 값 |
+| :--- | :--- |
+| **minSdk** | 26 (Android 8.0) |
+| **targetSdk / compileSdk** | 36 |
+| **JVM Target** | 11 |
 
 ---
 
@@ -59,4 +65,49 @@
 ### 3. AI Engine (Gemini)
 * **역할:** 서버(Functions)로부터 전달받은 가공 데이터를 바탕으로 정밀 분석 결과를 생성합니다.
 * **특징:** Mifflin-St Jeor 공식을 적용한 정교한 BMR 산출 및 사용자 맞춤형 영양 조언을 피드백으로 제공합니다.
+
+---
+
+## ⚙️ 빌드 및 실행 (Getting Started)
+
+### 1. 필수 설정 파일
+
+보안상 아래 파일들은 저장소에 포함되어 있지 않습니다. 클론 후 직접 추가해야 빌드가 가능합니다.
+
+| 파일 | 위치 | 용도 |
+| :--- | :--- | :--- |
+| `google-services.json` | `app/` | Firebase 프로젝트 연결 |
+| `local.properties` | 프로젝트 루트 | Android SDK 경로, `GOOGLE_WEB_CLIENT_ID` |
+| `keystore.properties` | 프로젝트 루트 | 릴리즈 서명 정보 (릴리즈 빌드 시에만 필요) |
+| `dailynet-key.jks` | `app/` | 릴리즈 서명 키 (릴리즈 빌드 시에만 필요) |
+
+`keystore.properties` 형식은 다음과 같습니다.
+
+```properties
+storeFile=app/dailynet-key.jks
+storePassword=YOUR_STORE_PASSWORD
+keyAlias=YOUR_KEY_ALIAS
+keyPassword=YOUR_KEY_PASSWORD
+```
+
+> 서명 정보를 `local.properties`에 두면 Secrets Gradle Plugin이 이를 `BuildConfig` 필드로 생성하여
+> 비밀번호가 APK에 평문으로 포함됩니다. 반드시 별도 파일로 분리하십시오.
+
+### 2. 빌드
+
+```bash
+# 디버그 빌드
+./gradlew assembleDebug
+
+# 릴리즈 AAB (Play Console 업로드용)
+./gradlew bundleRelease
+```
+
+릴리즈 AAB는 `app/build/outputs/bundle/release/` 에 `DailyNet_v{versionName}_b{versionCode}-release.aab` 형식으로 생성됩니다.
+`keystore.properties`가 없으면 **서명 없이** 빌드되므로, 배포 전 서명 여부를 확인하십시오.
+
+```bash
+keytool -printcert -jarfile <생성된_AAB_경로> | grep SHA256
+```
+
 ---

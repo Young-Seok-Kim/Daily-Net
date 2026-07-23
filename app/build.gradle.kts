@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -8,6 +10,15 @@ plugins {
     id("kotlin-kapt")
 }
 
+/*
+ * 서명 키 정보는 git에 올리지 않는 keystore.properties(프로젝트 루트)에서 읽는다.
+ * local.properties는 secrets 플러그인이 BuildConfig 필드로 만들어버리므로 비밀번호를 두면 안 된다.
+ */
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
 android {
     namespace = "com.youngs.dailynet"
     compileSdk = 36
@@ -16,14 +27,35 @@ android {
         applicationId = "com.youngs.dailynet"
         minSdk = 26
         targetSdk = 36
-        versionCode = 16
-        versionName = "1.6.3"
+        /*
+         * 2026-07-23 (v1.6.4 / b17)
+         *  - 최근 추이 차트에서 막대를 눌러 상세로 이동한 뒤 돌아와도
+         *    보던 가로 스크롤 위치가 그대로 유지되도록 수정 (기존에는 맨 끝으로 초기화됨)
+         */
+        versionCode = 17
+        versionName = "1.6.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            val storeFilePath = keystoreProps.getProperty("storeFile")
+            if (storeFilePath != null) {
+                storeFile = rootProject.file(storeFilePath)
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // keystore.properties가 있을 때만 서명 (없으면 미서명 빌드로 떨어짐)
+            if (keystoreProps.getProperty("storeFile") != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             // Kotlin 2.2 + 현재 AGP의 R8 조합에서 R8이 Gson TypeToken의 제네릭 시그니처를
             // 제거해 앱이 시작 시 죽는 문제가 있어 난독화를 비활성화한다.
             // (추후 AGP 업그레이드 후 재활성화 가능)
