@@ -46,24 +46,21 @@ fun SettingsScreen(
     BackHandler(enabled = true) { if (loadingMessage == null) onBack() }
 
     // ── 다이얼로그들 ────────────────────────────────────────────────
-    if (showProfileEditDialog) {
-        val p = userProfile
-        if (p == null) {
-            showProfileEditDialog = false
-        } else {
-            ProfileEditDialog(
-                initialHeight = p.height,
-                initialWeight = p.initialWeight,
-                initialIsMale = p.isMale,
-                initialBirthDate = p.birthDate,
-                onDismiss = { showProfileEditDialog = false },
-                onConfirm = { h, w, male, birth ->
-                    mainViewModel.updateProfile(h, w, male, birth) { success ->
-                        if (success) showProfileEditDialog = false
-                    }
+    // 프로필이 로드되기 전에는 열지 않는다 (빈 값으로 덮어쓰는 것 방지).
+    // 조건에 넣어 두면 컴포지션 도중 상태를 쓰지 않아도 된다.
+    userProfile?.takeIf { showProfileEditDialog }?.let { p ->
+        ProfileEditDialog(
+            initialHeight = p.height,
+            initialWeight = p.initialWeight,
+            initialIsMale = p.isMale,
+            initialBirthDate = p.birthDate,
+            onDismiss = { showProfileEditDialog = false },
+            onConfirm = { h, w, male, birth ->
+                mainViewModel.updateProfile(h, w, male, birth) { success ->
+                    if (success) showProfileEditDialog = false
                 }
-            )
-        }
+            }
+        )
     }
 
     if (showLogoutConfirm) {
