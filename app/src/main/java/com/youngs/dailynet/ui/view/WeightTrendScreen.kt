@@ -73,7 +73,9 @@ fun WeightTrendScreen(
     // 같은 몸무게가 이어지는 구간은 그래프에서 평평한 선이 길게 늘어질 뿐이라 걷어낸다.
     val shown = remember(records) { changedWeightPoints(records) }
 
-    val listState = rememberLazyListState()
+    // 스크롤 위치는 ViewModel에 둔다.
+    // 정산 상세로 갔다가 뒤로가기로 돌아왔을 때 보던 구간이 그대로 남도록.
+    val listState = mainViewModel.weightChartState
 
     // 한 번 누르면 선택(위에 정보 표시), 같은 점을 한 번 더 누르면 그날 정산 화면으로 이동
     var selectedDate by remember { mutableStateOf<String?>(null) }
@@ -81,22 +83,22 @@ fun WeightTrendScreen(
     // 시스템 뒤로가기로 앱이 종료되지 않고 이전 화면으로 돌아가도록
     BackHandler(enabled = true) { onBack() }
 
-    // 기준 날짜로 맞추는 건 화면에 처음 들어왔을 때 한 번만.
-    // (Firestore 동기화 등으로 records가 새로 들어올 때마다 다시 맞추면,
-    //  사용자가 과거 구간을 보고 있다가 갑자기 되돌아가 버린다)
-    var didInitialScroll by remember(focusDate) { mutableStateOf(false) }
-
     // 들어온 날짜를 기준으로 그래프를 연다.
     // 그 날짜에 변화가 없었다면(=목록에 없다면) 그 이전의 가장 가까운 변화 지점으로 맞춘다.
+    //
+    // 기준일이 달라졌을 때만 맞춘다. 매번 맞추면
+    //   · 상세에 갔다 돌아올 때마다 보던 위치가 날아가고
+    //   · 기록이 갱신돼 records가 새로 들어올 때도 마찬가지가 된다
     LaunchedEffect(shown, focusDate) {
-        if (didInitialScroll || shown.isEmpty()) return@LaunchedEffect
+        if (shown.isEmpty()) return@LaunchedEffect
+        if (mainViewModel.weightChartFocusedDate == focusDate) return@LaunchedEffect
         // shown은 최신순(DESC)이므로, 기준일 이하인 첫 항목이 "기준일 시점의 몸무게"다
         val idx = shown.indexOfFirst { it.date <= focusDate }
             .let { if (it < 0) shown.lastIndex else it }
         // reverseLayout이라 scrollToItem(idx)는 그 지점을 화면 맨 오른쪽에 붙인다.
         // 이후 흐름도 같이 보이도록 조금 더 최신 쪽(작은 인덱스)으로 당겨 화면 안쪽에 오게 한다.
         listState.scrollToItem((idx - 2).coerceAtLeast(0))
-        didInitialScroll = true
+        mainViewModel.weightChartFocusedDate = focusDate
     }
 
     Scaffold(

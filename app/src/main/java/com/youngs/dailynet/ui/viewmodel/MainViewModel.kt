@@ -64,6 +64,14 @@ class MainViewModel @Inject constructor(
     // 최근 추이 차트의 가로 스크롤 위치. 상세 화면에 갔다 돌아와도 보던 구간이 유지되도록 ViewModel에 보관
     val trendChartState = LazyListState()
 
+    // 몸무게 추이 차트의 가로 스크롤 위치 (위와 같은 이유).
+    // 그래프 → 정산 상세 → 뒤로가기로 돌아와도 보던 구간이 그대로 남는다.
+    val weightChartState = LazyListState()
+
+    // 위 스크롤을 어느 기준 날짜에 맞춰뒀는지. 기준일이 바뀔 때만 다시 맞춘다.
+    // (돌아올 때마다 다시 맞추면 사용자가 옮겨둔 위치가 날아간다)
+    var weightChartFocusedDate: String? = null
+
     private val _isPagingLoading = MutableStateFlow(false)
     val isPagingLoading = _isPagingLoading.asStateFlow()
 
