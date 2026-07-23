@@ -22,6 +22,9 @@ import com.youngs.dailynet.ui.theme.DailyNetTheme
 import com.youngs.dailynet.ui.view.LoginScreen
 import com.youngs.dailynet.ui.view.MainScreen
 import com.youngs.dailynet.ui.view.DailyRecordScreen
+import com.youngs.dailynet.ui.view.WeightTrendScreen
+import com.youngs.dailynet.ui.view.SettingsScreen
+import com.youngs.dailynet.ui.view.WithdrawScreen
 import com.youngs.dailynet.ui.viewmodel.AuthViewModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -43,8 +46,11 @@ class MainActivity : ComponentActivity() {
                 val user by authViewModel.user.collectAsState()
                 val mainViewModel: MainViewModel = hiltViewModel()
 
-                var currentScreen by remember { mutableStateOf("main") } // "main", "input", "detail"
+                var currentScreen by remember { mutableStateOf("main") } // "main", "input", "detail", "weight"
                 var selectedDate by remember { mutableStateOf("") }     // 상세 화면에 넘겨줄 날짜
+                var weightFocusDate by remember { mutableStateOf("") }  // 몸무게 그래프를 열 기준 날짜
+                // 몸무게 그래프에서 뒤로가기를 눌렀을 때 돌아갈 화면 ("input" 또는 "detail")
+                var weightReturnScreen by remember { mutableStateOf("main") }
 
                 LaunchedEffect(user) {
                     if (user == null) {
@@ -71,6 +77,11 @@ class MainActivity : ComponentActivity() {
                                 DailyRecordScreen(
                                     mainViewModel = mainViewModel,
                                     onBack = { currentScreen = "main" },
+                                    onNavigateToWeightTrend = { date ->
+                                        weightFocusDate = date
+                                        weightReturnScreen = "input"
+                                        currentScreen = "weight"
+                                    },
                                     isReadOnly = false
                                 )
                             }
@@ -87,7 +98,47 @@ class MainActivity : ComponentActivity() {
                                     onBack = {
                                         currentScreen = "main"
                                     },
+                                    onNavigateToWeightTrend = { date ->
+                                        weightFocusDate = date
+                                        weightReturnScreen = "detail"
+                                        currentScreen = "weight"
+                                    },
                                     isReadOnly = false
+                                )
+                            }
+
+                            "settings" -> {
+                                SettingsScreen(
+                                    mainViewModel = mainViewModel,
+                                    onBack = { currentScreen = "main" },
+                                    onNavigateToLogin = {
+                                        authViewModel.resetUserState()
+                                        currentScreen = "login"
+                                    },
+                                    onNavigateToWithdraw = { currentScreen = "withdraw" }
+                                )
+                            }
+
+                            "withdraw" -> {
+                                WithdrawScreen(
+                                    mainViewModel = mainViewModel,
+                                    onBack = { currentScreen = "settings" },
+                                    onNavigateToLogin = {
+                                        authViewModel.resetUserState()
+                                        currentScreen = "login"
+                                    }
+                                )
+                            }
+
+                            "weight" -> {
+                                WeightTrendScreen(
+                                    mainViewModel = mainViewModel,
+                                    focusDate = weightFocusDate,
+                                    onBack = { currentScreen = weightReturnScreen },
+                                    onNavigateToDetail = { date ->
+                                        selectedDate = date
+                                        currentScreen = "detail"
+                                    }
                                 )
                             }
 
@@ -104,6 +155,9 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToLogin = {
                                         authViewModel.resetUserState()
                                         currentScreen = "login"
+                                    },
+                                    onNavigateToSettings = {
+                                        currentScreen = "settings"
                                     }
                                 )
                             }

@@ -162,6 +162,62 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    /** 프로필 수정 화면에서 현재 값을 보여주기 위한 관찰용 스트림 */
+    val userProfile = userProfileDao.getProfileFlow()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    /**
+     * 가입 때 입력한 신체 정보(키 / 시작 몸무게 / 성별 / 생년월일)를 수정한다.
+     *
+     * 서버에는 set() 대신 update()를 쓴다. set()으로 덮으면 구독 여부(isSubscribed)나
+     * 오늘 분석 횟수(todayAnalysisCount) 같은 다른 필드가 함께 날아가기 때문.
+     */
+    fun updateProfile(
+        height: Float,
+        initialWeight: Float,
+        isMale: Boolean,
+        birthDate: String,
+        onDone: (Boolean) -> Unit
+    ) {
+        val uid = currentUserId
+        if (uid == null) {
+            onDone(false)
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                firestore.collection("users").document(uid).update(
+                    mapOf(
+                        "height" to height,
+                        "initialWeight" to initialWeight,
+                        "isMale" to isMale,
+                        "birthDate" to birthDate
+                    )
+                ).await()
+
+                // 로컬은 나머지 필드(구독 상태 등)를 유지한 채 갈아끼운다
+                val current = userProfileDao.getProfile()
+                userProfileDao.insertProfile(
+                    current.copy(
+                        height = height,
+                        initialWeight = initialWeight,
+                        isMale = isMale,
+                        birthDate = birthDate
+                    )
+                )
+
+                _isMale.value = isMale
+                showToast("프로필이 수정되었습니다.")
+                onDone(true)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                showToast("프로필 수정 실패: ${e.message}")
+                onDone(false)
+            }
+        }
+    }
+
     fun checkProfile() {
         val uid = currentUserId ?: return
 

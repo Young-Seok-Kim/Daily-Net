@@ -27,6 +27,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import com.youngs.dailynet.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -139,14 +144,13 @@ fun MainScreen(
     onNavigateToInput: () -> Unit,
     onNavigateToDetail: (String) -> Unit,
     onNavigateToLogin: () -> Unit,
+    onNavigateToSettings: () -> Unit,
 ) {
-    var loadingMessage by remember { mutableStateOf<String?>(null) }
     val dailyRecords by mainViewModel.allDailyRecord.collectAsState()
     val totalCalories by mainViewModel.totalNetCalories.collectAsState()
     val weeklyCaloriesMap by mainViewModel.weeklyCaloriesMap.collectAsState()
-    var showLogoutLoading by remember { mutableStateOf(false) }
     var selectedDateToDelete by remember { mutableStateOf<String?>(null) }
-    var showWithdrawConfirmDialog by remember { mutableStateOf(false) }
+    val userProfile by mainViewModel.userProfile.collectAsState()
     val isPagingLoading by mainViewModel.isPagingLoading.collectAsState()
     val isLastPageReached = mainViewModel.isLastPageReached
 
@@ -175,35 +179,7 @@ fun MainScreen(
         )
     }
 
-    if (showWithdrawConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showWithdrawConfirmDialog = false },
-            title = { Text("회원탈퇴 재확인") },
-            text = { Text("진짜 회원탈퇴를 진행하시겠습니까?\n이 작업은 절대 되돌릴 수 없으며, 모든 정산 기록 및 신체 정보가 완전히 영구 삭제됩니다.") },
-            confirmButton = {
-                val context = LocalContext.current
-                TextButton(
-                    onClick = {
-                        showWithdrawConfirmDialog = false
-                        loadingMessage = "회원탈퇴 처리 중..."
-
-                        // ViewModel 탈퇴 로직 호출 (로컬 DB 및 Firestore 일괄 삭제 수행)
-                        mainViewModel.withdrawAccount(context) { success ->
-                            loadingMessage = null
-                            if (success) {
-                                onNavigateToLogin()
-                            }
-                        }
-                    }
-                ) {
-                    Text("진짜 탈퇴하기", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showWithdrawConfirmDialog = false }) { Text("취소") }
-            }
-        )
-    }
+    // 로그아웃 / 회원탈퇴 / 신체 정보 수정은 설정 화면(SettingsScreen)으로 옮겼다.
 
     LaunchedEffect(Unit) {
         mainViewModel.checkProfile()
@@ -221,7 +197,7 @@ fun MainScreen(
     var showSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
 
-    SystemUiController(showLogoutLoading)
+    SystemUiController(false)
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -232,6 +208,13 @@ fun MainScreen(
                         // 1. 프로필 아이콘 (사용자 아바타)
                         IconButton(onClick = { showSheet = true }) {
                             Icon(Icons.Default.AccountCircle, contentDescription = "프로필")
+                        }
+                        // 2. 설정 (회원탈퇴 등 위험한 항목은 이 안쪽에 둔다)
+                        IconButton(onClick = onNavigateToSettings) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_settings_gear),
+                                contentDescription = "설정"
+                            )
                         }
                     }
                 )
@@ -245,21 +228,6 @@ fun MainScreen(
                 )
             }
         ) { padding ->
-
-            if (showLogoutLoading) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator()
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text("로그아웃 중입니다...", style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
-            }
 
             LazyColumn(
                 modifier = Modifier
@@ -347,60 +315,92 @@ fun MainScreen(
                             .padding(16.dp)
                             .navigationBarsPadding()
                     ) {
-                        val context = LocalContext.current // 💡 추가
-                        TextButton(
-                            onClick = {
-                                // ViewModel의 로그아웃 함수 실행
-                                showSheet = false
-                                showLogoutLoading = true
-                                mainViewModel.logout(context) { success ->
-                                    if (success) {
-                                        showSheet = false
-                                        onNavigateToLogin()
-                                    } else {
-                                        showLogoutLoading = false // 실패 시 로딩 해제
-                                    }
+                        // 프로필 시트는 "내가 누구인지"만 보여준다.
+                        // 로그아웃·회원탈퇴 같은 실제 동작은 설정 화면으로 옮겼다 (오클릭 방지)
+                        val firebaseUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            val photoUrl = firebaseUser?.photoUrl
+                            if (photoUrl != null) {
+                                // 구글 계정 프로필 사진
+                                AsyncImage(
+                                    model = photoUrl,
+                                    contentDescription = "프로필 사진",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape),
+                                    // 로딩 중이거나 실패하면 기본 아이콘으로 대체
+                                    placeholder = rememberVectorPainter(Icons.Default.AccountCircle),
+                                    error = rememberVectorPainter(Icons.Default.AccountCircle)
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Default.AccountCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = firebaseUser?.displayName ?: "사용자",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                firebaseUser?.email?.let {
+                                    Text(
+                                        text = it,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Start
-                            ) {
-                                Text("로그아웃")
                             }
                         }
 
-                        // 회원탈퇴 버튼
-                        TextButton(
-                            onClick = {
-                                showSheet = false // 바텀시트를 먼저 닫아 UI 유연성 확보
-                                showWithdrawConfirmDialog = true
-                            },
-                        ) {
-                            Text("회원탈퇴", color = MaterialTheme.colorScheme.error)
+                        userProfile?.let { p ->
+                            Spacer(modifier = Modifier.height(14.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                HeroStat(
+                                    "키",
+                                    String.format(Locale.getDefault(), "%.1f cm", p.height),
+                                    MaterialTheme.colorScheme.onSurface,
+                                    Modifier.weight(1f)
+                                )
+                                HeroStat(
+                                    "시작 몸무게",
+                                    String.format(Locale.getDefault(), "%.1f kg", p.initialWeight),
+                                    MaterialTheme.colorScheme.onSurface,
+                                    Modifier.weight(1f)
+                                )
+                                HeroStat(
+                                    "구독",
+                                    if (p.isSubscribed) "이용 중" else "무료",
+                                    MaterialTheme.colorScheme.onSurface,
+                                    Modifier.weight(1f)
+                                )
+                            }
                         }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                        FilledTonalButton(
+                            onClick = {
+                                showSheet = false
+                                onNavigateToSettings()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("설정 열기")
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
             }
         }
 
-        if (showLogoutLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f))
-                    .clickable(enabled = false) {}, // 뒷배경 클릭 방지
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator()
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("로그아웃 중입니다...", style = MaterialTheme.typography.bodyLarge)
-                }
-            }
-        }
     }
 }
 
@@ -571,6 +571,138 @@ fun ProfileSetupDialog(
             ) {
                 Text("저장 및 시작")
             }
+        }
+    )
+}
+
+/**
+ * 가입 때 입력한 신체 정보(키 / 시작 몸무게 / 성별 / 생년월일)를 나중에 고치는 다이얼로그.
+ * 초기 입력용 [ProfileSetupDialog]와 달리 기존 값이 채워진 상태로 열리고, 취소할 수 있다.
+ */
+@Composable
+fun ProfileEditDialog(
+    initialHeight: Float,
+    initialWeight: Float,
+    initialIsMale: Boolean,
+    initialBirthDate: String,
+    onDismiss: () -> Unit,
+    onConfirm: (height: Float, weight: Float, isMale: Boolean, birthDate: String) -> Unit
+) {
+    var birthDateText by remember {
+        mutableStateOf(initialBirthDate.ifBlank { "2000-01-01" })
+    }
+    var heightText by remember {
+        mutableStateOf(if (initialHeight > 0f) initialHeight.toString() else "")
+    }
+    var weightText by remember {
+        mutableStateOf(if (initialWeight > 0f) initialWeight.toString() else "")
+    }
+    var selectedIsMale by remember { mutableStateOf(initialIsMale) }
+
+    val context = LocalContext.current
+
+    fun getCalendarFromText(dateStr: String): Calendar {
+        val cal = Calendar.getInstance()
+        try {
+            val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateStr)
+            if (date != null) cal.time = date
+        } catch (_: Exception) {
+            // 파싱 실패 시 오늘 날짜 유지
+        }
+        return cal
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("신체 정보 수정") },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("성별", style = MaterialTheme.typography.labelMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = selectedIsMale,
+                        onClick = { selectedIsMale = true },
+                        label = { Text("남성") }
+                    )
+                    FilterChip(
+                        selected = !selectedIsMale,
+                        onClick = { selectedIsMale = false },
+                        label = { Text("여성") }
+                    )
+                }
+
+                OutlinedTextField(
+                    value = birthDateText,
+                    onValueChange = { },
+                    label = { Text("생년월일") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            val currentCal = getCalendarFromText(birthDateText)
+                            android.app.DatePickerDialog(
+                                context,
+                                { _, year, month, dayOfMonth ->
+                                    birthDateText = String.format(
+                                        Locale.getDefault(),
+                                        "%d-%02d-%02d", year, month + 1, dayOfMonth
+                                    )
+                                },
+                                currentCal.get(Calendar.YEAR),
+                                currentCal.get(Calendar.MONTH),
+                                currentCal.get(Calendar.DAY_OF_MONTH)
+                            ).show()
+                        },
+                    enabled = false,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = heightText,
+                    onValueChange = { heightText = it },
+                    label = { Text("키 (cm)") },
+                    placeholder = { Text("예: 175.5") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = weightText,
+                    onValueChange = { weightText = it },
+                    label = { Text("시작 몸무게 (kg)") },
+                    placeholder = { Text("예: 70.0") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true
+                )
+
+                Text(
+                    "시작 몸무게는 총 감량량 계산의 기준값입니다.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            val h = heightText.toFloatOrNull() ?: 0f
+            val w = weightText.toFloatOrNull() ?: 0f
+            Button(
+                onClick = { onConfirm(h, w, selectedIsMale, birthDateText) },
+                enabled = h > 0f && w > 0f && birthDateText.contains("-")
+            ) {
+                Text("저장")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("취소") }
         }
     )
 }

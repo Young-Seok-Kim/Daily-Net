@@ -26,6 +26,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.health.connect.client.PermissionController
+import androidx.compose.ui.res.painterResource
+import com.youngs.dailynet.R
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import com.youngs.dailynet.util.HealthStepReader
 
@@ -34,6 +36,7 @@ import com.youngs.dailynet.util.HealthStepReader
 fun DailyRecordScreen(
     mainViewModel: MainViewModel,
     onBack: () -> Unit,
+    onNavigateToWeightTrend: (String) -> Unit = {},
     isReadOnly: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -125,6 +128,15 @@ fun DailyRecordScreen(
                             onBack()
                         }) {
                             Icon(Icons.Default.ArrowBack, contentDescription = "뒤로가기")
+                        }
+                    },
+                    actions = {
+                        // 이 날짜를 기준으로 몸무게 추이 그래프를 연다
+                        IconButton(onClick = { onNavigateToWeightTrend(uiState.date) }) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_weight_chart),
+                                contentDescription = "몸무게 추이"
+                            )
                         }
                     }
                 )
