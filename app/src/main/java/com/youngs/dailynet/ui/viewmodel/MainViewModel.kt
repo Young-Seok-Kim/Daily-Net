@@ -109,11 +109,11 @@ class MainViewModel @Inject constructor(
     fun onResultStreamed() { _shouldStreamResult.value = false }
 
     /**
-     * Health Connect에서 마지막으로 읽어온 "오늘 걸음 수".
+     * Health Connect에서 읽어온 날짜별 걸음 수 캐시 (yyyy-MM-dd → 걸음 수).
      * prepareDailyRecordData()가 uiState를 통째로 갈아끼우면서 자동 기입된 값을 지워버리는 문제가 있어,
-     * 마지막 값을 여기에 들고 있다가 데이터 로드가 끝난 뒤 다시 반영한다.
+     * 읽어둔 값을 여기에 들고 있다가 데이터 로드가 끝난 뒤 다시 반영한다.
      */
-    private var lastAutoSteps: Int? = null
+    private val autoStepsByDate = mutableMapOf<String, Int>()
 
     /**
      * 정산 데이터 로드가 끝날 때마다 증가한다.
@@ -123,19 +123,29 @@ class MainViewModel @Inject constructor(
     val recordLoadToken = _recordLoadToken.asStateFlow()
 
     /**
-     * 걸음수 자동 기입 (오늘 날짜 한정).
-     * 사용자가 직접 입력한 값(stepsManual=true)만 아니면, 다시 열 때마다 최신 걸음으로 갱신한다.
-     * (자동으로 채워진 값은 두 번째 기록 시 최신값으로 새로고침되고, 직접 예상 입력한 값은 유지)
+     * Health Connect에서 읽은 걸음 수를 화면에 반영한다.
+     *
+     * 날짜별로 규칙이 다르다.
+     * - 오늘: 하루 종일 값이 늘어나므로 열 때마다 최신 걸음으로 갱신
+     * - 과거: 이미 끝난 날이라 저장된 값이 정답. **비어 있을 때만** 채운다
+     * - 공통: 사용자가 직접 입력한 값(stepsManual=true)은 건드리지 않는다
+     *
+     * @param force 새로고침 버튼으로 명시적으로 요청한 경우. 위 조건을 모두 무시하고 덮어쓴다.
      */
-    fun applyAutoSteps(steps: Int, force: Boolean = false) {
-        lastAutoSteps = steps
-        if (_uiState.value.date != today || _uiState.value.analyzing) return
+    fun applyAutoSteps(date: String, steps: Int, force: Boolean = false) {
+        autoStepsByDate[date] = steps
 
-        if (force) {
-            // 사용자가 직접 새로고침 버튼을 누른 경우: 손으로 넣은 값도 최신 걸음으로 되돌린다
-            _uiState.update { it.copy(steps = steps, stepsManual = false) }
-        } else if (!_uiState.value.stepsManual) {
-            _uiState.update { it.copy(steps = steps) }
+        val current = _uiState.value
+        // 화면이 이미 다른 날짜로 넘어갔거나 분석 중이면 반영하지 않는다
+        if (current.date != date || current.analyzing) return
+
+        when {
+            // 새로고침 버튼: 손으로 넣은 값도 실제 걸음 수로 되돌린다
+            force -> _uiState.update { it.copy(steps = steps, stepsManual = false) }
+            current.stepsManual -> return
+            date == today -> _uiState.update { it.copy(steps = steps) }
+            // 과거 날짜는 비어 있을 때만 채운다 (저장된 값을 덮어쓰지 않도록)
+            current.steps == 0 -> _uiState.update { it.copy(steps = steps) }
         }
     }
 
@@ -410,9 +420,9 @@ class MainViewModel @Inject constructor(
                 )
             }
 
-            // 💡 uiState를 통째로 교체한 뒤이므로, 이미 읽어둔 오늘 걸음 수를 다시 반영한다.
+            // 💡 uiState를 통째로 교체한 뒤이므로, 이미 읽어둔 그날 걸음 수를 다시 반영한다.
             //    (기존에는 Health Connect 조회가 이 로드보다 먼저 끝나면 걸음수가 0으로 덮여버렸다)
-            lastAutoSteps?.let { applyAutoSteps(it) }
+            autoStepsByDate[targetDate]?.let { applyAutoSteps(targetDate, it) }
         } catch (e: Exception) {
             e.printStackTrace()
         } finally {
@@ -606,7 +616,7 @@ class MainViewModel @Inject constructor(
         _uiState.value = DailyRecordModel(
             date = today,
             weight = cachedWeight, // 기존에 저장해 둔 최근 몸무게만 유지
-            steps = lastAutoSteps ?: 0, // 이미 읽어둔 오늘 걸음 수는 유지
+            steps = autoStepsByDate[today] ?: 0, // 이미 읽어둔 오늘 걸음 수는 유지
             breakfast = "",
             lunch = "",
             dinner = "",

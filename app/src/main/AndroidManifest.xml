@@ -4,8 +4,10 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Health Connect: 오늘 총 걸음 수 읽기 -->
+    <!-- Health Connect: 걸음 수 읽기 -->
     <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <!-- 30일보다 오래된 날짜의 걸음 수를 읽기 위해 필요 (지원 기기에서만 요청) -->
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
 
     <!-- 공휴일: 기기 캘린더의 휴일 캘린더 읽기 -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />

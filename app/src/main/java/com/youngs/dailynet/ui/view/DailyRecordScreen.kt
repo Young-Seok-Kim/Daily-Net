@@ -68,13 +68,16 @@ fun DailyRecordScreen(
     var stepRetryKey by remember { mutableStateOf(0) }
     // 권한 팝업은 화면당 한 번만 (토큰 변화로 이펙트가 재실행돼도 중복으로 뜨지 않게)
     var permissionRequested by remember { mutableStateOf(false) }
+    // 과거 데이터 읽기 권한도 화면당 한 번만 요청 (거부하면 그냥 읽어보고 넘어간다)
+    var historyRequested by remember { mutableStateOf(false) }
 
     // Health Connect 권한 런처
     val healthPermissionLauncher = rememberLauncherForActivityResult(
         contract = PermissionController.createRequestPermissionResultContract()
     ) { _ -> stepRetryKey++ }
 
-    // 오늘 날짜의 정산 화면 → Health Connect에서 오늘 총 걸음 수 자동 반영
+    // 화면에 열려 있는 날짜의 걸음 수를 Health Connect에서 읽어 반영한다.
+    // 오늘이면 최신값으로 갱신, 과거 날짜면 비어 있을 때만 채운다 (판단은 ViewModel이 함)
     //
     // 💡 recordLoadToken을 key에 넣는 이유:
     //    prepareDailyRecordData()가 uiState를 통째로 갈아끼우기 때문에, 그보다 먼저 걸음수를
@@ -82,33 +85,63 @@ fun DailyRecordScreen(
     //    (이전에는 "오늘 저장된 기록이 있을 때만" 걸음수가 보이던 원인)
     LaunchedEffect(uiState.date, stepRetryKey, recordLoadToken) {
         if (isReadOnly) return@LaunchedEffect
-        if (uiState.date != mainViewModel.todayDate) return@LaunchedEffect
+        if (uiState.date.isEmpty()) return@LaunchedEffect
         if (!healthReader.sdkAvailable()) return@LaunchedEffect
 
-        if (healthReader.hasPermission()) {
-            healthReader.getTodaySteps()?.let { mainViewModel.applyAutoSteps(it.toInt()) }
-        } else if (!permissionRequested) {
-            permissionRequested = true
-            healthPermissionLauncher.launch(healthReader.permissions)
+        val targetDate = uiState.date
+
+        if (!healthReader.hasPermission()) {
+            if (!permissionRequested) {
+                permissionRequested = true
+                // 기기가 지원하면 과거 데이터 읽기 권한까지 한 번에 요청한다
+                healthPermissionLauncher.launch(healthReader.permissionsToRequest())
+            }
+            return@LaunchedEffect
+        }
+
+        // 30일보다 오래된 날짜는 과거 데이터 읽기 권한이 있어야 조회된다.
+        // 아직 안 물어봤다면 요청하고, 결과가 오면 stepRetryKey가 바뀌어 이 이펙트가 다시 돈다.
+        // (거부당한 경우엔 historyRequested가 true라 그냥 읽어보고 넘어간다)
+        if (!historyRequested &&
+            healthReader.isBeyondDefaultWindow(targetDate) &&
+            healthReader.historySupported() &&
+            !healthReader.hasHistoryPermission()
+        ) {
+            historyRequested = true
+            healthPermissionLauncher.launch(setOf(healthReader.historyPermission))
+            return@LaunchedEffect
+        }
+
+        healthReader.getStepsForDate(targetDate)?.let {
+            mainViewModel.applyAutoSteps(targetDate, it.toInt())
         }
     }
 
-    /** 걸음수 새로고침 버튼: 권한이 없으면 요청하고, 있으면 최신 값으로 강제 갱신 */
+    /** 걸음수 새로고침 버튼: 권한이 없으면 요청하고, 있으면 그날 값으로 강제 갱신 */
     fun refreshSteps() {
+        val targetDate = uiState.date
         scope.launch {
             if (!healthReader.sdkAvailable()) {
                 Toast.makeText(context, "이 기기에서는 Health Connect를 쓸 수 없어요", Toast.LENGTH_SHORT).show()
                 return@launch
             }
             if (!healthReader.hasPermission()) {
-                healthPermissionLauncher.launch(healthReader.permissions)
+                healthPermissionLauncher.launch(healthReader.permissionsToRequest())
                 return@launch
             }
-            val steps = healthReader.getTodaySteps()
+            // 오래된 날짜인데 과거 데이터 권한이 없으면 먼저 요청한다 (버튼을 눌렀으니 다시 물어봐도 된다)
+            if (healthReader.isBeyondDefaultWindow(targetDate) &&
+                healthReader.historySupported() &&
+                !healthReader.hasHistoryPermission()
+            ) {
+                healthPermissionLauncher.launch(setOf(healthReader.historyPermission))
+                return@launch
+            }
+            val steps = healthReader.getStepsForDate(targetDate)
             if (steps == null) {
                 Toast.makeText(context, "걸음 수를 불러오지 못했어요", Toast.LENGTH_SHORT).show()
             } else {
-                mainViewModel.applyAutoSteps(steps.toInt(), force = true)
+                mainViewModel.applyAutoSteps(targetDate, steps.toInt(), force = true)
                 Toast.makeText(context, "걸음 수를 새로 불러왔어요 (${steps}보)", Toast.LENGTH_SHORT).show()
             }
         }
@@ -280,12 +313,15 @@ fun DailyRecordScreen(
                                 }
                             },
                             label = { Text("걸음수 👣") },
-                            placeholder = { Text("오늘 날짜면 자동으로 채워져요") },
+                            placeholder = { Text("자동으로 채워져요") },
                             supportingText = {
-                                if (isToday) Text("오늘 걸음 수가 자동 반영됩니다 · 안 보이면 새로고침을 눌러주세요")
+                                Text(
+                                    if (isToday) "오늘 걸음 수가 자동 반영됩니다 · 안 보이면 새로고침을 눌러주세요"
+                                    else "비어 있으면 그날 걸음 수가 자동으로 채워집니다"
+                                )
                             },
                             trailingIcon = {
-                                if (isToday && !isReadOnly) {
+                                if (!isReadOnly) {
                                     IconButton(onClick = { refreshSteps() }) {
                                         Icon(Icons.Default.Refresh, contentDescription = "걸음수 새로고침")
                                     }
