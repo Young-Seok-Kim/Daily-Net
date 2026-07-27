@@ -11,6 +11,7 @@ import androidx.credentials.CredentialManager
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.local.entity.dao.DailyRecordDao
 import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
@@ -165,6 +166,7 @@ class MainViewModel @Inject constructor(
 
                 val serverProfile = mapOf(
                     "googleName" to googleName,
+                    "email" to auth.currentUser?.email.orEmpty(),
                     "height" to height,
                     "initialWeight" to weight,
                     "isMale" to isMale,
@@ -286,6 +288,24 @@ class MainViewModel @Inject constructor(
                             isSubscribed = isSubscribed
                         )
                     )
+
+                    // 💡 이메일은 Firestore에만 저장한다.
+                    //    Room 엔티티에 컬럼을 추가하면 fallbackToDestructiveMigration 때문에
+                    //    기존 사용자의 로컬 캐시가 통째로 지워지므로 건드리지 않는다.
+                    //    (필요할 땐 auth.currentUser.email로 언제든 읽을 수 있다)
+                    //
+                    //    기존 사용자는 문서에 email 필드가 없으니 로그인할 때 조용히 채워 넣는다.
+                    val authEmail = auth.currentUser?.email.orEmpty()
+                    if (authEmail.isNotEmpty() && document.getString("email") != authEmail) {
+                        try {
+                            firestore.collection("users").document(uid)
+                                .set(mapOf("email" to authEmail), SetOptions.merge())
+                                .await()
+                        } catch (e: Exception) {
+                            // 실패해도 로그인 흐름을 막지 않는다
+                            e.printStackTrace()
+                        }
+                    }
 
                     _isMale.value = isMale
                     showProfileDialog = false
