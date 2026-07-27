@@ -142,6 +142,12 @@ fun DailyRecordScreen(
         }
     }
 
+    // ── 그날의 칼로리 요약 ──
+    // 순칼로리는 지금까지 AI 레포트 '본문 글' 안에만 있어서 한눈에 안 들어왔다.
+    // 숫자만 따로 뽑아 상단바와 결과 카드 맨 위에 크게 보여준다.
+    val hasCalorieResult = uiState.finalized || uiState.analysisResult.isNotEmpty()
+    val calorieColor = if (uiState.netCalories <= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+
     // ── 분석 완료 연출 ──
     val scrollState = rememberScrollState()
     var resultCardY by remember { mutableStateOf(0) }
@@ -175,7 +181,20 @@ fun DailyRecordScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("${uiState.date} ${getDayOfWeekText(uiState.date)}") },
+                    title = {
+                        Column {
+                            Text("${uiState.date} ${getDayOfWeekText(uiState.date)}")
+                            // 💡 스크롤 위치와 상관없이 그날의 순칼로리가 항상 보이도록 상단바에 함께 표시
+                            if (hasCalorieResult) {
+                                Text(
+                                    text = "순칼로리 ${uiState.netCalories} kcal",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = calorieColor
+                                )
+                            }
+                        }
+                    },
                     navigationIcon = {
                         IconButton(onClick = {
                             if (uiState.analyzing) {
@@ -356,6 +375,7 @@ fun DailyRecordScreen(
                                         JustCompletedBadge()
                                     }
                                 }
+
                                 HorizontalDivider(
                                     modifier = Modifier.padding(vertical = 12.dp),
                                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
