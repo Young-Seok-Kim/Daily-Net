@@ -32,7 +32,7 @@ object AppModule {
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         return OkHttpClient.Builder()
-            .connectTimeout(Constants.REQUEST_TIMEOUT_MS, TimeUnit.MILLISECONDS) // 숫자와 단위를 쌍으로 입력
+            .connectTimeout(Constants.CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS) // 숫자와 단위를 쌍으로 입력
             .readTimeout(Constants.REQUEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .writeTimeout(Constants.REQUEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .retryOnConnectionFailure(true)       // 연결 실패 시 재시도 여부

@@ -103,21 +103,38 @@ class MainViewModel @Inject constructor(
     /** 화면에서 "오늘 날짜인지" 판별할 수 있도록 노출 */
     val todayDate: String get() = today
 
-    // 방금 분석을 마친 결과만 한 줄씩 스트리밍하기 위한 플래그
+    // 방금 분석을 마친 결과인지 (화면에서 완료 연출 트리거로 사용)
     private val _shouldStreamResult = MutableStateFlow(false)
     val shouldStreamResult = _shouldStreamResult.asStateFlow()
     fun onResultStreamed() { _shouldStreamResult.value = false }
+
+    /**
+     * Health Connect에서 마지막으로 읽어온 "오늘 걸음 수".
+     * prepareDailyRecordData()가 uiState를 통째로 갈아끼우면서 자동 기입된 값을 지워버리는 문제가 있어,
+     * 마지막 값을 여기에 들고 있다가 데이터 로드가 끝난 뒤 다시 반영한다.
+     */
+    private var lastAutoSteps: Int? = null
+
+    /**
+     * 정산 데이터 로드가 끝날 때마다 증가한다.
+     * 화면(DailyRecordScreen)은 이 값을 key로 걸음수를 다시 읽어 반영한다.
+     */
+    private val _recordLoadToken = MutableStateFlow(0)
+    val recordLoadToken = _recordLoadToken.asStateFlow()
 
     /**
      * 걸음수 자동 기입 (오늘 날짜 한정).
      * 사용자가 직접 입력한 값(stepsManual=true)만 아니면, 다시 열 때마다 최신 걸음으로 갱신한다.
      * (자동으로 채워진 값은 두 번째 기록 시 최신값으로 새로고침되고, 직접 예상 입력한 값은 유지)
      */
-    fun applyAutoSteps(steps: Int) {
-        if (_uiState.value.date == today &&
-            !_uiState.value.analyzing &&
-            !_uiState.value.stepsManual
-        ) {
+    fun applyAutoSteps(steps: Int, force: Boolean = false) {
+        lastAutoSteps = steps
+        if (_uiState.value.date != today || _uiState.value.analyzing) return
+
+        if (force) {
+            // 사용자가 직접 새로고침 버튼을 누른 경우: 손으로 넣은 값도 최신 걸음으로 되돌린다
+            _uiState.update { it.copy(steps = steps, stepsManual = false) }
+        } else if (!_uiState.value.stepsManual) {
             _uiState.update { it.copy(steps = steps) }
         }
     }
@@ -392,8 +409,15 @@ class MainViewModel @Inject constructor(
                     analyzing = false
                 )
             }
+
+            // 💡 uiState를 통째로 교체한 뒤이므로, 이미 읽어둔 오늘 걸음 수를 다시 반영한다.
+            //    (기존에는 Health Connect 조회가 이 로드보다 먼저 끝나면 걸음수가 0으로 덮여버렸다)
+            lastAutoSteps?.let { applyAutoSteps(it) }
         } catch (e: Exception) {
             e.printStackTrace()
+        } finally {
+            // 로드가 끝났음을 화면에 알려 걸음수를 (재)조회하게 한다
+            _recordLoadToken.update { it + 1 }
         }
     }
 
@@ -582,6 +606,7 @@ class MainViewModel @Inject constructor(
         _uiState.value = DailyRecordModel(
             date = today,
             weight = cachedWeight, // 기존에 저장해 둔 최근 몸무게만 유지
+            steps = lastAutoSteps ?: 0, // 이미 읽어둔 오늘 걸음 수는 유지
             breakfast = "",
             lunch = "",
             dinner = "",

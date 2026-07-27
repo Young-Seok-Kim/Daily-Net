@@ -101,7 +101,13 @@ class MainActivity : ComponentActivity() {
                         when (current.screen) {
 
                             "input" -> {
-                                mainViewModel.prepareDailyRecordData(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()))
+                                // 리컴포지션마다 다시 불러오면 입력 중인 내용/자동 기입된 걸음수가 날아가므로
+                                // 화면에 진입할 때 한 번만 로드한다.
+                                LaunchedEffect(Unit) {
+                                    mainViewModel.prepareDailyRecordData(
+                                        SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                                    )
+                                }
 
                                 DailyRecordScreen(
                                     mainViewModel = mainViewModel,

@@ -3,11 +3,17 @@ package com.youngs.dailynet.ui.view
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,14 +21,21 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.health.connect.client.PermissionController
@@ -30,6 +43,8 @@ import androidx.compose.ui.res.painterResource
 import com.youngs.dailynet.R
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import com.youngs.dailynet.util.HealthStepReader
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,15 +56,18 @@ fun DailyRecordScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by mainViewModel.uiState.collectAsState()
-    val shouldStream by mainViewModel.shouldStreamResult.collectAsState()
+    val justFinishedAnalysis by mainViewModel.shouldStreamResult.collectAsState()
+    val recordLoadToken by mainViewModel.recordLoadToken.collectAsState()
     val context = LocalContext.current
     val activity = context as? android.app.Activity
     val healthReader = remember { HealthStepReader(context) }
+    val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
 
     // 권한 결과 후 재실행 트리거
     var stepRetryKey by remember { mutableStateOf(0) }
-    // 이 날짜에 대해 걸음수를 이미 반영했는지 (날짜 바뀌면 리셋)
-    var stepsApplied by remember(uiState.date) { mutableStateOf(false) }
+    // 권한 팝업은 화면당 한 번만 (토큰 변화로 이펙트가 재실행돼도 중복으로 뜨지 않게)
+    var permissionRequested by remember { mutableStateOf(false) }
 
     // Health Connect 권한 런처
     val healthPermissionLauncher = rememberLauncherForActivityResult(
@@ -57,28 +75,53 @@ fun DailyRecordScreen(
     ) { _ -> stepRetryKey++ }
 
     // 오늘 날짜의 정산 화면 → Health Connect에서 오늘 총 걸음 수 자동 반영
-    LaunchedEffect(uiState.date, stepRetryKey) {
+    //
+    // 💡 recordLoadToken을 key에 넣는 이유:
+    //    prepareDailyRecordData()가 uiState를 통째로 갈아끼우기 때문에, 그보다 먼저 걸음수를
+    //    읽어 넣으면 0으로 덮여버린다. 로드가 끝난 뒤 한 번 더 읽어서 반영한다.
+    //    (이전에는 "오늘 저장된 기록이 있을 때만" 걸음수가 보이던 원인)
+    LaunchedEffect(uiState.date, stepRetryKey, recordLoadToken) {
         if (isReadOnly) return@LaunchedEffect
         if (uiState.date != mainViewModel.todayDate) return@LaunchedEffect
-        if (stepsApplied) return@LaunchedEffect
         if (!healthReader.sdkAvailable()) return@LaunchedEffect
 
         if (healthReader.hasPermission()) {
-            val hcSteps = healthReader.getTodaySteps()
-            if (hcSteps != null) {
-                mainViewModel.applyAutoSteps(hcSteps.toInt())
-                stepsApplied = true
-            }
-        } else {
+            healthReader.getTodaySteps()?.let { mainViewModel.applyAutoSteps(it.toInt()) }
+        } else if (!permissionRequested) {
+            permissionRequested = true
             healthPermissionLauncher.launch(healthReader.permissions)
         }
     }
 
-    BackHandler(enabled = true) {
-        if (!uiState.analyzing) {
-            mainViewModel.clearTodayDraft()
+    /** 걸음수 새로고침 버튼: 권한이 없으면 요청하고, 있으면 최신 값으로 강제 갱신 */
+    fun refreshSteps() {
+        scope.launch {
+            if (!healthReader.sdkAvailable()) {
+                Toast.makeText(context, "이 기기에서는 Health Connect를 쓸 수 없어요", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            if (!healthReader.hasPermission()) {
+                healthPermissionLauncher.launch(healthReader.permissions)
+                return@launch
+            }
+            val steps = healthReader.getTodaySteps()
+            if (steps == null) {
+                Toast.makeText(context, "걸음 수를 불러오지 못했어요", Toast.LENGTH_SHORT).show()
+            } else {
+                mainViewModel.applyAutoSteps(steps.toInt(), force = true)
+                Toast.makeText(context, "걸음 수를 새로 불러왔어요 (${steps}보)", Toast.LENGTH_SHORT).show()
+            }
         }
-        onBack()
+    }
+
+    BackHandler(enabled = true) {
+        if (uiState.analyzing) {
+            // 분석 중 이탈하면 결과를 못 보므로 붙잡아 둔다
+            Toast.makeText(context, "분석 중이에요. 잠시만 기다려주세요", Toast.LENGTH_SHORT).show()
+        } else {
+            mainViewModel.clearTodayDraft()
+            onBack()
+        }
     }
 
     var weightInput by remember { mutableStateOf("") }
@@ -99,12 +142,23 @@ fun DailyRecordScreen(
         }
     }
 
-    // ── 분석 결과: 스트리밍 없이 한 번에 전체 표시 ──
-    val streamedResult = uiState.analysisResult
-    val isStreaming = false
-    LaunchedEffect(uiState.analysisResult, shouldStream) {
-        // 방금 분석한 결과 플래그만 초기화 (표시는 즉시 전체)
-        if (shouldStream) mainViewModel.onResultStreamed()
+    // ── 분석 완료 연출 ──
+    val scrollState = rememberScrollState()
+    var resultCardY by remember { mutableStateOf(0) }
+    var showJustDoneBadge by remember { mutableStateOf(false) }
+
+    LaunchedEffect(justFinishedAnalysis) {
+        if (!justFinishedAnalysis) return@LaunchedEffect
+        // 1) 진동으로 "끝났다"를 몸으로 알림
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        // 2) 결과 카드에 "방금 완료" 배지 표시
+        showJustDoneBadge = true
+        // 3) 결과 카드가 그려질 시간을 준 뒤 그 위치로 스크롤
+        delay(250)
+        scrollState.animateScrollTo(resultCardY)
+        delay(6000)
+        showJustDoneBadge = false
+        mainViewModel.onResultStreamed()
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -113,7 +167,7 @@ fun DailyRecordScreen(
             mainViewModel.toastMessage?.let { message ->
                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                 mainViewModel.onToastShown()
-                // 💡 분석 결과 스트리밍을 볼 수 있도록 자동으로 뒤로가지 않는다.
+                // 💡 분석 결과를 볼 수 있도록 자동으로 뒤로가지 않는다.
                 //    (기록은 이미 저장되어 있으며, 사용자가 결과를 읽은 뒤 직접 뒤로가기)
             }
         }
@@ -124,8 +178,12 @@ fun DailyRecordScreen(
                     title = { Text("${uiState.date} ${getDayOfWeekText(uiState.date)}") },
                     navigationIcon = {
                         IconButton(onClick = {
-                            if (!uiState.analyzing) mainViewModel.clearTodayDraft()
-                            onBack()
+                            if (uiState.analyzing) {
+                                Toast.makeText(context, "분석 중이에요. 잠시만 기다려주세요", Toast.LENGTH_SHORT).show()
+                            } else {
+                                mainViewModel.clearTodayDraft()
+                                onBack()
+                            }
                         }) {
                             Icon(Icons.Default.ArrowBack, contentDescription = "뒤로가기")
                         }
@@ -146,7 +204,7 @@ fun DailyRecordScreen(
                 modifier = modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scrollState)
                     .padding(16.dp)
             ) {
                 OutlinedTextField(
@@ -194,6 +252,7 @@ fun DailyRecordScreen(
 
                     // 👣 걸음수 필드는 '운동' 바로 아래에 배치 (오늘이면 자동 기입, 직접 수정도 가능)
                     if (category.fieldName == "exercise") {
+                        val isToday = uiState.date == mainViewModel.todayDate
                         OutlinedTextField(
                             value = stepsText,
                             onValueChange = { text ->
@@ -204,8 +263,14 @@ fun DailyRecordScreen(
                             label = { Text("걸음수 👣") },
                             placeholder = { Text("오늘 날짜면 자동으로 채워져요") },
                             supportingText = {
-                                if (uiState.date == mainViewModel.todayDate)
-                                    Text("오늘 걸음 수가 자동 반영됩니다")
+                                if (isToday) Text("오늘 걸음 수가 자동 반영됩니다 · 안 보이면 새로고침을 눌러주세요")
+                            },
+                            trailingIcon = {
+                                if (isToday && !isReadOnly) {
+                                    IconButton(onClick = { refreshSteps() }) {
+                                        Icon(Icons.Default.Refresh, contentDescription = "걸음수 새로고침")
+                                    }
+                                }
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -241,7 +306,7 @@ fun DailyRecordScreen(
                             AnimatedAnalyzingText()
                         } else {
                             Text(
-                                "오늘의 정산 분석하기",
+                                if (uiState.analysisResult.isNotEmpty()) "다시 분석하기" else "오늘의 정산 분석하기",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -250,47 +315,200 @@ fun DailyRecordScreen(
                 }
 
                 // AI 분석 결과 카드 (상세 보기에서도 표시)
-                if (uiState.analysisResult.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(20.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "🤖 AI 분석 레포트",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                if (isStreaming) {
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "분석 결과 작성 중",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                                    )
-                                }
-                            }
-                            HorizontalDivider(
-                                modifier = Modifier.padding(vertical = 12.dp),
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                            )
-                            // 타자기처럼 한 줄씩 나타나는 본문 + 커서
-                            Text(
-                                text = streamedResult + if (isStreaming) " ▍" else "",
-                                style = MaterialTheme.typography.bodyMedium,
-                                lineHeight = 22.sp
-                            )
+                AnimatedVisibility(
+                    visible = uiState.analysisResult.isNotEmpty(),
+                    enter = fadeIn(animationSpec = tween(500)) +
+                            expandVertically(animationSpec = tween(500))
+                ) {
+                    Column(
+                        modifier = Modifier.onGloballyPositioned {
+                            resultCardY = it.positionInParent().y.toInt()
                         }
+                    ) {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            elevation = CardDefaults.cardElevation(
+                                defaultElevation = if (showJustDoneBadge) 8.dp else 3.dp
+                            ),
+                            // 방금 분석이 끝난 결과는 테두리로 눈에 띄게 강조
+                            border = if (showJustDoneBadge) {
+                                BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                            } else null
+                        ) {
+                            Column(modifier = Modifier.padding(20.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "🤖 AI 분석 레포트",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    if (showJustDoneBadge) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        JustCompletedBadge()
+                                    }
+                                }
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 12.dp),
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                )
+                                Text(
+                                    text = uiState.analysisResult,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    lineHeight = 22.sp
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(32.dp))
                     }
-                    Spacer(modifier = Modifier.height(32.dp))
                 }
+            }
+        }
+
+        // 분석 중에는 화면 전체를 덮는 오버레이로 진행 상황을 확실히 보여준다
+        if (uiState.analyzing) {
+            AnalyzingOverlay()
+        }
+    }
+}
+
+/** "✅ 방금 완료!" 배지 — 결과가 새로 도착했음을 알린다 */
+@Composable
+private fun JustCompletedBadge() {
+    val transition = rememberInfiniteTransition(label = "badge")
+    val alpha by transition.animateFloat(
+        initialValue = 0.55f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(700),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "badgeAlpha"
+    )
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.primary.copy(alpha = alpha)
+    ) {
+        Text(
+            text = "✅ 방금 완료",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+        )
+    }
+}
+
+/**
+ * 분석 중 전체 화면 오버레이.
+ * 버튼 안의 작은 스피너만으로는 진행 여부를 알기 어려워서,
+ * 경과 시간 + 단계별 문구로 "지금 뭘 하고 있는지"를 보여준다.
+ */
+@Composable
+private fun AnalyzingOverlay() {
+    val phases = listOf(
+        "식단 내용을 읽고 있어요",
+        "칼로리를 계산하고 있어요",
+        "운동과 걸음 수를 반영하고 있어요",
+        "맞춤 피드백을 정리하고 있어요"
+    )
+
+    var elapsed by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            elapsed++
+        }
+    }
+    val phase = phases[(elapsed / 4).coerceAtMost(phases.lastIndex)]
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.6f))
+            // 오버레이가 떠 있는 동안 뒤쪽 입력창이 눌리지 않도록 터치를 모두 소비한다
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent().changes.forEach { it.consume() }
+                    }
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.82f)
+                .padding(16.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(52.dp),
+                    strokeWidth = 4.dp
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Text(
+                    text = "🤖 AI가 분석 중이에요",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Crossfade(targetState = phase, label = "phase") { text ->
+                    Text(
+                        text = text,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp),
+                    strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = "${elapsed}초 경과 · 보통 10~30초 걸려요",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "끝나면 결과 카드로 자동 이동해요",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }
