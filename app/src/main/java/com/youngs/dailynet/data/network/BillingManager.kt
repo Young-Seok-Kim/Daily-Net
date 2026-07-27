@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Context
 import android.util.Log
 import com.android.billingclient.api.*
-import com.youngs.dailynet.util.AdminConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -114,12 +113,13 @@ class BillingManager @Inject constructor(
         }
     }
 
-    fun checkSubscriptionStatus(userEmail: String?, onResult: (Boolean) -> Unit) {
-
-        if (AdminConfig.isUserAdmin(userEmail)) {
-            onResult(true)
-            return
-        }
+    /**
+     * 구글 결제 서버 기준으로 실제 구독 중인지 확인한다.
+     *
+     * 무제한 사용자(관리자 등) 판별은 Firestore 조회가 필요해 여기서 하지 않는다.
+     * 호출부(MainViewModel)에서 [com.youngs.dailynet.util.AdminManager]로 먼저 걸러낸다.
+     */
+    fun checkSubscriptionStatus(onResult: (Boolean) -> Unit) {
         // 👑 구글 서버에 현재 유저의 구독권 정보를 물어봅니다.
         billingClient.queryPurchasesAsync(
             QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS).build()

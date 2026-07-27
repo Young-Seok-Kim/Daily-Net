@@ -48,7 +48,8 @@ class MainViewModel @Inject constructor(
     private val userProfileDao: UserProfileDao,
     val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
-    val billingManager: com.youngs.dailynet.data.network.BillingManager // 👑 결제 매니저 주입
+    val billingManager: com.youngs.dailynet.data.network.BillingManager, // 👑 결제 매니저 주입
+    private val adminManager: com.youngs.dailynet.util.AdminManager // 무제한 사용자 판별
 ) : BaseViewModel() {
 
     private val UNINITIALIZED = -1 // 오늘 횟수 가져오는데 실패하면 _todayCount를 -1로 셋팅해서 다시 시도하도록 유도함
@@ -527,8 +528,18 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val profile = userProfileDao.getProfile()
-                // 1. 구독 상태 확인 (관리자 포함)
-                billingManager.checkSubscriptionStatus(auth.currentUser?.email) { isSubscribed ->
+
+                // 0. Firestore에 등록된 무제한 사용자면 횟수 제한 없이 바로 분석
+                if (adminManager.isUnlimited(auth.currentUser?.email)) {
+                    analyzeAndFinalize(
+                        onSuccess = { showToast("분석 및 저장이 완료되었습니다.") },
+                        onFailure = {}
+                    )
+                    return@launch
+                }
+
+                // 1. 구독 상태 확인
+                billingManager.checkSubscriptionStatus { isSubscribed ->
                     viewModelScope.launch {
 
                         if (isSubscribed) {
@@ -691,8 +702,17 @@ class MainViewModel @Inject constructor(
         val uid = user.uid
         val email = user.email
 
+        // 무제한 사용자는 결제 여부와 무관하게 구독 상태로 취급한다 (프로필 표시용)
+        if (adminManager.isUnlimited(email)) {
+            firestore.collection("users").document(uid).update("isSubscribed", true).await()
+            userProfileDao.getProfile()?.let {
+                userProfileDao.insertProfile(it.copy(isSubscribed = true))
+            }
+            return@launch
+        }
+
         // 1. 구글 결제 서버에 진짜 구독 중인지 확인
-        billingManager.checkSubscriptionStatus(email) { isSubscribed ->
+        billingManager.checkSubscriptionStatus { isSubscribed ->
             viewModelScope.launch {
                 // 2. 파이어베이스와 로컬 DB 업데이트
                 firestore.collection("users").document(uid).update("isSubscribed", isSubscribed)
