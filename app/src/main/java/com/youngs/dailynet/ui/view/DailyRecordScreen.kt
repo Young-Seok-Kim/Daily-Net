@@ -192,9 +192,11 @@ fun DailyRecordScreen(
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         // 2) 결과 카드에 "방금 완료" 배지 표시
         showJustDoneBadge = true
-        // 3) 결과 카드가 그려질 시간을 준 뒤 그 위치로 스크롤
-        delay(250)
-        scrollState.animateScrollTo(resultCardY)
+        // 3) 카드 등장 애니메이션(500ms)이 끝나야 위치와 스크롤 범위가 확정된다.
+        //    그 전에 스크롤하면 maxValue가 아직 작아서 도중에 멈춘다.
+        delay(600)
+        // 위치를 못 쟀으면 맨 아래로 (결과 카드가 화면 마지막 요소라 어차피 보인다)
+        scrollState.animateScrollTo(if (resultCardY > 0) resultCardY else scrollState.maxValue)
         delay(6000)
         showJustDoneBadge = false
         mainViewModel.onResultStreamed()
@@ -373,13 +375,16 @@ fun DailyRecordScreen(
                 AnimatedVisibility(
                     visible = uiState.analysisResult.isNotEmpty(),
                     enter = fadeIn(animationSpec = tween(500)) +
-                            expandVertically(animationSpec = tween(500))
+                            expandVertically(animationSpec = tween(500)),
+                    // 💡 스크롤 대상 위치는 여기서 재야 한다.
+                    //    AnimatedVisibility 안쪽에 붙이면 positionInParent()가
+                    //    스크롤 Column이 아니라 AnimatedVisibility 내부 기준(≈0)이 되어
+                    //    자동 스크롤이 맨 위로 가버린다.
+                    modifier = Modifier.onGloballyPositioned {
+                        resultCardY = it.positionInParent().y.toInt()
+                    }
                 ) {
-                    Column(
-                        modifier = Modifier.onGloballyPositioned {
-                            resultCardY = it.positionInParent().y.toInt()
-                        }
-                    ) {
+                    Column {
                         Spacer(modifier = Modifier.height(24.dp))
                         Card(
                             modifier = Modifier.fillMaxWidth(),
