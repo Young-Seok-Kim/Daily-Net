@@ -6,6 +6,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.youngs.dailynet.data.local.entity.dao.DailyRecordDao
 import com.youngs.dailynet.data.local.AppDatabase
+import com.youngs.dailynet.data.local.MIGRATION_6_7
 import com.youngs.dailynet.data.network.DailyNetApiService
 import com.youngs.dailynet.util.Constants
 import dagger.Module
@@ -86,7 +87,8 @@ object AppModule {
             AppDatabase::class.java,
             "dailynet_db"
         )
-            .fallbackToDestructiveMigration() // 스키마 변경 시 기존 데이터 초기화 허용
+            .addMigrations(MIGRATION_6_7) // 정의된 마이그레이션이 있으면 데이터를 지우지 않는다
+            .fallbackToDestructiveMigration() // 마이그레이션이 없는 버전 조합일 때만 초기화
             .build()
     }
 

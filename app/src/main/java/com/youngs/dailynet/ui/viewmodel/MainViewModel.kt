@@ -180,6 +180,7 @@ class MainViewModel @Inject constructor(
 
                 userProfileDao.insertProfile(
                     UserProfileEntity(
+                        email = auth.currentUser?.email.orEmpty(),
                         height = height,
                         initialWeight = weight,
                         isMale = isMale,
@@ -274,10 +275,14 @@ class MainViewModel @Inject constructor(
                     // 💡 서버에 저장되어 있던 마지막 분석일 획득
                     val lastAnalyzedDate = document.getString("lastAnalyzedDate") ?: ""
                     val isSubscribed = document.getBoolean("isSubscribed") == true
+                    // 서버 값이 아직 없으면(기존 사용자) 로그인 계정 이메일을 쓴다
+                    val profileEmail = document.getString("email")
+                        ?: auth.currentUser?.email.orEmpty()
 
                     // 2. 서버 데이터로 로컬 DB 갱신 (마지막 분석일 포함)
                     userProfileDao.insertProfile(
                         UserProfileEntity(
+                            email = profileEmail,
                             height = serverHeight,
                             initialWeight = initialWeight,
                             isMale = isMale,

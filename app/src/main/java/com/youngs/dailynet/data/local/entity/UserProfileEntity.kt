@@ -8,6 +8,7 @@ import androidx.room.PrimaryKey
 data class UserProfileEntity(
     @PrimaryKey val id: Int = 0, // 단일 행만 유지
     val name: String = "",
+    val email: String = "", // 구글 로그인 이메일
     val height: Float = 0f,
     val isMale: Boolean = true,
     val initialWeight: Float,
