@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
@@ -173,7 +174,8 @@ class MainViewModel @Inject constructor(
                     "birthDate" to birthDate,
                     "todayAnalysisCount" to 0,
                     "lastAnalyzedDate" to "",
-                    "createdAt" to timestamp,
+                    // 콘솔에서 날짜로 보이도록 숫자가 아니라 Timestamp로 저장한다
+                    "createdAt" to Timestamp(Date(timestamp)),
                     "isSubscribed" to false
                 )
                 firestore.collection("users").document(uid).set(serverProfile).await()
@@ -271,7 +273,14 @@ class MainViewModel @Inject constructor(
                     val isMale = document.getBoolean("isMale") ?: true
                     val birthDate = document.getString("birthDate") ?: ""
                     val todayAnalysisCount = (document.getLong("todayAnalysisCount") ?: 0L).toInt()
-                    val createdAt = document.getLong("createdAt") ?: System.currentTimeMillis()
+                    // 콘솔에서 날짜로 보이도록 Timestamp로 저장한다.
+                    // 예전 문서는 밀리초 숫자로 들어 있어서 둘 다 받아준다.
+                    val createdAtRaw = document.get("createdAt")
+                    val createdAt = when (createdAtRaw) {
+                        is Timestamp -> createdAtRaw.toDate().time
+                        is Number -> createdAtRaw.toLong()
+                        else -> System.currentTimeMillis()
+                    }
                     // 💡 서버에 저장되어 있던 마지막 분석일 획득
                     val lastAnalyzedDate = document.getString("lastAnalyzedDate") ?: ""
                     val isSubscribed = document.getBoolean("isSubscribed") == true
@@ -294,20 +303,26 @@ class MainViewModel @Inject constructor(
                         )
                     )
 
-                    // 💡 이메일은 Firestore에만 저장한다.
-                    //    Room 엔티티에 컬럼을 추가하면 fallbackToDestructiveMigration 때문에
-                    //    기존 사용자의 로컬 캐시가 통째로 지워지므로 건드리지 않는다.
-                    //    (필요할 땐 auth.currentUser.email로 언제든 읽을 수 있다)
-                    //
-                    //    기존 사용자는 문서에 email 필드가 없으니 로그인할 때 조용히 채워 넣는다.
+                    // 💡 기존 사용자 문서를 조용히 보정한다. (앱을 켜기만 하면 적용되고 재로그인 불필요)
+                    //    쓰기는 한 번으로 묶고, 실패해도 로그인 흐름을 막지 않는다.
+                    val patch = mutableMapOf<String, Any>()
+
+                    // 예전 문서에는 email 필드가 없다
                     val authEmail = auth.currentUser?.email.orEmpty()
                     if (authEmail.isNotEmpty() && document.getString("email") != authEmail) {
+                        patch["email"] = authEmail
+                    }
+                    // 예전 문서의 createdAt은 밀리초 숫자라 콘솔에서 읽을 수 없다 → Timestamp로 변환
+                    if (createdAtRaw is Number) {
+                        patch["createdAt"] = Timestamp(Date(createdAt))
+                    }
+
+                    if (patch.isNotEmpty()) {
                         try {
                             firestore.collection("users").document(uid)
-                                .set(mapOf("email" to authEmail), SetOptions.merge())
+                                .set(patch, SetOptions.merge())
                                 .await()
                         } catch (e: Exception) {
-                            // 실패해도 로그인 흐름을 막지 않는다
                             e.printStackTrace()
                         }
                     }
