@@ -1,6 +1,7 @@
 package com.youngs.dailynet.ui.viewmodel
 
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.getValue
@@ -17,8 +18,13 @@ import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.local.entity.dao.DailyRecordDao
 import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
 import com.youngs.dailynet.data.model.DailyRecordModel
+import com.youngs.dailynet.data.network.AnalysisLimitException
 import com.youngs.dailynet.data.network.BillingManager.Companion.PRODUCT_ID_MONTHLY
+import com.youngs.dailynet.data.network.GeminiManager
+import com.youngs.dailynet.data.network.PhotoLimitException
 import com.youngs.dailynet.data.repository.DailyRecordRepository
+import com.youngs.dailynet.util.DailyReminder
+import com.youngs.dailynet.util.MealPhoto
 import com.youngs.dailynet.ui.view.getWeekIdentifier
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -59,7 +65,8 @@ class MainViewModel @Inject constructor(
     val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
     val billingManager: com.youngs.dailynet.data.network.BillingManager, // 👑 결제 매니저 주입
-    private val adminManager: com.youngs.dailynet.util.AdminManager // 무제한 사용자 판별
+    private val adminManager: com.youngs.dailynet.util.AdminManager, // 무제한 사용자 판별
+    private val geminiManager: GeminiManager // 음식 사진 → 메뉴 텍스트 변환
 ) : BaseViewModel() {
 
     private val UNINITIALIZED = -1 // 오늘 횟수 가져오는데 실패하면 _todayCount를 -1로 셋팅해서 다시 시도하도록 유도함
@@ -67,6 +74,71 @@ class MainViewModel @Inject constructor(
     /** 기기 언어에 맞는 문구로 토스트를 띄운다. */
     private fun toast(@StringRes resId: Int, vararg args: Any) {
         showToast(context.getString(resId, *args))
+    }
+
+    /** 사진에서 메뉴를 읽는 중인 항목명. 해당 입력창에만 진행 표시를 띄우려고 둔다. */
+    private val _photoProcessingField = MutableStateFlow<String?>(null)
+    val photoProcessingField = _photoProcessingField.asStateFlow()
+
+    /**
+     * 찍은 음식 사진을 서버로 보내 메뉴명을 받아 입력창에 채운다.
+     *
+     * 결과를 확정으로 다루지 않고 **입력창 초안**으로만 넣는다. AI의 양 추정은 정확하지 않아
+     * 사용자가 고칠 수 있어야 하고, 이미 적어둔 내용도 지우지 않고 뒤에 덧붙인다.
+     *
+     * 사진은 서버에도 기기에도 남기지 않는다. 텍스트로 바꾼 뒤 임시 파일을 지운다.
+     */
+    fun extractMealFromPhoto(uri: Uri, fieldName: String) {
+        viewModelScope.launch {
+            _photoProcessingField.value = fieldName
+            try {
+                val encoded = withContext(Dispatchers.IO) {
+                    MealPhoto.encodeToBase64(context, uri)
+                }
+                if (encoded == null) {
+                    toast(R.string.photo_read_failed)
+                    return@launch
+                }
+
+                val extracted = try {
+                    geminiManager.extractMealFromPhoto(encoded)
+                } catch (e: PhotoLimitException) {
+                    // 다시 찍어도 안 되는 상황이므로 "못 알아봤다"와 다르게 안내한다.
+                    // 무료 사용자에게는 여기가 이탈 지점이 아니라 구독을 권할 자리다.
+                    val subscribed = userProfileDao.getProfile()?.isSubscribed == true
+                    toast(
+                        if (subscribed) R.string.photo_limit_reached
+                        else R.string.photo_limit_free
+                    )
+                    return@launch
+                }
+
+                if (extracted.isNullOrBlank()) {
+                    toast(R.string.photo_no_food)
+                    return@launch
+                }
+
+                val current = currentFieldValue(fieldName)
+                updateField(
+                    fieldName,
+                    if (current.isBlank()) extracted else "$current, $extracted"
+                )
+                toast(R.string.photo_filled)
+            } finally {
+                _photoProcessingField.value = null
+                MealPhoto.deleteTemp(context)
+            }
+        }
+    }
+
+    private fun currentFieldValue(fieldName: String): String = with(_uiState.value) {
+        when (fieldName) {
+            "breakfast" -> breakfast
+            "lunch" -> lunch
+            "dinner" -> dinner
+            "snack" -> snack
+            else -> ""
+        }
     }
 
     init {
@@ -674,26 +746,33 @@ class MainViewModel @Inject constructor(
             try {
                 val latestProfile = userProfileDao.getProfile()
 
-                val newCount = if (latestProfile.lastAnalyzedDate == today) {
-                    (latestProfile.todayAnalysisCount + 1)
-                } else {
-                    1
-                }
-
-                val analyzedData = repository.analyzeAndSave(
+                val outcome = repository.analyzeAndSave(
                     currentState.copy(isMale = _isMale.value),
                     latestProfile
                 )
+                val analyzedData = outcome.record
 
+                // 횟수는 서버가 트랜잭션으로 센 값을 그대로 따른다.
+                // 서버가 세지 못한 경우(구버전 경로)에만 예전처럼 앱이 직접 계산한다.
+                val newCount = outcome.usage?.count
+                    ?: if (latestProfile.lastAnalyzedDate == today) {
+                        latestProfile.todayAnalysisCount + 1
+                    } else {
+                        1
+                    }
 
                 // 1. 로컬 DB 갱신 (마지막 분석일 + 횟수)
                 val refreshedProfile = userProfileDao.updateAndGetLatest(newCount, today)
                 Log.d("DB_DEBUG", "방금 DB에 저장된 최신 값: ${refreshedProfile?.todayAnalysisCount}")
 
-                // 💡 [성공 시 2] 파이어베이스 Firestore 유저 문서에도 오늘 날짜 업데이트
-                firestore.collection("users").document(uid).update(
-                    mapOf("todayAnalysisCount" to newCount, "lastAnalyzedDate" to today)
-                ).await()
+                // 💡 [성공 시 2] Firestore 유저 문서 갱신.
+                //    서버가 이미 같은 트랜잭션 안에서 기록했으면 다시 쓰지 않는다.
+                //    여기서 덮어쓰면 서버가 센 값이 앱의 계산으로 밀려 우회 여지가 생긴다.
+                if (outcome.usage == null) {
+                    firestore.collection("users").document(uid).update(
+                        mapOf("todayAnalysisCount" to newCount, "lastAnalyzedDate" to today)
+                    ).await()
+                }
 
                 // 방금 분석한 결과이므로 한 줄씩 스트리밍하도록 표시
                 _shouldStreamResult.value = true
@@ -704,7 +783,15 @@ class MainViewModel @Inject constructor(
                 val checkProfile = userProfileDao.getProfile()
                 Log.d("DB_DEBUG", "수정 직후 강제 재조회 값: ${checkProfile?.todayAnalysisCount}")
 
+                // 오늘 정산을 끝냈으니 저녁 리마인더는 울리지 않아야 한다
+                DailyReminder.markRecorded(context, analyzedData.date)
+
                 onSuccess(newCount)
+            } catch (e: AnalysisLimitException) {
+                // 서버가 한도 초과로 거절한 경우. 일반 실패와 안내가 달라야 한다.
+                _uiState.update { it.copy(analyzing = false) }
+                toast(R.string.toast_analysis_limit)
+                onFailure(context.getString(R.string.toast_analysis_limit))
             } catch (e: Exception) {
                 _uiState.update { it.copy(analyzing = false) }
 

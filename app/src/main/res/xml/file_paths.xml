@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  카메라 앱에 넘겨줄 임시 사진 파일의 위치.
+  캐시 디렉터리만 열어두므로 사용자의 다른 파일은 노출되지 않는다.
+-->
+<paths>
+    <cache-path name="meal_photos" path="meal_photos/" />
+</paths>

@@ -8,6 +8,7 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.snapshots
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.local.entity.dao.DailyRecordDao
+import com.youngs.dailynet.data.model.AnalysisUsage
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.R
 import com.youngs.dailynet.data.network.GeminiManager
@@ -141,23 +142,48 @@ class DailyRecordRepository @Inject constructor(
         isLastPageReached = false
     }
 
-    suspend fun analyzeAndSave(dailyRecordModel: DailyRecordModel, userProfile: UserProfileEntity): DailyRecordModel {
+    /**
+     * 분석 결과와, 서버가 센 오늘 사용량.
+     * [usage]는 서버가 횟수를 세어준 경우에만 채워진다 (구버전 경로에서는 null).
+     */
+    data class AnalysisOutcome(
+        val record: DailyRecordModel,
+        val usage: AnalysisUsage?
+    )
+
+    suspend fun analyzeAndSave(dailyRecordModel: DailyRecordModel, userProfile: UserProfileEntity): AnalysisOutcome {
         val analysisResponse =
             geminiManager.analyzeFoodAndExercise(dailyRecordModel, userProfile)
                 ?: throw Exception(context.getString(R.string.error_server_analysis))
 
 
+        // 구조화 데이터는 b24 이전 서버 응답에는 없다. 없으면 집계값을 건드리지 않고
+        // 예전처럼 텍스트만 저장한다 (전부 0으로 남아 hasNutritionData가 false가 된다).
+        val detail = analysisResponse.structured
+
         val finalizedModel = dailyRecordModel.copy(
             netCalories = analysisResponse.netCalories,
             analysisResult = analysisResponse.feedback,
             finalized = true,
-            analyzing = false
+            analyzing = false,
+
+            breakfastKcal = detail?.calories?.breakfast ?: 0,
+            lunchKcal = detail?.calories?.lunch ?: 0,
+            dinnerKcal = detail?.calories?.dinner ?: 0,
+            snackKcal = detail?.calories?.snack ?: 0,
+            exerciseKcal = detail?.calories?.exercise ?: 0,
+
+            carbGram = detail?.macros?.carb ?: 0f,
+            proteinGram = detail?.macros?.protein ?: 0f,
+            fatGram = detail?.macros?.fat ?: 0f,
+
+            bmr = detail?.bmr ?: 0
         )
 
         userDailyRecordCollection.document(finalizedModel.date).set(finalizedModel).await()
         dailyRecordDao.insertOrUpdate(finalizedModel)
 
-        return finalizedModel
+        return AnalysisOutcome(record = finalizedModel, usage = analysisResponse.usage)
     }
 
     suspend fun getDailyRecordByDate(date: String): DailyRecordModel? {

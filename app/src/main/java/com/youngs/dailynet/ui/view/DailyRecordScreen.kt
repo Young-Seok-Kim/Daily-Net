@@ -39,13 +39,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.health.connect.client.PermissionController
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.youngs.dailynet.R
+import com.youngs.dailynet.util.MealPhoto
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import com.youngs.dailynet.util.HealthStepReader
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+/** 사진으로 메뉴를 채울 수 있는 항목. 운동·비고는 사진으로 알아낼 수 없어 제외한다. */
+private val MEAL_PHOTO_FIELDS = setOf("breakfast", "lunch", "dinner", "snack")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,6 +78,65 @@ fun DailyRecordScreen(
     var permissionRequested by remember { mutableStateOf(false) }
     // 과거 데이터 읽기 권한도 화면당 한 번만 요청 (거부하면 그냥 읽어보고 넘어간다)
     var historyRequested by remember { mutableStateOf(false) }
+
+    // ── 음식 사진으로 메뉴 채우기 ─────────────────────────────────────
+    // 어느 항목에서 카메라를 열었는지 기억해 두고, 촬영이 끝나면 그 항목에 결과를 넣는다.
+    val photoProcessingField by mainViewModel.photoProcessingField.collectAsState()
+    var pendingPhotoUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var pendingPhotoField by remember { mutableStateOf<String?>(null) }
+
+    // CAMERA 권한을 매니페스트에 선언하지 않았으므로 런타임 권한 요청이 필요 없다.
+    // (선언하면 그때부터 권한을 물어봐야 한다)
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success ->
+        val uri = pendingPhotoUri
+        val field = pendingPhotoField
+        if (success && uri != null && field != null) {
+            mainViewModel.extractMealFromPhoto(uri, field)
+        }
+        pendingPhotoField = null
+    }
+
+    // 갤러리 선택. 사진 선택 도구는 권한이 필요 없고, 고른 사진 한 장만 앱에 넘어온다.
+    val galleryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        val field = pendingPhotoField
+        if (uri != null && field != null) {
+            mainViewModel.extractMealFromPhoto(uri, field)
+        }
+        pendingPhotoField = null
+    }
+
+    // 📷을 누르면 카메라/갤러리 중 무엇으로 가져올지 먼저 묻는다
+    var photoSourceField by remember { mutableStateOf<String?>(null) }
+
+    photoSourceField?.let { field ->
+        AlertDialog(
+            onDismissRequest = { photoSourceField = null },
+            title = { Text(stringResource(R.string.photo_source_title)) },
+            text = { Text(stringResource(R.string.photo_source_desc)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    photoSourceField = null
+                    pendingPhotoField = field
+                    val uri = MealPhoto.createTempImageUri(context)
+                    pendingPhotoUri = uri
+                    cameraLauncher.launch(uri)
+                }) { Text(stringResource(R.string.photo_source_camera)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    photoSourceField = null
+                    pendingPhotoField = field
+                    galleryLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                }) { Text(stringResource(R.string.photo_source_gallery)) }
+            }
+        )
+    }
 
     // Health Connect 권한 런처
     val healthPermissionLauncher = rememberLauncherForActivityResult(
@@ -323,6 +389,23 @@ fun DailyRecordScreen(
                         onValueChange = { mainViewModel.updateField(category.fieldName, it) },
                         label = { Text(stringResource(category.labelRes)) },
                         placeholder = { Text(stringResource(category.hintRes)) },
+                        // 식사 항목에만 카메라를 붙인다. 운동·비고는 사진으로 알아낼 수 없다.
+                        trailingIcon = {
+                            if (!isReadOnly && category.fieldName in MEAL_PHOTO_FIELDS) {
+                                if (photoProcessingField == category.fieldName) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    IconButton(onClick = {
+                                        photoSourceField = category.fieldName
+                                    }) {
+                                        Text("📷")
+                                    }
+                                }
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp),

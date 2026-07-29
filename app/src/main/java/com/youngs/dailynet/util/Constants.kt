@@ -3,6 +3,16 @@ package com.youngs.dailynet.util
 object Constants {
     const val BASE_URL = "https://analyzediet-muvblvcmkq-du.a.run.app/"
 
+    /**
+     * 음식 사진에서 메뉴를 읽어오는 함수 주소.
+     *
+     * Cloud Functions는 함수마다 URL이 달라 baseUrl로 묶을 수 없다.
+     * analyzeDiet은 예전에 배포돼 run.app 형태지만 이 함수는 cloudfunctions.net 형태다.
+     * 형태를 짐작하지 말고 `firebase deploy` 출력의 Function URL을 그대로 옮겨야 한다.
+     */
+    const val EXTRACT_MEAL_URL =
+        "https://asia-northeast3-daily-net-95d28.cloudfunctions.net/extractMeal"
+
     /** 연결 수립 타임아웃 */
     const val CONNECT_TIMEOUT_MS = 15000L
 
@@ -39,4 +49,10 @@ object Constants {
 
     /** 권장 업데이트 안내를 마지막으로 보여준 날짜(yyyy-MM-dd). 하루 한 번만 띄우기 위해 쓴다. */
     const val KEY_UPDATE_NOTICE_DATE = "update_notice_date"
+
+    /** 정산 리마인더 알림 사용 여부 */
+    const val KEY_REMINDER_ENABLED = "reminder_enabled"
+
+    /** 마지막으로 정산을 끝낸 날짜(yyyy-MM-dd). 그날은 리마인더를 띄우지 않는다. */
+    const val KEY_LAST_RECORDED_DATE = "last_recorded_date"
 }

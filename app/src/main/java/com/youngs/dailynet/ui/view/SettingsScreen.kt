@@ -1,6 +1,13 @@
 package com.youngs.dailynet.ui.view
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -21,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.youngs.dailynet.BuildConfig
 import com.youngs.dailynet.R
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
+import com.youngs.dailynet.util.DailyReminder
 
 /**
  * 설정 화면.
@@ -43,6 +51,20 @@ fun SettingsScreen(
     var showProfileEditDialog by remember { mutableStateOf(false) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var loadingMessage by remember { mutableStateOf<String?>(null) }
+
+    var reminderEnabled by remember { mutableStateOf(DailyReminder.isEnabled(context)) }
+    val permissionDeniedMessage = stringResource(R.string.reminder_permission_denied)
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        // 거부하면 켜지 않는다. 알림이 오지 않는데 켜져 있는 것처럼 보이면 더 혼란스럽다.
+        if (granted) {
+            DailyReminder.setEnabled(context, true)
+            reminderEnabled = true
+        } else {
+            Toast.makeText(context, permissionDeniedMessage, Toast.LENGTH_LONG).show()
+        }
+    }
 
     // 시스템 뒤로가기로 앱이 종료되지 않고 이전 화면으로 돌아가도록
     BackHandler(enabled = true) { if (loadingMessage == null) onBack() }
@@ -139,6 +161,33 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
+                SettingsSection(stringResource(R.string.settings_section_notification)) {
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.settings_reminder),
+                        subtitle = stringResource(R.string.settings_reminder_subtitle),
+                        checked = reminderEnabled,
+                        onCheckedChange = { wanted ->
+                            if (!wanted) {
+                                DailyReminder.setEnabled(context, false)
+                                reminderEnabled = false
+                                return@SettingsSwitchItem
+                            }
+                            // 안드로이드 13부터는 권한이 없으면 알림이 조용히 무시된다.
+                            // 켜자마자 물어봐야 사용자가 이유를 안다.
+                            if (needsNotificationPermission(context)) {
+                                notificationPermissionLauncher.launch(
+                                    Manifest.permission.POST_NOTIFICATIONS
+                                )
+                            } else {
+                                DailyReminder.setEnabled(context, true)
+                                reminderEnabled = true
+                            }
+                        }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
                 SettingsSection(stringResource(R.string.settings_section_app_info)) {
                     SettingsItem(
                         title = stringResource(R.string.settings_version),
@@ -206,6 +255,44 @@ private fun SettingsSection(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(content = content)
+    }
+}
+
+/** 안드로이드 13 이상에서 알림 권한을 아직 못 받았는지 */
+private fun needsNotificationPermission(context: android.content.Context): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+    return ContextCompat.checkSelfPermission(
+        context, Manifest.permission.POST_NOTIFICATIONS
+    ) != PackageManager.PERMISSION_GRANTED
+}
+
+/** 스위치가 달린 설정 한 줄. 줄 전체를 눌러도 토글된다. */
+@Composable
+private fun SettingsSwitchItem(
+    title: String,
+    subtitle: String? = null,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, style = MaterialTheme.typography.bodyLarge)
+            subtitle?.let {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 

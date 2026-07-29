@@ -132,6 +132,9 @@ dependencies {
 
     // 구글 프로필 사진 로딩
     implementation(libs.coil.compose)
+
+    // 매일 정산 리마인더 알림
+    implementation(libs.androidx.work.runtime)
 }
 
 // 2. 파일 맨 하단에 이 블록을 정확하게 넣어주세요.

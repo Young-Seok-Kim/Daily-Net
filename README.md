@@ -110,4 +110,32 @@ keyPassword=YOUR_KEY_PASSWORD
 keytool -printcert -jarfile <생성된_AAB_경로> | grep SHA256
 ```
 
+### 3. 서버(Cloud Functions) 배포
+
+```bash
+firebase deploy --only functions
+```
+
+`functions/` 는 역할별로 나뉘어 있고, `index.js` 는 배포 대상만 모아 내보냅니다.
+
+| 파일 | 역할 |
+|---|---|
+| `index.js` | 배포할 함수 목록 (진입점) |
+| `analyzeDiet.js` | 하루 식단·운동 분석 |
+| `extractMeal.js` | 음식 사진 → 메뉴명 추출 |
+| `quota.js` | 인증, 하루 사용 횟수 제한 |
+| `labels.js` | 리포트 언어별 고정 문구 |
+| `gemini.js` | Gemini 응답 JSON 파싱·재시도 |
+
+함수 하나만 고쳤다면 그것만 올릴 수 있습니다.
+
+```bash
+firebase deploy --only functions:analyzeDiet
+```
+
+> ⚠️ `quota.js` · `labels.js` · `gemini.js` 처럼 **두 함수가 함께 쓰는 파일**을 고쳤다면
+> 반드시 `--only functions` 로 둘 다 올려야 합니다. 한쪽만 올리면 서버에 서로 다른 버전이 남습니다.
+
+배포 직후 첫 요청은 콜드 스타트라 평소보다 오래 걸립니다. 응답 속도를 측정할 때는 1분쯤 뒤에 재시도하십시오.
+
 ---

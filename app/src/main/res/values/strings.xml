@@ -136,6 +136,15 @@
     <string name="steps_health_connect_unavailable">Health Connect is not available on this device</string>
     <string name="steps_load_failed">Could not load your steps</string>
     <string name="steps_reloaded">Steps reloaded (%1$d)</string>
+    <string name="photo_source_title">Add a food photo</string>
+    <string name="photo_source_desc">Take a new photo, or pick one you already have.</string>
+    <string name="photo_source_camera">Camera</string>
+    <string name="photo_source_gallery">Gallery</string>
+    <string name="photo_read_failed">Could not read that photo</string>
+    <string name="photo_no_food">No food was recognized. Try another photo.</string>
+    <string name="photo_limit_free">Free photo scans are limited to 3 per day. Subscribe to get 30.</string>
+    <string name="photo_limit_reached">You have used all of today\'s photo scans.</string>
+    <string name="photo_filled">Menu filled in from the photo. Edit it if anything is off.</string>
     <string name="analyze_today">Analyze today</string>
     <string name="analyze_again">Analyze again</string>
     <string name="ai_report_title">🤖 AI analysis report</string>
@@ -149,6 +158,16 @@
     <string name="analyzing_step_2">Calculating calories</string>
     <string name="analyzing_step_3">Factoring in exercise and steps</string>
     <string name="analyzing_step_4">Putting your feedback together</string>
+
+    <!-- Daily reminder -->
+    <string name="reminder_title">Have you logged today?</string>
+    <string name="reminder_body">Log what you ate today and get your analysis.</string>
+    <string name="reminder_channel_name">Daily reminder</string>
+    <string name="reminder_channel_desc">Reminds you in the evening if you have not logged the day yet</string>
+    <string name="settings_section_notification">Notifications</string>
+    <string name="settings_reminder">Daily reminder</string>
+    <string name="settings_reminder_subtitle">Nudges you at 9 PM if you have not logged the day</string>
+    <string name="reminder_permission_denied">Notifications are turned off. Enable them in system settings.</string>
 
     <!-- Weight trend -->
     <string name="weight_trend_title">Weight trend</string>

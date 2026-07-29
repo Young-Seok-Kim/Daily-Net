@@ -12,6 +12,9 @@
     <!-- 공휴일: 기기 캘린더의 휴일 캘린더 읽기 -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
 
+    <!-- 정산 리마인더 알림 (안드로이드 13부터 런타임 권한 필요) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!-- Health Connect 앱(안드로이드 13 이하) 존재 여부 확인용 -->
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
@@ -45,6 +48,20 @@
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
             </intent-filter>
         </activity>
+
+        <!--
+          카메라 앱에 임시 파일을 넘기기 위한 provider.
+          file:// URI를 직접 넘기면 안드로이드 7 이상에서 FileUriExposedException이 난다.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <!-- Health Connect 권한 사용 이유 화면 (Android 14 이상) -->
         <activity-alias

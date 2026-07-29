@@ -134,6 +134,15 @@
     <string name="steps_health_connect_unavailable">이 기기에서는 Health Connect를 쓸 수 없어요</string>
     <string name="steps_load_failed">걸음 수를 불러오지 못했어요</string>
     <string name="steps_reloaded">걸음 수를 새로 불러왔어요 (%1$d보)</string>
+    <string name="photo_source_title">음식 사진 넣기</string>
+    <string name="photo_source_desc">새로 찍거나, 이미 찍어둔 사진을 고를 수 있어요.</string>
+    <string name="photo_source_camera">카메라</string>
+    <string name="photo_source_gallery">갤러리</string>
+    <string name="photo_read_failed">사진을 읽지 못했어요</string>
+    <string name="photo_no_food">음식을 알아보지 못했어요. 다시 찍어보세요.</string>
+    <string name="photo_limit_free">무료 사진 인식은 하루 3회예요. 구독하면 하루 30회까지 쓸 수 있어요.</string>
+    <string name="photo_limit_reached">오늘 사진 인식 횟수를 모두 사용했어요.</string>
+    <string name="photo_filled">사진에서 메뉴를 채웠어요. 틀린 게 있으면 고쳐주세요.</string>
     <string name="analyze_today">오늘의 정산 분석하기</string>
     <string name="analyze_again">다시 분석하기</string>
     <string name="ai_report_title">🤖 AI 분석 레포트</string>
@@ -147,6 +156,16 @@
     <string name="analyzing_step_2">칼로리를 계산하고 있어요</string>
     <string name="analyzing_step_3">운동과 걸음 수를 반영하고 있어요</string>
     <string name="analyzing_step_4">맞춤 피드백을 정리하고 있어요</string>
+
+    <!-- 정산 리마인더 -->
+    <string name="reminder_title">오늘 정산하셨나요?</string>
+    <string name="reminder_body">오늘 먹은 걸 기록하고 분석을 받아보세요.</string>
+    <string name="reminder_channel_name">정산 리마인더</string>
+    <string name="reminder_channel_desc">그날 정산을 하지 않았으면 저녁에 알려줍니다</string>
+    <string name="settings_section_notification">알림</string>
+    <string name="settings_reminder">정산 리마인더</string>
+    <string name="settings_reminder_subtitle">정산을 안 한 날 밤 9시에 알려드립니다</string>
+    <string name="reminder_permission_denied">알림이 꺼져 있습니다. 시스템 설정에서 켜주세요.</string>
 
     <!-- 몸무게 추이 -->
     <string name="weight_trend_title">몸무게 추이</string>
