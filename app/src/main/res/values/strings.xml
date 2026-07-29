@@ -166,6 +166,7 @@
     <string name="withdraw_final_title">Final confirmation</string>
     <string name="withdraw_final_message">Delete your account?\nAll of your records will be permanently deleted and cannot be recovered.</string>
     <string name="withdraw_confirm_action">Delete account</string>
+    <string name="withdraw_target_account">Account to be deleted</string>
     <string name="withdraw_heading">Deleting your account removes all of the following.</string>
     <string name="withdraw_bullet_records">Every daily record you have saved</string>
     <string name="withdraw_bullet_body">Body info such as height, weight, and date of birth</string>

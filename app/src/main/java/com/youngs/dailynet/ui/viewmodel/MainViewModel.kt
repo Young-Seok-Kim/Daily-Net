@@ -187,11 +187,14 @@ class MainViewModel @Inject constructor(
                     "birthDate" to birthDate,
                     "todayAnalysisCount" to 0,
                     "lastAnalyzedDate" to "",
-                    // 콘솔에서 날짜로 보이도록 숫자가 아니라 Timestamp로 저장한다
-                    "createdAt" to Timestamp(Date(timestamp)),
-                    "isSubscribed" to false
+                    "isSubscribed" to false,
+                    "profileCompleted" to true
                 )
-                firestore.collection("users").document(uid).set(serverProfile).await()
+                // createdAt은 markSignedUp이 최초 로그인 시각으로 이미 넣어뒀다.
+                // 여기서 다시 쓰면 "가입일시"가 "입력 완료 시각"으로 밀리므로 merge로 보존한다.
+                firestore.collection("users").document(uid)
+                    .set(serverProfile, SetOptions.merge())
+                    .await()
 
                 userProfileDao.insertProfile(
                     UserProfileEntity(
@@ -272,6 +275,33 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 로그인은 했지만 아직 신체 정보를 입력하지 않은 사용자를 기록해 둔다.
+     *
+     * 목적은 온보딩 이탈을 콘솔에서 볼 수 있게 하는 것뿐이라, 실패해도 로그인 흐름을 막지 않는다.
+     * [profileCompleted]가 false인 문서 = 가입은 했는데 입력 화면에서 나간 사람.
+     *
+     * @param alreadyExists 문서가 이미 있으면 가입일시를 덮어쓰지 않는다.
+     *                      앱을 켤 때마다 갱신되면 "언제 가입했는지"의 의미가 사라진다.
+     */
+    private suspend fun markSignedUp(uid: String, alreadyExists: Boolean) {
+        try {
+            val stub = mutableMapOf<String, Any>(
+                "email" to auth.currentUser?.email.orEmpty(),
+                "googleName" to auth.currentUser?.displayName.orEmpty(),
+                "profileCompleted" to false
+            )
+            if (!alreadyExists) {
+                stub["createdAt"] = Timestamp.now()
+            }
+            firestore.collection("users").document(uid)
+                .set(stub, SetOptions.merge())
+                .await()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     fun checkProfile() {
         val uid = currentUserId ?: return
 
@@ -329,6 +359,15 @@ class MainViewModel @Inject constructor(
                     if (createdAtRaw is Number) {
                         patch["createdAt"] = Timestamp(Date(createdAt))
                     }
+                    // 가입 기록만 남기고 이탈한 문서(markSignedUp)와 구분되도록 완료 표시를 채운다.
+                    // b24 이전에 가입한 사용자의 문서에는 이 필드 자체가 없다.
+                    if (document.getBoolean("profileCompleted") != true) {
+                        patch["profileCompleted"] = true
+                    }
+                    // 스텁 쓰기가 실패했던 문서는 가입일시가 비어 있을 수 있다
+                    if (createdAtRaw == null) {
+                        patch["createdAt"] = Timestamp(Date(createdAt))
+                    }
 
                     if (patch.isNotEmpty()) {
                         try {
@@ -348,7 +387,14 @@ class MainViewModel @Inject constructor(
                         repository.fetchAllFromFirebase()
                     }
                 } else {
-                    // 서버에 데이터가 아예 없으면 프로필 설정 팝업 띄우기
+                    // 신체 정보가 아직 없는 사용자.
+                    //
+                    // 예전에는 [저장 및 시작]을 눌러야만 문서가 생겨서, 로그인만 하고
+                    // 입력 화면에서 이탈한 사람은 Firestore에 아무 흔적도 남지 않았다.
+                    // (Authentication에는 계정이 있는데 users 문서가 없는 상태)
+                    // 그래서 가입자 수도, 어디서 이탈했는지도 알 수 없었다.
+                    // 최소 정보만이라도 먼저 남겨 온보딩 이탈이 보이게 한다.
+                    markSignedUp(uid, alreadyExists = document.exists())
                     showProfileDialog = true
                 }
             } catch (e: Exception) {

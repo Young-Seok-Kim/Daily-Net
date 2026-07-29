@@ -41,6 +41,11 @@ fun WithdrawScreen(
     var showFinalConfirm by remember { mutableStateOf(false) }
     var processing by remember { mutableStateOf(false) }
 
+    // 계정을 여러 개 쓰는 사람이 엉뚱한 계정을 지우는 일이 없도록,
+    // 되돌릴 수 없는 마지막 확인 단계에서 대상 계정을 명시한다.
+    val accountEmail = mainViewModel.auth.currentUser?.email
+        ?: mainViewModel.auth.currentUser?.displayName.orEmpty()
+
     // 처리 중에는 뒤로가기로 빠져나가지 못하게 막는다
     BackHandler(enabled = true) { if (!processing) onBack() }
 
@@ -48,7 +53,27 @@ fun WithdrawScreen(
         AlertDialog(
             onDismissRequest = { showFinalConfirm = false },
             title = { Text(stringResource(R.string.withdraw_final_title)) },
-            text = { Text(stringResource(R.string.withdraw_final_message)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.withdraw_final_message))
+
+                    if (accountEmail.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = stringResource(R.string.withdraw_target_account),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = accountEmail,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
             confirmButton = {
                 TextButton(onClick = {
                     showFinalConfirm = false

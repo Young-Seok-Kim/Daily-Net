@@ -164,6 +164,7 @@
     <string name="withdraw_final_title">마지막 확인</string>
     <string name="withdraw_final_message">정말 탈퇴하시겠습니까?\n지금까지의 모든 정산 기록이 영구 삭제되며, 복구할 수 없습니다.</string>
     <string name="withdraw_confirm_action">탈퇴하기</string>
+    <string name="withdraw_target_account">탈퇴할 계정</string>
     <string name="withdraw_heading">탈퇴하면 아래 내용이 모두 삭제됩니다.</string>
     <string name="withdraw_bullet_records">지금까지 기록한 모든 정산 내역</string>
     <string name="withdraw_bullet_body">키 · 몸무게 · 생년월일 등 신체 정보</string>
