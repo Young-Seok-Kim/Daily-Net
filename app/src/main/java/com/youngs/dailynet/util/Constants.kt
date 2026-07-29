@@ -13,7 +13,30 @@ object Constants {
      */
     const val REQUEST_TIMEOUT_MS = 120000L
 
+    /**
+     * Remote Config 응답 대기 한도.
+     * 이걸 넘기면 업데이트 검사를 포기하고 앱을 그대로 연다.
+     * (지하철처럼 느린 회선에서 앱 진입이 막히면 안 되므로 짧게 잡는다)
+     */
+    const val REMOTE_CONFIG_TIMEOUT_MS = 4000L
+
+    /**
+     * Remote Config 캐시 유효 시간.
+     * SDK 기본값은 12시간이라 콘솔에서 값을 바꿔도 반영이 너무 늦다.
+     * 긴급 차단이 필요한 용도라 1시간으로 줄인다.
+     */
+    const val REMOTE_CONFIG_FETCH_INTERVAL_SEC = 3600L
+
+    // Remote Config 파라미터 키 (Firebase 콘솔의 이름과 동일해야 한다)
+    const val RC_MIN_VERSION_CODE = "min_version_code"
+    const val RC_RECOMMEND_VERSION_CODE = "recommend_version_code"
+    const val RC_FORCE_UPDATE_MESSAGE = "force_update_message"
+    const val RC_RECOMMEND_UPDATE_MESSAGE = "recommend_update_message"
+
     // SharedPreferences
     const val PREFS_NAME = "user_prefs"
     const val KEY_TREND_EXPANDED = "trend_expanded"
+
+    /** 권장 업데이트 안내를 마지막으로 보여준 날짜(yyyy-MM-dd). 하루 한 번만 띄우기 위해 쓴다. */
+    const val KEY_UPDATE_NOTICE_DATE = "update_notice_date"
 }

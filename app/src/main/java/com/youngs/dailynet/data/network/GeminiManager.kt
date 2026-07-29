@@ -1,5 +1,6 @@
 package com.youngs.dailynet.data.network
 
+import com.youngs.dailynet.BuildConfig
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.model.AnalysisRequest
 import com.youngs.dailynet.data.model.AnalysisResponse
@@ -29,13 +30,15 @@ class GeminiManager @Inject constructor(
                     weight = sendWeight,
                     height = userProfile.height,
                     isMale = userProfile.isMale,
+                    birthDate = userProfile.birthDate,
                     breakfast = dailyRecordModel.breakfast,
                     lunch = dailyRecordModel.lunch,
                     dinner = dailyRecordModel.dinner,
                     snack = dailyRecordModel.snack,
                     exercise = dailyRecordModel.exercise,
                     remark = dailyRecordModel.remark,
-                    steps = dailyRecordModel.steps
+                    steps = dailyRecordModel.steps,
+                    appVersion = BuildConfig.VERSION_CODE
                 )
 
                 // 서버 호출

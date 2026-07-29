@@ -28,8 +28,8 @@ android {
         minSdk = 26
         targetSdk = 36
         // 변경 내역은 프로젝트 루트의 CHANGELOG.md 참고 (버전 올릴 때 거기에 기록)
-        versionCode = 23
-        versionName = "1.7.5"
+        versionCode = 24
+        versionName = "1.7.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -80,6 +80,7 @@ dependencies {
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.auth)
+    implementation(libs.firebase.config)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

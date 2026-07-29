@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.youngs.dailynet.ui.theme.DailyNetTheme
+import com.youngs.dailynet.ui.view.AppUpdateDialog
 import com.youngs.dailynet.ui.view.LoginScreen
 import com.youngs.dailynet.ui.view.MainScreen
 import com.youngs.dailynet.ui.view.DailyRecordScreen
@@ -28,10 +29,13 @@ import com.youngs.dailynet.ui.view.SettingsScreen
 import com.youngs.dailynet.ui.view.WithdrawScreen
 import com.youngs.dailynet.ui.viewmodel.AuthViewModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
+import com.youngs.dailynet.util.AppUpdateChecker
+import com.youngs.dailynet.util.AppUpdateInfo
 import dagger.hilt.android.AndroidEntryPoint
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import javax.inject.Inject
 
 
 /**
@@ -47,6 +51,9 @@ private data class ScreenEntry(val screen: String, val date: String = "")
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private val authViewModel: AuthViewModel by viewModels()
+
+    @Inject
+    lateinit var appUpdateChecker: AppUpdateChecker
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,6 +92,13 @@ class MainActivity : ComponentActivity() {
                     if (user == null) {
                         current = ScreenEntry("login")
                     }
+                }
+
+                // 서버와 형식이 맞지 않는 구버전을 걸러내기 위한 업데이트 안내.
+                // 로그인 여부와 무관하게 앱을 켜자마자 한 번 확인한다.
+                var updateInfo by remember { mutableStateOf<AppUpdateInfo?>(null) }
+                LaunchedEffect(Unit) {
+                    updateInfo = appUpdateChecker.check()
                 }
 
 
@@ -193,6 +207,15 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+                }
+
+                // 화면 종류와 상관없이 항상 위에 덮이도록 Scaffold 바깥에 둔다
+                updateInfo?.let { info ->
+                    AppUpdateDialog(
+                        info = info,
+                        onLater = { updateInfo = null },
+                        onUpdate = { appUpdateChecker.openStore(this@MainActivity) }
+                    )
                 }
             }
         }

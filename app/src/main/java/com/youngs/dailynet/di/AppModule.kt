@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.youngs.dailynet.data.local.entity.dao.DailyRecordDao
 import com.youngs.dailynet.data.local.AppDatabase
 import com.youngs.dailynet.data.local.MIGRATION_6_7
@@ -78,6 +79,11 @@ object AppModule {
     @Provides
     @Singleton
     fun provideFirestore(): FirebaseFirestore = FirebaseFirestore.getInstance()
+
+    /** 강제/권장 업데이트 기준 버전을 콘솔에서 받아오기 위한 원격 설정 */
+    @Provides
+    @Singleton
+    fun provideRemoteConfig(): FirebaseRemoteConfig = FirebaseRemoteConfig.getInstance()
 
     @Provides
     @Singleton
