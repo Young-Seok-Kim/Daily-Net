@@ -50,27 +50,44 @@ data class WeekSummary(
 )
 
 /**
- * 권장 탄단지는 저장하지 않고 기초대사량에서 계산한다.
+ * 권장 탄단지는 저장하지 않고 기초대사량과 체중에서 계산한다.
  *
- * ⚠️ 서버(`functions/analyzeDiet.js`)와 **같은 공식**이다. 한쪽을 고치면 반드시 다른 쪽도 고쳐야
- * 앱 화면과 AI 리포트의 권장량이 어긋나지 않는다.
- *   활동계수 1.375 → 감량을 위해 500kcal 차감 → 탄 40% / 단 40% / 지 20%
+ * ⚠️ 서버 `functions/nutrition.js`가 이 계산의 **기준**이다.
+ * 한쪽만 고치면 AI 리포트에 적힌 권장량과 이 화면의 권장량이 어긋난다. 반드시 함께 고칠 것.
+ *
+ * 단백질은 칼로리 비율이 아니라 **체중 기준**이다. 예전에는 권장 칼로리의 40%를 단백질로
+ * 배분해서 체중과 무관하게 2000kcal면 무조건 200g이 나왔다(70kg 기준 2.9g/kg).
+ * 단백질과 지방을 먼저 정하고 남은 칼로리를 탄수화물로 채워야 합이 권장 칼로리와 맞는다.
  */
-private fun recommendedMacros(bmr: Int): Triple<Int, Int, Int> {
-    val recommended = (bmr * 1.375).roundToInt() - 500
-    return Triple(
-        (recommended * 0.4 / 4).roundToInt(),
-        (recommended * 0.4 / 4).roundToInt(),
-        (recommended * 0.2 / 9).roundToInt()
-    )
+private const val ACTIVITY_FACTOR = 1.375
+private const val DEFICIT_KCAL = 500
+private const val PROTEIN_PER_KG = 1.6f
+private const val FAT_CALORIE_RATIO = 0.25
+
+private fun recommendedMacros(bmr: Int, weightKg: Float): Triple<Int, Int, Int> {
+    val calories = (bmr * ACTIVITY_FACTOR).roundToInt() - DEFICIT_KCAL
+
+    val protein = (weightKg * PROTEIN_PER_KG).roundToInt()
+    val fat = (calories * FAT_CALORIE_RATIO / 9).roundToInt()
+    val carb = ((calories - protein * 4 - fat * 9) / 4).coerceAtLeast(0)
+
+    return Triple(carb, protein, fat)
 }
 
-/** 그 주에 속한 기록들로 요약을 만든다. */
-fun buildWeekSummary(records: List<DailyRecordModel>): WeekSummary {
+/**
+ * 그 주에 속한 기록들로 요약을 만든다.
+ *
+ * @param fallbackWeightKg 그 주 기록에 체중이 하나도 없을 때 쓸 값 (보통 가장 최근 체중)
+ */
+fun buildWeekSummary(records: List<DailyRecordModel>, fallbackWeightKg: Float): WeekSummary {
     val withNutrition = records.filter { it.hasNutritionData }
     val avgBmr = if (withNutrition.isEmpty()) 0
     else withNutrition.sumOf { it.bmr } / withNutrition.size
-    val (recCarb, recProtein, recFat) = recommendedMacros(avgBmr)
+
+    // 단백질 기준이 되는 체중은 그 주에 실제로 기록된 값을 우선한다.
+    // 몇 달 전 주를 볼 때 지금 체중으로 계산하면 그때 기준과 어긋난다.
+    val weightKg = records.firstOrNull { it.weight > 0f }?.weight ?: fallbackWeightKg
+    val (recCarb, recProtein, recFat) = recommendedMacros(avgBmr, weightKg)
 
     val netTotal = records.sumOf { it.netCalories }
 

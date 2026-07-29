@@ -5,6 +5,7 @@ const { onRequest } = require("firebase-functions/v2/https");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { LABELS, resolveLang } = require("./labels");
 const { generateAndParse } = require("./gemini");
+const { recommendedIntake } = require("./nutrition");
 const {
     REQUIRE_AUTH,
     QUOTA_TIMEOUT_MS,
@@ -98,14 +99,13 @@ const genderText = isMale ? '남성' : '여성';
         const age = calculateAge(birthDate);
         const bmr = Math.round(10 * weight + 6.25 * height - 5 * age + (isMale ? 5 : -161));
 
-        // 💡 [추가] 체중 감량을 위한 하루 권장 영양 섭취량 계산 (일반 활동 계수 1.375 적용 후 500kcal 감량)
-        const tdee = Math.round(bmr * 1.375);
-        const recommendedCalories = Math.round(tdee - 500); // 안전한 다이어트를 위한 권장 칼로리 목표
-
-        // 다이어트 권장 탄단지 비율 (4:4:2 가이드라인 산출)
-        const recCarb = Math.round((recommendedCalories * 0.4) / 4);
-        const recProtein = Math.round((recommendedCalories * 0.4) / 4);
-        const recFat = Math.round((recommendedCalories * 0.2) / 9);
+        // 체중 감량을 위한 하루 권장 섭취량. 계산은 nutrition.js가 기준이다.
+        // (단백질은 칼로리 비율이 아니라 체중 기준으로 잡는다 — 자세한 이유는 그쪽 주석 참고)
+        const recommended = recommendedIntake(bmr, weight);
+        const recommendedCalories = recommended.calories;
+        const recCarb = recommended.carb;
+        const recProtein = recommended.protein;
+        const recFat = recommended.fat;
 
 const prompt = `
             당신은 15년 경력의 [베테랑 전문 다이어트 영양사]입니다.

@@ -162,9 +162,15 @@ fun MainScreen(
     // 주차 구분선을 눌러 펼친 주들. 구분선마다 매번 전체 목록을 훑지 않도록
     // 주 단위 요약은 기록이 바뀔 때 한 번만 계산해둔다.
     var expandedWeeks by remember { mutableStateOf(setOf<Int>()) }
-    val weekSummaries = remember(dailyRecords) {
+    val weekSummaries = remember(dailyRecords, userProfile) {
+        // 권장 단백질은 체중 기준이라 체중이 필요하다.
+        // 그 주에 기록된 체중이 없으면 가장 최근 체중(없으면 시작 체중)으로 대신한다.
+        val latestWeight = dailyRecords.firstOrNull { it.weight > 0f }?.weight
+            ?: userProfile?.initialWeight
+            ?: 0f
+
         dailyRecords.groupBy { getWeekIdentifier(it.date) }
-            .mapValues { (_, records) -> buildWeekSummary(records) }
+            .mapValues { (_, records) -> buildWeekSummary(records, latestWeight) }
     }
 
     // 페이징 제거: 첫 로그인 시 checkProfile에서 전체를 한 번에 로드하고 이후엔 캐시를 사용한다.
