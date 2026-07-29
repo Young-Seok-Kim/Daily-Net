@@ -71,6 +71,15 @@
     <string name="stat_record_days">기록 일수</string>
     <string name="stat_avg_net">평균 순칼로리</string>
     <string name="recent_trend">최근 추이</string>
+
+    <!-- 주간 요약 (주차 구분선을 누르면 펼쳐짐) -->
+    <string name="week_summary_days">기록 %1$d일 · 운동 %2$d일</string>
+    <string name="week_summary_net_avg">하루 평균 순칼로리 %1$d kcal</string>
+    <string name="week_summary_macro_title">하루 평균 탄단지</string>
+    <string name="week_summary_macro_basis">(%1$d일 기준)</string>
+    <string name="macro_carb">탄</string>
+    <string name="macro_protein">단</string>
+    <string name="macro_fat">지</string>
     <string name="has_exercise">운동 기록 있음 💪</string>
     <string name="rest_day">휴식 😴</string>
 

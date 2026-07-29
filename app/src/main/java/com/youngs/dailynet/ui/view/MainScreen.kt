@@ -159,6 +159,14 @@ fun MainScreen(
 
     val listState = mainViewModel.mainListState
 
+    // 주차 구분선을 눌러 펼친 주들. 구분선마다 매번 전체 목록을 훑지 않도록
+    // 주 단위 요약은 기록이 바뀔 때 한 번만 계산해둔다.
+    var expandedWeeks by remember { mutableStateOf(setOf<Int>()) }
+    val weekSummaries = remember(dailyRecords) {
+        dailyRecords.groupBy { getWeekIdentifier(it.date) }
+            .mapValues { (_, records) -> buildWeekSummary(records) }
+    }
+
     // 페이징 제거: 첫 로그인 시 checkProfile에서 전체를 한 번에 로드하고 이후엔 캐시를 사용한다.
     // (스크롤 페이징이 먼저 돌아 전체 로드를 건너뛰던 경쟁 상태를 방지)
 
@@ -289,7 +297,18 @@ fun MainScreen(
                     if (index == 0 || currentWeekId != getWeekIdentifier(dailyRecords[index - 1].date)) {
                         WeekDivider(
                             headerText = weekDisplayText,
-                            weeklyCalories = totalWeeklyNet
+                            weeklyCalories = totalWeeklyNet,
+                            summary = weekSummaries[currentWeekId],
+                            expanded = currentWeekId in expandedWeeks,
+                            onToggle = {
+                                expandedWeeks = if (currentWeekId in expandedWeeks) {
+                                    expandedWeeks - currentWeekId
+                                } else {
+                                    // 여러 주를 동시에 펼칠 수 있게 둔다. 주끼리 비교하는 게 목적이라
+                                    // 하나만 열리면 오히려 불편하다.
+                                    expandedWeeks + currentWeekId
+                                }
+                            }
                         )
                     }
 
@@ -420,12 +439,26 @@ fun MainScreen(
     }
 }
 
+/**
+ * 주차 구분선. 누르면 그 주 요약이 아래로 펼쳐진다.
+ *
+ * 새 화면을 만들지 않은 이유는, 사용자가 이미 기록을 훑으며 지나가는 자리이기 때문이다.
+ * 다만 구분선은 눌린다는 느낌이 없어서 화살표를 함께 둔다. 이게 없으면 기능이 없는 것과 같다.
+ */
 @Composable
-fun WeekDivider(headerText: String, weeklyCalories: Int) {
+fun WeekDivider(
+    headerText: String,
+    weeklyCalories: Int,
+    summary: WeekSummary? = null,
+    expanded: Boolean = false,
+    onToggle: (() -> Unit)? = null
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp),
+            .let { if (onToggle != null) it.clickable(onClick = onToggle) else it }
+            // 구분선 자체는 얇아서 누를 곳이 좁다. 위아래 여백까지 눌리게 해 손가락으로 맞추기 쉽게 한다.
+            .padding(vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Row(
@@ -450,11 +483,31 @@ fun WeekDivider(headerText: String, weeklyCalories: Int) {
                 color = if (weeklyCalories <= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
             )
 
+            if (onToggle != null) {
+                // 텍스트 화살표(▾)는 너무 작고 흐려서 눈에 안 띄었다.
+                // 누를 수 있다는 걸 알려야 하는 자리라 아이콘 + 강조색으로 바꿨다.
+                Icon(
+                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp
+                    else Icons.Default.KeyboardArrowDown,
+                    contentDescription = stringResource(
+                        if (expanded) R.string.cd_collapse else R.string.cd_expand
+                    ),
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .padding(start = 2.dp)
+                        .size(22.dp)
+                )
+            }
+
             HorizontalDivider(
                 modifier = Modifier.weight(1f),
                 thickness = 1.dp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+
+        if (expanded && summary != null) {
+            WeekSummaryPanel(summary, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }

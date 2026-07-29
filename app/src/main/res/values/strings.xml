@@ -73,6 +73,15 @@
     <string name="stat_record_days">Days logged</string>
     <string name="stat_avg_net">Avg. net</string>
     <string name="recent_trend">Recent trend</string>
+
+    <!-- Weekly summary (tap the week divider) -->
+    <string name="week_summary_days">%1$d days logged · %2$d with exercise</string>
+    <string name="week_summary_net_avg">Net %1$d kcal per day</string>
+    <string name="week_summary_macro_title">Daily average macros</string>
+    <string name="week_summary_macro_basis">(based on %1$d days)</string>
+    <string name="macro_carb">C</string>
+    <string name="macro_protein">P</string>
+    <string name="macro_fat">F</string>
     <string name="has_exercise">Exercise logged 💪</string>
     <string name="rest_day">Rest 😴</string>
 
