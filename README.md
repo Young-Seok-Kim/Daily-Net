@@ -136,6 +136,15 @@ firebase deploy --only functions:analyzeDiet
 > ⚠️ `quota.js` · `labels.js` · `gemini.js` 처럼 **두 함수가 함께 쓰는 파일**을 고쳤다면
 > 반드시 `--only functions` 로 둘 다 올려야 합니다. 한쪽만 올리면 서버에 서로 다른 버전이 남습니다.
 
+> ⚠️ **배포 출력에서 함수별 결과를 반드시 확인하십시오.**
+> CLI가 `Skipped (No changes detected)` 로 건너뛰는데 실제로는 고친 함수일 때가 있습니다.
+> (고치지 않은 함수가 갱신되고, 고친 함수가 건너뛰어지는 경우를 실제로 겪었습니다)
+> 건너뛴 함수가 있으면 이름을 직접 지정해 다시 올리면 확실히 반영됩니다.
+>
+> ```bash
+> firebase deploy --only functions:extractMeal
+> ```
+
 배포 직후 첫 요청은 콜드 스타트라 평소보다 오래 걸립니다. 응답 속도를 측정할 때는 1분쯤 뒤에 재시도하십시오.
 
 ---
