@@ -2,27 +2,46 @@
 > **AI 기반 퍼스널 식단 & 운동 정산 플랫폼**  
 > 사용자의 신체 정보와 활동량을 바탕으로 AI가 '순 칼로리(Net Calories)'를 정밀 분석하는 스마트 다이어트 솔루션입니다.
 
+**▶ [Play 스토어에서 받기](https://play.google.com/store/apps/details?id=com.youngs.dailynet)**
+
 ---
 
 ## 🚀 프로젝트 개요
-`DailyNet`은 단순한 기록형 다이어트 앱을 넘어, **Gemini AI 엔진**을 통해 하루의 에너지 수지를 공학적으로 분석합니다. 5년 차 안드로이드 개발자의 아키텍처 설계 노하우를 바탕으로 **안정적인 데이터 동기화**와 **서버 측 프롬프트 보안**을 강화했습니다.
+`DailyNet`은 단순한 기록형 다이어트 앱을 넘어, **Gemini AI 엔진**을 통해 하루의 에너지 수지를 공학적으로 분석합니다.
+2026년 5월 개인 프로젝트로 시작해 Play 스토어에 출시했고, 구독 결제·사용량 제어·다국어·강제 업데이트까지
+**실제 서비스 운영에 필요한 기능을 단계적으로 갖춰 나가고 있습니다.**
 
 ---
 
 ## ✨ 핵심 기능 (Key Features)
 
 ### 1. AI 스마트 정산 엔진
-* **Net Calories 계산**: (섭취 칼로리) - (기초대사량 + 운동 소모 칼로리) 공식을 통해 당일의 신체 변화를 예측합니다.
-* **상세 분석 로그**: 분석 결과를 IDE 터미널 로그 형식의 테이블로 제공하여 시각적 즐거움과 전문성을 동시에 제공합니다.
-* **맞춤형 피드백**: Mifflin-St Jeor 공식을 적용한 정교한 BMR 산출 및 사용자 맞춤형 영양 조언을 제공합니다.
+* **Net Calories 계산**: (섭취 칼로리) - (기초대사량 + 운동 소모 칼로리) 공식으로 당일의 신체 변화를 예측합니다.
+* **맞춤형 피드백**: Mifflin-St Jeor 공식으로 BMR을 산출하고, 체중 기준 권장 단백질을 포함한 영양 조언을 제공합니다.
+* **걸음 수 자동 반영**: Health Connect에서 그날의 걸음 수를 읽어 운동 소모 칼로리에 합산합니다.
+* **구조화 응답**: 서버가 계산 결과를 구조화해 함께 내려주어, 끼니별 칼로리와 탄단지를 주 단위로 집계·시각화합니다.
 
-### 2. 하이브리드 데이터 매니지먼트
-* **Offline-First**: 로컬 DB(Room)를 통한 빠른 데이터 접근 및 오프라인 입력 지원.
+### 2. 음식 사진 인식 (Multimodal AI)
+* 사진을 찍거나 갤러리에서 고르면 Gemini가 메뉴를 인식해 입력창을 채웁니다.
+* 결과는 **확정이 아니라 초안**으로 넣어 사용자가 고칠 수 있게 합니다. AI의 양 추정은 정확하지 않기 때문입니다.
+* **사진은 저장하지 않습니다.** 텍스트로 바꾼 뒤 즉시 폐기해 스토리지 비용과 개인정보 부담을 없앴습니다.
+
+### 3. 하이브리드 데이터 매니지먼트
+* **Offline-First**: 로컬 DB(Room)를 통한 빠른 데이터 접근 및 오프라인 조회 지원.
 * **Cloud Sync**: Firebase Firestore를 연동하여 기기 변경 시에도 데이터 유지 및 실시간 백업.
+* **무중단 스키마 변경**: 컬럼 추가 시 Room 마이그레이션을 정의해 기존 사용자의 로컬 기록이 초기화되지 않도록 합니다.
 
-### 3. 보안 지향형 아키텍처
+### 4. 보안 지향형 아키텍처
 * **Server-side Proxy**: Firebase Functions를 통해 AI 프롬프트를 은닉하여 비즈니스 로직 유출 및 프롬프트 인젝션을 원천 차단했습니다.
-* **Firebase App Check 도입:** 앱의 무결성을 검증하고 승인되지 않은 비인가 기기나 위변조된 앱으로부터의 백엔드(Firestore, Functions) API 호출을 차단하여 자원 어뷰징 및 비용 리스크를 방지했습니다.
+* **Firebase App Check**: 앱의 무결성을 검증하고 비인가 기기·위변조 앱의 백엔드 호출을 차단합니다.
+* **서버 주도 사용량 제어**: 하루 분석 횟수를 앱이 아닌 **서버가 Firestore 트랜잭션으로** 차감합니다.
+  앱 데이터 삭제만으로 우회되던 문제를 막았고, 분석이 실패하면 차감분을 자동 환불합니다.
+
+### 5. 운영 (Operations)
+* **강제 / 권장 업데이트**: Remote Config로 **앱 배포 없이** 구버전 사용자를 차단하거나 업데이트를 안내합니다.
+* **Crashlytics**: 앱이 죽는 크래시뿐 아니라, 조용히 실패하는 경우(분석 실패·사진 인식 실패 등)도 함께 수집합니다.
+* **정산 리마인더**: WorkManager로 그날 정산을 하지 않은 사용자에게 저녁에 알립니다. (서버 불필요)
+* **다국어**: 한국어 / 영어. 요청에 기기 언어를 실어 보내 **AI 리포트까지 같은 언어로** 응답합니다.
 
 ---
 
@@ -31,13 +50,15 @@
 | 분류 | 기술 도구                                        |
 | :--- |:---------------------------------------------|
 | **Language** | Kotlin                                       |
-| **UI Framework** | Jetpack Compose                              |
-| **Architecture** | MVVM, Clean Architecture, Repository Pattern |
+| **UI Framework** | Jetpack Compose (Material 3)                 |
+| **Architecture** | MVVM, Repository Pattern                     |
 | **DI** | Hilt                                         |
 | **Database** | Room (Local), Firebase Firestore (Remote)    |
-| **Backend** | Firebase Functions (Node.js), Firebase App Check |
-| **AI Engine** | Google Gemini 2.5 Flash                      |
-| **Library** | Coroutines, Flow, Retrofit2, Serialization   |
+| **Backend** | Firebase Functions (Node.js), App Check, Remote Config |
+| **AI Engine** | Google Gemini 2.5 Flash (텍스트 + 이미지)      |
+| **결제 / 헬스** | Play Billing, Health Connect                |
+| **운영** | Crashlytics, WorkManager                          |
+| **Library** | Coroutines, Flow, Retrofit2, Gson, Coil      |
 
 | 항목 | 값 |
 | :--- | :--- |
@@ -56,11 +77,36 @@
 * **특징:** 원격 데이터베이스인 **Firebase Firestore**로부터 유저의 식단 및 운동 데이터를 실시간으로 가져와(Fetch) 화면에 즉각적으로 반영합니다. 사용자가 입력한 데이터 역시 Firestore에 실시간으로 반영되어 상시 동기화된 상태를 유지합니다.
 
 ### 2. Backend (Firebase)
-* **Firebase Functions (Node.js)**
-   * **보안 강화:** API Key 노출을 원천 차단하고 AI 프롬프트를 백엔드 내에 은닉하여 비즈니스 로직 유출을 방지합니다.
-   * **비용 최적화:** 사용자별 호출 제한(Rate Limiting)을 구현하여 무분별한 AI 엔진 API 호출 및 비용 리스크를 관리합니다.
+* **Firebase Functions (Node.js)** — 함수 두 개, 공용 모듈 네 개로 구성
+   * `analyzeDiet` : 식단·운동 분석. 인증 → 사용량 차감 → Gemini 호출 → 리포트 조립
+   * `extractMeal` : 음식 사진에서 메뉴명 추출. 분석 횟수를 소모하지 않는 별도 경로
+   * **보안 강화:** API Key 노출을 원천 차단하고 AI 프롬프트를 백엔드 내에 은닉합니다.
+   * **비용 최적화:** Firebase ID 토큰을 검증해 사용자를 특정하고, Firestore 트랜잭션으로 사용량을 차감합니다.
 * **Firebase Firestore**
    * **데이터 동기화:** 클라이언트와 원격지 간의 식단 및 운동 데이터를 실시간으로 동기화하고 안전하게 백업합니다.
+   * **사용량 저장소:** 분석·사진 인식 횟수도 같은 사용자 문서에 기록되어 서버가 단일 기준으로 판단합니다.
+
+```
+[ Android App ]  Compose · MVVM · Hilt · Room(로컬 캐시)
+       │  Firebase ID 토큰 + App Check
+       ▼
+[ Cloud Functions ]  analyzeDiet · extractMeal · quota
+       ├─▶ [ Gemini 2.5 Flash ]  텍스트 + 이미지
+       └─▶ [ Firestore ]  기록 · 프로필 · 사용량
+
+앱은 AI API Key를 갖지 않는다. 모든 호출은 서버를 거치고, 사용량도 서버가 센다.
+```
+
+### 사용량 정책
+
+| | 분석 | 사진 인식 |
+| :--- | :--- | :--- |
+| 무료 | 하루 3회 | 하루 3회 |
+| 구독 | 무제한 | 하루 30회 |
+
+* 결과를 내지 못한 요청(서버 오류, 음식 인식 실패)은 **차감분을 자동 환불**합니다.
+* 사진은 환불과 별개로 **시도 횟수**를 따로 세어(하루 30회) 무한 재시도 악용을 막습니다.
+* 날짜 기준은 **Asia/Seoul**입니다. 함수 런타임이 UTC라 그대로 두면 한국 자정 이후 9시간 동안 어제로 계산됩니다.
 
 ### 3. AI Engine (Gemini)
 * **역할:** 서버(Functions)로부터 전달받은 가공 데이터를 바탕으로 정밀 분석 결과를 생성합니다.
@@ -146,5 +192,73 @@ firebase deploy --only functions:analyzeDiet
 > ```
 
 배포 직후 첫 요청은 콜드 스타트라 평소보다 오래 걸립니다. 응답 속도를 측정할 때는 1분쯤 뒤에 재시도하십시오.
+
+---
+
+## 🔒 하위 호환 규칙 (서버를 고치기 전에 반드시 읽을 것)
+
+스토어에 나간 앱은 되돌릴 수 없습니다. 서버만 고쳐도 **구버전 앱이 조용히 깨지거나 잘못된 값을 보여줄 수 있습니다.**
+
+**안전한 변경**
+
+* 응답에 **필드 추가** — 구버전은 모르는 필드를 무시합니다 (Gson)
+* 프롬프트·계산 로직 수정 — 응답 형식이 그대로면 안전합니다
+* 요청에 optional 필드 추가 — 서버가 없을 때를 처리하면 됩니다
+
+**깨지는 변경**
+
+* 응답 필드의 **이름·타입 변경 또는 삭제** → 구버전에서 NPE 또는 파싱 실패
+* 함수(엔드포인트) 이름 변경, 기존 함수 삭제 → 구버전은 그 URL을 계속 호출합니다
+* 요청 필수 검증 추가 후 400 반환
+
+**형식을 정말 바꿔야 한다면**
+
+1. 새 함수(`analyzeDietV2`)를 추가하고 **기존 함수는 삭제하지 않습니다**
+2. 새 앱을 스토어에 **100% 출시 완료**한 뒤
+3. Remote Config `min_version_code`를 올려 구버전을 정리합니다
+
+> ⚠️ 스토어 출시가 끝나기 전에 `min_version_code`를 올리면, 사용자가 업데이트 버튼을 눌러도
+> 받을 버전이 없어 앱이 영구히 잠깁니다. **순서를 반드시 지키십시오.**
+
+`functions/quota.js`의 `REQUIRE_AUTH`는 현재 `false`입니다.
+토큰을 보내지 않는 구버전을 통과시키기 위한 것이며, 구버전이 정리된 뒤 `true`로 바꾸면 사용량 우회가 완전히 차단됩니다.
+
+---
+
+## ⚙️ Remote Config 파라미터
+
+Firebase 콘솔 → **DevOps 및 사용자 참여 → Remote Config** 에서 관리합니다. 값을 바꾼 뒤 **[변경사항 게시]** 를 눌러야 반영됩니다.
+
+| 키 | 유형 | 설명 |
+| :--- | :--- | :--- |
+| `min_version_code` | Number | 이 값 **미만**은 닫을 수 없는 강제 업데이트 |
+| `recommend_version_code` | Number | 이 값 미만은 하루 한 번 권장 안내 |
+| `force_update_message` | String | 강제 안내 문구 (비우면 앱 내장 문구) |
+| `recommend_update_message` | String | 권장 안내 문구 (비우면 앱 내장 문구) |
+
+* 앱 기본값은 `res/xml/remote_config_defaults.xml`에 **0** 으로 두어, 값을 못 받아도 앱이 잠기지 않습니다.
+* 문구는 **비워두는 것을 권장**합니다. 앱 내장 문구가 기기 언어를 정확히 따라가기 때문입니다.
+  (Remote Config의 언어 조건은 기기 언어 기준이라, 앱 언어를 따로 지정한 사용자와 어긋날 수 있습니다)
+
+---
+
+## 🗂 Firestore 구조
+
+```
+users/{uid}
+  email, googleName, height, initialWeight, isMale, birthDate
+  createdAt              최초 로그인 시각 (Timestamp)
+  profileCompleted       false = 가입만 하고 온보딩 이탈
+  isSubscribed           구독 여부
+  todayAnalysisCount     오늘 분석 횟수      ← 서버가 트랜잭션으로 갱신
+  lastAnalyzedDate       기준 날짜 (Asia/Seoul)
+  todayPhotoCount        오늘 사진 인식 횟수  ← 환불 대상
+  todayPhotoAttempts     오늘 사진 시도 횟수  ← 환불하지 않음 (악용 방지)
+  lastPhotoDate
+
+  settlements/{yyyy-MM-dd}    하루 정산 기록
+```
+
+> 보안 규칙은 로그인한 사용자가 **자신의 문서에만** 접근하도록 최소 권한으로 걸려 있습니다. (`firestore.rules` 참고)
 
 ---
