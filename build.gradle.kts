@@ -6,4 +6,5 @@ plugins {
     alias(libs.plugins.google.services) apply false
     alias(libs.plugins.google.android.secrets) apply false
     alias(libs.plugins.hilt) apply false
+    alias(libs.plugins.firebase.crashlytics) apply false
 }

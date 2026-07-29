@@ -26,6 +26,7 @@ okhttp = "4.12.0"
 
 playBilling = "9.1.0"
 workManager = "2.10.0"
+crashlytics = "3.0.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -48,6 +49,8 @@ firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
 # 강제/권장 업데이트 기준 버전을 앱 배포 없이 바꾸기 위한 원격 설정
 firebase-config = { group = "com.google.firebase", name = "firebase-config" }
+# 크래시·예외 수집. 실사용자 기기에서 난 문제를 볼 수 있는 유일한 창구다.
+firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashlytics" }
 # 제미나이 SDK 추가
 google-gemini = { group = "com.google.ai.client.generativeai", name = "generativeai", version.ref = "gemini" }
 # Credential Manager & Google ID
@@ -92,5 +95,6 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
 google-android-secrets = { id = "com.google.android.libraries.mapsplatform.secrets-gradle-plugin", version.ref = "secretsPlugin" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+firebase-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "crashlytics" }
 kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version = "1.9.0" }
 

@@ -10,6 +10,7 @@ import com.youngs.dailynet.data.model.AnalysisResponse
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.data.model.MealPhotoRequest
 import com.youngs.dailynet.util.Constants
+import com.youngs.dailynet.util.CrashReporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -69,13 +70,13 @@ class GeminiManager @Inject constructor(
                 )
             } catch (e: HttpException) {
                 if (e.code() == HTTP_TOO_MANY_REQUESTS) {
-                    // 서버가 센 실제 횟수를 함께 넘겨 로컬을 맞출 수 있게 한다
+                    // 한도 초과는 정상 동작이므로 오류로 보고하지 않는다
                     throw AnalysisLimitException(parseUsage(e))
                 }
-                e.printStackTrace()
+                CrashReporter.report("analyzeDiet:http${e.code()}", e)
                 null
             } catch (e: Exception) {
-                e.printStackTrace()
+                CrashReporter.report("analyzeDiet", e)
                 null
             }
         }
@@ -113,10 +114,10 @@ class GeminiManager @Inject constructor(
                 if (e.code() == HTTP_TOO_MANY_REQUESTS) {
                     throw PhotoLimitException()
                 }
-                e.printStackTrace()
+                CrashReporter.report("extractMeal:http${e.code()}", e)
                 null
             } catch (e: Exception) {
-                e.printStackTrace()
+                CrashReporter.report("extractMeal", e)
                 null
             }
         }

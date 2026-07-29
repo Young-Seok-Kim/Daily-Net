@@ -23,6 +23,7 @@ import com.youngs.dailynet.data.network.BillingManager.Companion.PRODUCT_ID_MONT
 import com.youngs.dailynet.data.network.GeminiManager
 import com.youngs.dailynet.data.network.PhotoLimitException
 import com.youngs.dailynet.data.repository.DailyRecordRepository
+import com.youngs.dailynet.util.CrashReporter
 import com.youngs.dailynet.util.DailyReminder
 import com.youngs.dailynet.util.MealPhoto
 import com.youngs.dailynet.ui.view.getWeekIdentifier
@@ -493,7 +494,9 @@ class MainViewModel @Inject constructor(
                     showProfileDialog = true
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                // 여기서 실패하면 사용자는 아무 안내 없이 프로필 입력 팝업을 다시 보게 된다.
+                // 진짜 신규 사용자와 구분이 안 되는 자리라 반드시 기록해둬야 한다.
+                CrashReporter.report("checkProfile", e)
                 // 네트워크 에러 등으로 실패 시, 차선책으로 로컬에 있는 기존 프로필이라도 로드
                 val localProfile = userProfileDao.getProfile()
                 if (localProfile != null) {
