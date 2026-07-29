@@ -12,6 +12,7 @@ import android.widget.Toast
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.youngs.dailynet.BuildConfig
+import com.youngs.dailynet.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -57,7 +58,10 @@ class AuthViewModel @Inject constructor(
                             android.util.Log.e("AuthViewModel", "Firebase 인증 실패", task.exception)
                             Toast.makeText(
                                 context,
-                                "로그인 실패: ${task.exception?.message}",
+                                context.getString(
+                                    R.string.login_failed,
+                                    task.exception?.message.orEmpty()
+                                ),
                                 Toast.LENGTH_LONG
                             ).show()
                             onResult(false)
@@ -83,9 +87,9 @@ class AuthViewModel @Inject constructor(
                         // while 루프 계속 → 재시도
                     } else {
                         val userMsg = if (isReauth) {
-                            "구글 계정 재인증에 실패했습니다. 다시 시도하거나 기기 설정에서 구글 계정을 재확인해 주세요."
+                            context.getString(R.string.login_reauth_failed)
                         } else {
-                            "로그인 오류: $msg"
+                            context.getString(R.string.login_error, msg)
                         }
                         Toast.makeText(context, userMsg, Toast.LENGTH_LONG).show()
                         onResult(false)

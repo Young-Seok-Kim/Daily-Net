@@ -15,9 +15,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.youngs.dailynet.BuildConfig
+import com.youngs.dailynet.R
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 
 /**
@@ -66,20 +68,21 @@ fun SettingsScreen(
     if (showLogoutConfirm) {
         AlertDialog(
             onDismissRequest = { showLogoutConfirm = false },
-            title = { Text("로그아웃") },
-            text = { Text("로그아웃하시겠습니까?\n기록은 서버에 남아 있어 다시 로그인하면 그대로 복구됩니다.") },
+            title = { Text(stringResource(R.string.logout)) },
+            text = { Text(stringResource(R.string.logout_confirm_message)) },
             confirmButton = {
+                val loadingText = stringResource(R.string.logout_in_progress)
                 TextButton(onClick = {
                     showLogoutConfirm = false
-                    loadingMessage = "로그아웃 중입니다..."
+                    loadingMessage = loadingText
                     mainViewModel.logout(context) { success ->
                         loadingMessage = null
                         if (success) onNavigateToLogin()
                     }
-                }) { Text("로그아웃") }
+                }) { Text(stringResource(R.string.logout)) }
             },
             dismissButton = {
-                TextButton(onClick = { showLogoutConfirm = false }) { Text("취소") }
+                TextButton(onClick = { showLogoutConfirm = false }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -88,10 +91,13 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("설정") },
+                title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.cd_back)
+                        )
                     }
                 }
             )
@@ -105,12 +111,17 @@ fun SettingsScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                SettingsSection("내 정보") {
+                SettingsSection(stringResource(R.string.settings_section_my_info)) {
                     SettingsItem(
-                        title = "신체 정보 수정",
+                        title = stringResource(R.string.settings_edit_body_info),
                         subtitle = userProfile?.let {
-                            "키 ${it.height}cm · 시작 ${it.initialWeight}kg · ${it.birthDate}"
-                        } ?: "불러오는 중...",
+                            stringResource(
+                                R.string.settings_body_info_summary,
+                                it.height.toString(),
+                                it.initialWeight.toString(),
+                                it.birthDate
+                            )
+                        } ?: stringResource(R.string.loading),
                         enabled = userProfile != null,
                         onClick = { showProfileEditDialog = true }
                     )
@@ -118,19 +129,19 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                SettingsSection("계정") {
+                SettingsSection(stringResource(R.string.settings_section_account)) {
                     SettingsItem(
-                        title = "로그아웃",
-                        subtitle = "다시 로그인하면 기록이 그대로 복구됩니다",
+                        title = stringResource(R.string.logout),
+                        subtitle = stringResource(R.string.settings_logout_subtitle),
                         onClick = { showLogoutConfirm = true }
                     )
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                SettingsSection("앱 정보") {
+                SettingsSection(stringResource(R.string.settings_section_app_info)) {
                     SettingsItem(
-                        title = "버전",
+                        title = stringResource(R.string.settings_version),
                         subtitle = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
                         onClick = null
                     )
@@ -139,11 +150,14 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(28.dp))
 
                 // 되돌릴 수 없는 작업만 모아둔 구역. 색과 위치로 명확히 구분한다
-                SettingsSection("위험 구역", titleColor = MaterialTheme.colorScheme.error) {
+                SettingsSection(
+                    stringResource(R.string.settings_section_danger),
+                    titleColor = MaterialTheme.colorScheme.error
+                ) {
                     // 실수로 눌리지 않도록 여기서 바로 실행하지 않고 전용 화면으로 한 단계 더 들어간다
                     SettingsItem(
-                        title = "회원탈퇴",
-                        subtitle = "모든 정산 기록과 신체 정보가 영구 삭제됩니다",
+                        title = stringResource(R.string.settings_withdraw),
+                        subtitle = stringResource(R.string.settings_withdraw_subtitle),
                         titleColor = MaterialTheme.colorScheme.error,
                         onClick = onNavigateToWithdraw
                     )

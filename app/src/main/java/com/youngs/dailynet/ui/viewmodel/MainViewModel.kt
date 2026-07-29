@@ -33,18 +33,26 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
+import androidx.annotation.StringRes
+import com.youngs.dailynet.R
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 
+/**
+ * 입력 화면의 항목 한 줄.
+ * 라벨과 힌트는 언어별로 달라지므로 문자열이 아니라 리소스 ID를 들고 있는다.
+ */
 data class CategoryInfo(
-    val label: String,
-    val hint: String,
+    @StringRes val labelRes: Int,
+    @StringRes val hintRes: Int,
     val fieldName: String
 )
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
+    @ApplicationContext private val context: Context, // 토스트 문구를 언어에 맞게 꺼내기 위해 필요
     private val repository: DailyRecordRepository,
     private val dailyRecordDao: DailyRecordDao,
     private val userProfileDao: UserProfileDao,
@@ -55,6 +63,11 @@ class MainViewModel @Inject constructor(
 ) : BaseViewModel() {
 
     private val UNINITIALIZED = -1 // 오늘 횟수 가져오는데 실패하면 _todayCount를 -1로 셋팅해서 다시 시도하도록 유도함
+
+    /** 기기 언어에 맞는 문구로 토스트를 띄운다. */
+    private fun toast(@StringRes resId: Int, vararg args: Any) {
+        showToast(context.getString(resId, *args))
+    }
 
     init {
         billingManager.onPurchaseSuccess = { purchase ->
@@ -197,7 +210,7 @@ class MainViewModel @Inject constructor(
                 _uiState.update { it.copy(weight = weight) }
             } catch (e: Exception) {
                 e.printStackTrace()
-                showToast("프로필 저장 실패: ${e.message}")
+                toast(R.string.toast_profile_save_failed, e.message.orEmpty())
 
             }
         }
@@ -249,11 +262,11 @@ class MainViewModel @Inject constructor(
                 )
 
                 _isMale.value = isMale
-                showToast("프로필이 수정되었습니다.")
+                toast(R.string.toast_profile_updated)
                 onDone(true)
             } catch (e: Exception) {
                 e.printStackTrace()
-                showToast("프로필 수정 실패: ${e.message}")
+                toast(R.string.toast_profile_update_failed, e.message.orEmpty())
                 onDone(false)
             }
         }
@@ -391,16 +404,12 @@ class MainViewModel @Inject constructor(
         )
 
     val categoryList = listOf(
-        CategoryInfo("아침", "예: 사과 1개, 닭가슴살", "breakfast"),
-        CategoryInfo("점심", "예: 김치찌개, 현미밥 1공기", "lunch"),
-        CategoryInfo("저녁", "예: 샐러드, 스테이크, 흰쌀밥 1공기, 고등어 등등", "dinner"),
-        CategoryInfo("간식", "예: 아메리카노, 견과류", "snack"),
-        CategoryInfo("운동", "예: 스쿼트 100개, 런닝 5km", "exercise"),
-        CategoryInfo(
-            "비고",
-            "오늘의 특이사항 \n ex)삼겹살 먹을 때 비계 떼고 살코기 위주로 먹었고, 쌈을 많이 싸먹었어요.",
-            "remark"
-        )
+        CategoryInfo(R.string.category_breakfast, R.string.category_breakfast_hint, "breakfast"),
+        CategoryInfo(R.string.category_lunch, R.string.category_lunch_hint, "lunch"),
+        CategoryInfo(R.string.category_dinner, R.string.category_dinner_hint, "dinner"),
+        CategoryInfo(R.string.category_snack, R.string.category_snack_hint, "snack"),
+        CategoryInfo(R.string.category_exercise, R.string.category_exercise_hint, "exercise"),
+        CategoryInfo(R.string.category_remark, R.string.category_remark_hint, "remark")
     )
 
     private val _uiState = MutableStateFlow(DailyRecordModel(date = today))
@@ -516,9 +525,9 @@ class MainViewModel @Inject constructor(
                 .collection("settlements").document(date)
                 .delete()
                 .await()
-            showToast("정산 기록이 삭제 되었습니다.")
+            toast(R.string.toast_record_deleted)
         } catch (e: Exception) {
-            showToast("삭제 실패: ${e.message}")
+            toast(R.string.toast_delete_failed, e.message.orEmpty())
         }
     }
 
@@ -546,18 +555,18 @@ class MainViewModel @Inject constructor(
                     // 3. Firebase Authentication 유저 계정 탈퇴 처리
                     currentUser.delete().await()
 
-                    showToast("회원탈퇴가 정상적으로 처리되었습니다.")
+                    toast(R.string.toast_withdraw_success)
                     onResult(true)
                 } else {
-                    showToast("인증 정보가 만료되었습니다. 다시 로그인 해주세요.")
+                    toast(R.string.toast_auth_expired)
                     onResult(false)
                 }
             } catch (e: Exception) {
                 // Firebase 보안 규칙 상, 로그인한 지 오래된 유저는 계정 삭제 시 '상대적 최근 인증(Requires Recent Login)' 에러가 발생할 수 있습니다.
                 if (e.message?.contains("CREDENTIAL_TOO_OLD_LOGIN_AGAIN") == true) {
-                    showToast("보안을 위해 재인증이 필요합니다. 로그아웃 후 다시 로그인하여 시도해 주세요.")
+                    toast(R.string.toast_reauth_required)
                 } else {
-                    showToast("회원탈퇴 실패: ${e.localizedMessage}")
+                    toast(R.string.toast_withdraw_failed, e.localizedMessage.orEmpty())
                 }
                 onResult(false)
             }
@@ -572,7 +581,7 @@ class MainViewModel @Inject constructor(
                 // 0. Firestore에 등록된 무제한 사용자면 횟수 제한 없이 바로 분석
                 if (adminManager.isUnlimited(auth.currentUser?.email)) {
                     analyzeAndFinalize(
-                        onSuccess = { showToast("분석 및 저장이 완료되었습니다.") },
+                        onSuccess = { toast(R.string.toast_analysis_saved) },
                         onFailure = {}
                     )
                     return@launch
@@ -584,25 +593,25 @@ class MainViewModel @Inject constructor(
 
                         if (isSubscribed) {
                             analyzeAndFinalize(onSuccess = {
-                                showToast("분석 및 저장이 완료되었습니다.")
+                                toast(R.string.toast_analysis_saved)
                             }, onFailure = {})
                         } else {
 
                             if (profile.lastAnalyzedDate == today && profile.todayAnalysisCount >= 3) {
-                                showToast("오늘 분석 횟수(3회)를 초과했습니다.")
+                                toast(R.string.toast_analysis_limit)
                                 startSubscription(activity)
                                 return@launch
                             }
 
                             analyzeAndFinalize(
-                                onSuccess = { count -> showToast("분석 완료! 오늘 $count/3회 분석했습니다.") },
-                                onFailure = { showToast("분석 실패: $it") }
+                                onSuccess = { count -> toast(R.string.toast_analysis_done, count) },
+                                onFailure = { toast(R.string.toast_analysis_failed, it) }
                             )
                         }
                     }
                 }
             } catch (e: Exception) {
-                showToast("데이터 확인 실패: ${e.message}")
+                toast(R.string.toast_data_check_failed, e.message.orEmpty())
             }
         }
     }
@@ -653,9 +662,9 @@ class MainViewModel @Inject constructor(
             } catch (e: Exception) {
                 _uiState.update { it.copy(analyzing = false) }
 
-                showToast("오류 발생: ${e.message}")
+                toast(R.string.toast_error, e.message.orEmpty())
                 // 💡 실패 시 화면 이동 없이 현재 데이터 유지(onFailure 호출)
-                onFailure(e.message ?: "알 수 없는 오류")
+                onFailure(e.message ?: context.getString(R.string.error_unknown))
             }
         }
     }
@@ -731,9 +740,9 @@ class MainViewModel @Inject constructor(
             if (profile != null) {
                 userProfileDao.insertProfile(profile.copy(isSubscribed = true))
             }
-            showToast("👑 프리미엄 멤버십이 활성화되었습니다!")
+            toast(R.string.toast_premium_activated)
         } catch (e: Exception) {
-            showToast("구독 갱신 실패: ${e.message}")
+            toast(R.string.toast_subscription_failed, e.message.orEmpty())
         }
     }
 

@@ -4,7 +4,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.window.DialogProperties
+import com.youngs.dailynet.R
 import com.youngs.dailynet.util.AppUpdateInfo
 
 /**
@@ -27,14 +29,20 @@ fun AppUpdateDialog(
             dismissOnBackPress = !info.forced,
             dismissOnClickOutside = !info.forced
         ),
-        title = { Text(if (info.forced) "업데이트가 필요합니다" else "새 버전이 있습니다") },
+        title = {
+            Text(
+                stringResource(
+                    if (info.forced) R.string.update_title_forced else R.string.update_title_recommend
+                )
+            )
+        },
         text = { Text(info.message) },
         confirmButton = {
-            TextButton(onClick = onUpdate) { Text("업데이트") }
+            TextButton(onClick = onUpdate) { Text(stringResource(R.string.update_action)) }
         },
         dismissButton = {
             if (!info.forced) {
-                TextButton(onClick = onLater) { Text("나중에") }
+                TextButton(onClick = onLater) { Text(stringResource(R.string.update_later)) }
             }
         }
     )

@@ -135,11 +135,9 @@ class AppUpdateChecker @Inject constructor(
         val fromConsole = remoteConfig.getString(key)
         if (fromConsole.isNotBlank()) return fromConsole
 
-        return if (forced) {
-            "지금 버전은 더 이상 지원되지 않습니다.\n최신 버전으로 업데이트해 주세요."
-        } else {
-            "새로운 버전이 나왔습니다.\n업데이트하면 더 나은 기능을 쓸 수 있습니다."
-        }
+        return context.getString(
+            if (forced) R.string.update_message_forced else R.string.update_message_recommend
+        )
     }
 
     private fun today(): String =

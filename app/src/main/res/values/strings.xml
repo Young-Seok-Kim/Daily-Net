@@ -1,3 +1,178 @@
 <resources>
+    <!--
+      English is the default locale, so any device whose language has no translation
+      falls back to this file. Korean lives in values-ko/strings.xml.
+      Keep the two files in sync — every key here must exist there.
+    -->
     <string name="app_name">DailyNet</string>
+
+    <!-- Common -->
+    <string name="cancel">Cancel</string>
+    <string name="confirm">OK</string>
+    <string name="go_back">Go back</string>
+    <string name="loading">Loading…</string>
+    <string name="cd_back">Back</string>
+
+    <!-- Sign in -->
+    <string name="login_tagline">A diet backed by data</string>
+    <string name="cd_google_login">Sign in with Google</string>
+    <string name="login_failed">Sign-in failed: %1$s</string>
+    <string name="login_error">Sign-in error: %1$s</string>
+    <string name="login_reauth_failed">Could not re-authenticate your Google account. Please try again, or check your Google account in device settings.</string>
+
+    <!-- Update notice -->
+    <string name="update_title_forced">Update required</string>
+    <string name="update_title_recommend">A new version is available</string>
+    <string name="update_action">Update</string>
+    <string name="update_later">Later</string>
+    <string name="update_message_forced">This version is no longer supported.\nPlease update to the latest version.</string>
+    <string name="update_message_recommend">A new version is available.\nUpdate to get the latest improvements.</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_my_info">My info</string>
+    <string name="settings_edit_body_info">Edit body info</string>
+    <string name="settings_body_info_summary">%1$s cm · start %2$s kg · %3$s</string>
+    <string name="settings_section_account">Account</string>
+    <string name="settings_logout_subtitle">Your records are restored when you sign back in</string>
+    <string name="settings_section_app_info">App info</string>
+    <string name="settings_version">Version</string>
+    <string name="settings_section_danger">Danger zone</string>
+    <string name="settings_withdraw">Delete account</string>
+    <string name="settings_withdraw_subtitle">All records and body info are permanently deleted</string>
+
+    <!-- Sign out -->
+    <string name="logout">Sign out</string>
+    <string name="logout_confirm_message">Sign out?\nYour records stay on the server and are restored when you sign back in.</string>
+    <string name="logout_in_progress">Signing out…</string>
+
+    <!-- Main screen -->
+    <string name="today_record">Today\'s record</string>
+    <string name="record_list_title">Records</string>
+    <string name="no_records">No records</string>
+    <string name="week_of_month">%1$02d, week %2$d</string>
+    <string name="delete">Delete</string>
+    <string name="save">Save</string>
+    <string name="save_and_start">Save and start</string>
+    <string name="open_settings">Open settings</string>
+    <string name="delete_record_title">Delete record</string>
+    <string name="delete_record_message">Delete the record for %1$s?\nThis cannot be undone.</string>
+    <string name="cd_profile">Profile</string>
+    <string name="cd_profile_photo">Profile photo</string>
+    <string name="cd_expand">Expand</string>
+    <string name="cd_collapse">Collapse</string>
+    <string name="default_user_name">User</string>
+    <string name="profile_height">Height</string>
+    <string name="profile_start_weight">Starting weight</string>
+    <string name="profile_subscription">Subscription</string>
+    <string name="subscription_active">Active</string>
+    <string name="subscription_free">Free</string>
+    <string name="total_calories_title">Cumulative calorie balance</string>
+    <string name="last_updated">Last updated · %1$s</string>
+    <string name="stat_est_weight">Est. weight</string>
+    <string name="stat_record_days">Days logged</string>
+    <string name="stat_avg_net">Avg. net</string>
+    <string name="recent_trend">Recent trend</string>
+    <string name="has_exercise">Exercise logged 💪</string>
+    <string name="rest_day">Rest 😴</string>
+
+    <!-- Profile dialog -->
+    <string name="profile_input_title">Enter your body info</string>
+    <string name="profile_input_desc">Enter your details so the AI\nanalysis can be more accurate.</string>
+    <string name="gender">Gender</string>
+    <string name="gender_male">Male</string>
+    <string name="gender_female">Female</string>
+    <string name="birth_date">Date of birth</string>
+    <string name="height_label">Height (cm)</string>
+    <string name="height_placeholder">e.g. 175.5</string>
+    <string name="start_weight_label">Starting weight (kg)</string>
+    <string name="start_weight_placeholder">e.g. 70.0</string>
+    <string name="start_weight_note">Your starting weight is the baseline for total weight lost.</string>
+
+    <!-- Daily record input categories -->
+    <string name="category_breakfast">Breakfast</string>
+    <string name="category_breakfast_hint">e.g. 1 apple, chicken breast</string>
+    <string name="category_lunch">Lunch</string>
+    <string name="category_lunch_hint">e.g. kimchi stew, a bowl of brown rice</string>
+    <string name="category_dinner">Dinner</string>
+    <string name="category_dinner_hint">e.g. salad, steak, a bowl of white rice, mackerel</string>
+    <string name="category_snack">Snack</string>
+    <string name="category_snack_hint">e.g. americano, nuts</string>
+    <string name="category_exercise">Exercise</string>
+    <string name="category_exercise_hint">e.g. 100 squats, 5 km run</string>
+    <string name="category_remark">Notes</string>
+    <string name="category_remark_hint">Anything notable today \n e.g. trimmed the fat off the pork belly and ate mostly lean meat with lots of lettuce wraps.</string>
+
+    <!-- Toasts -->
+    <string name="toast_profile_save_failed">Could not save profile: %1$s</string>
+    <string name="toast_profile_updated">Profile updated.</string>
+    <string name="toast_profile_update_failed">Could not update profile: %1$s</string>
+    <string name="toast_record_deleted">Record deleted.</string>
+    <string name="toast_delete_failed">Could not delete: %1$s</string>
+    <string name="toast_withdraw_success">Your account has been deleted.</string>
+    <string name="toast_auth_expired">Your session has expired. Please sign in again.</string>
+    <string name="toast_reauth_required">For security, you need to re-authenticate. Please sign out, sign back in, and try again.</string>
+    <string name="toast_withdraw_failed">Could not delete account: %1$s</string>
+    <string name="toast_analysis_saved">Analysis complete and saved.</string>
+    <string name="toast_analysis_limit">You have used all 3 analyses for today.</string>
+    <string name="toast_analysis_done">Analysis complete! %1$d of 3 used today.</string>
+    <string name="toast_analysis_failed">Analysis failed: %1$s</string>
+    <string name="toast_data_check_failed">Could not load your data: %1$s</string>
+    <string name="toast_error">Something went wrong: %1$s</string>
+    <string name="error_unknown">Unknown error</string>
+    <string name="error_server_analysis">Something went wrong while analyzing on the server.</string>
+    <string name="toast_premium_activated">👑 Premium membership is now active!</string>
+    <string name="toast_subscription_failed">Could not update subscription: %1$s</string>
+
+    <!-- Daily record screen -->
+    <string name="weight_label">Current weight (kg)</string>
+    <string name="weight_placeholder">e.g. 75.5</string>
+    <string name="net_calories_value">Net %1$d kcal</string>
+    <string name="steps_label">Steps 👣</string>
+    <string name="steps_placeholder">Filled in automatically</string>
+    <string name="steps_support_today">Today\'s steps fill in automatically · tap refresh if nothing appears</string>
+    <string name="steps_support_past">Leave it empty and that day\'s steps fill in automatically</string>
+    <string name="cd_refresh_steps">Refresh steps</string>
+    <string name="steps_health_connect_unavailable">Health Connect is not available on this device</string>
+    <string name="steps_load_failed">Could not load your steps</string>
+    <string name="steps_reloaded">Steps reloaded (%1$d)</string>
+    <string name="analyze_today">Analyze today</string>
+    <string name="analyze_again">Analyze again</string>
+    <string name="ai_report_title">🤖 AI analysis report</string>
+    <string name="badge_just_done">✅ Just finished</string>
+    <string name="analyzing_wait">Analysis in progress. Please wait a moment</string>
+    <string name="analyzing_title">🤖 AI is analyzing</string>
+    <string name="analyzing_inline">AI is analyzing</string>
+    <string name="analyzing_elapsed">%1$d s elapsed · usually takes 10–30 s</string>
+    <string name="analyzing_auto_move">You will be taken to the result when it is done</string>
+    <string name="analyzing_step_1">Reading what you ate</string>
+    <string name="analyzing_step_2">Calculating calories</string>
+    <string name="analyzing_step_3">Factoring in exercise and steps</string>
+    <string name="analyzing_step_4">Putting your feedback together</string>
+
+    <!-- Weight trend -->
+    <string name="weight_trend_title">Weight trend</string>
+    <string name="weight_trend_hint">Swipe sideways to browse past records. Tap a point to see its details above, and tap again to open that day.</string>
+    <string name="weight_trend_tap_point">Tap a point on the chart</string>
+    <string name="weight_trend_tap_again">Tap again to open</string>
+    <string name="weight_trend_empty">No weight recorded yet.\nEnter your weight when you log a day\nand your trend will appear here.</string>
+    <string name="weight_trend_since_start">since start (%1$s)</string>
+    <string name="weight_stat_min">Lowest</string>
+    <string name="weight_stat_max">Highest</string>
+    <string name="weight_stat_days">Days logged</string>
+    <string name="weight_stat_days_value">%1$d days</string>
+
+    <!-- Delete account -->
+    <string name="withdraw_final_title">Final confirmation</string>
+    <string name="withdraw_final_message">Delete your account?\nAll of your records will be permanently deleted and cannot be recovered.</string>
+    <string name="withdraw_confirm_action">Delete account</string>
+    <string name="withdraw_heading">Deleting your account removes all of the following.</string>
+    <string name="withdraw_bullet_records">Every daily record you have saved</string>
+    <string name="withdraw_bullet_body">Body info such as height, weight, and date of birth</string>
+    <string name="withdraw_bullet_analysis">AI analysis results and feedback history</string>
+    <string name="withdraw_bullet_account">Account details (signing up again will not restore them)</string>
+    <string name="withdraw_suggest_logout">If you just need a break, sign out instead. Signing out keeps your records so you can pick up where you left off.</string>
+    <string name="withdraw_agree">I have read the above and understand this cannot be undone.</string>
+    <string name="withdraw_proceed">Delete my account</string>
+    <string name="withdraw_processing">Deleting your account…</string>
 </resources>

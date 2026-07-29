@@ -1,5 +1,6 @@
 package com.youngs.dailynet.data.repository
 
+import android.content.Context
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
@@ -8,7 +9,9 @@ import com.google.firebase.firestore.snapshots
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.local.entity.dao.DailyRecordDao
 import com.youngs.dailynet.data.model.DailyRecordModel
+import com.youngs.dailynet.R
 import com.youngs.dailynet.data.network.GeminiManager
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
@@ -17,6 +20,7 @@ import javax.inject.Singleton
 
 @Singleton
 class DailyRecordRepository @Inject constructor(
+    @ApplicationContext private val context: Context, // 예외 문구를 기기 언어로 꺼내기 위해 필요
     private val firestore: FirebaseFirestore,
     private val auth: FirebaseAuth,
     private val geminiManager: GeminiManager,
@@ -140,7 +144,7 @@ class DailyRecordRepository @Inject constructor(
     suspend fun analyzeAndSave(dailyRecordModel: DailyRecordModel, userProfile: UserProfileEntity): DailyRecordModel {
         val analysisResponse =
             geminiManager.analyzeFoodAndExercise(dailyRecordModel, userProfile)
-                ?: throw Exception("서버 분석 중 오류가 발생했습니다.")
+                ?: throw Exception(context.getString(R.string.error_server_analysis))
 
 
         val finalizedModel = dailyRecordModel.copy(

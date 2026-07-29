@@ -15,8 +15,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.youngs.dailynet.R
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 
 /**
@@ -45,8 +47,8 @@ fun WithdrawScreen(
     if (showFinalConfirm) {
         AlertDialog(
             onDismissRequest = { showFinalConfirm = false },
-            title = { Text("마지막 확인") },
-            text = { Text("정말 탈퇴하시겠습니까?\n지금까지의 모든 정산 기록이 영구 삭제되며, 복구할 수 없습니다.") },
+            title = { Text(stringResource(R.string.withdraw_final_title)) },
+            text = { Text(stringResource(R.string.withdraw_final_message)) },
             confirmButton = {
                 TextButton(onClick = {
                     showFinalConfirm = false
@@ -57,14 +59,16 @@ fun WithdrawScreen(
                     }
                 }) {
                     Text(
-                        "탈퇴하기",
+                        stringResource(R.string.withdraw_confirm_action),
                         color = MaterialTheme.colorScheme.error,
                         fontWeight = FontWeight.Bold
                     )
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showFinalConfirm = false }) { Text("취소") }
+                TextButton(onClick = { showFinalConfirm = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
             }
         )
     }
@@ -72,10 +76,13 @@ fun WithdrawScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("회원탈퇴") },
+                title = { Text(stringResource(R.string.settings_withdraw)) },
                 navigationIcon = {
                     IconButton(onClick = { if (!processing) onBack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.cd_back)
+                        )
                     }
                 }
             )
@@ -90,7 +97,7 @@ fun WithdrawScreen(
                     .padding(20.dp)
             ) {
                 Text(
-                    text = "탈퇴하면 아래 내용이 모두 삭제됩니다.",
+                    text = stringResource(R.string.withdraw_heading),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -104,17 +111,16 @@ fun WithdrawScreen(
                     )
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        WithdrawBullet("지금까지 기록한 모든 정산 내역")
-                        WithdrawBullet("키 · 몸무게 · 생년월일 등 신체 정보")
-                        WithdrawBullet("AI 분석 결과 및 피드백 기록")
-                        WithdrawBullet("계정 정보 (다시 가입해도 복구되지 않음)")
+                        WithdrawBullet(stringResource(R.string.withdraw_bullet_records))
+                        WithdrawBullet(stringResource(R.string.withdraw_bullet_body))
+                        WithdrawBullet(stringResource(R.string.withdraw_bullet_analysis))
+                        WithdrawBullet(stringResource(R.string.withdraw_bullet_account))
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "잠시 쉬어가려는 것이라면 탈퇴 대신 로그아웃을 권합니다. " +
-                            "로그아웃은 기록이 그대로 남아 있어 다시 로그인하면 이어서 쓸 수 있습니다.",
+                    text = stringResource(R.string.withdraw_suggest_logout),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -135,7 +141,7 @@ fun WithdrawScreen(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "위 내용을 모두 확인했으며, 복구할 수 없다는 점에 동의합니다.",
+                        text = stringResource(R.string.withdraw_agree),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -151,7 +157,7 @@ fun WithdrawScreen(
                         contentColor = MaterialTheme.colorScheme.onError
                     )
                 ) {
-                    Text("회원탈퇴 진행", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.withdraw_proceed), fontWeight = FontWeight.Bold)
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -160,7 +166,7 @@ fun WithdrawScreen(
                     onClick = { if (!processing) onBack() },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("돌아가기")
+                    Text(stringResource(R.string.go_back))
                 }
             }
 
@@ -175,7 +181,10 @@ fun WithdrawScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator()
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text("회원탈퇴 처리 중입니다...", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            stringResource(R.string.withdraw_processing),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
                     }
                 }
             }

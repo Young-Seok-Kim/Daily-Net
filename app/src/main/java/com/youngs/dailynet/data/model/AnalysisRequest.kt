@@ -16,5 +16,8 @@ data class AnalysisRequest(
     val steps: Int = 0,
     // 서버가 요청을 보낸 앱 버전을 알 수 있게 함께 보낸다.
     // 지금 서버는 쓰지 않지만, 나중에 응답 형식을 바꿀 때 구버전에 맞춰 분기하려면 필요하다.
-    val appVersion: Int
+    val appVersion: Int,
+    // 분석 리포트를 어떤 언어로 받을지. "ko-KR", "en-US" 같은 BCP-47 태그를 보낸다.
+    // 서버는 앞부분(ko/en)만 보고 판단하며, 값이 없으면 한국어로 처리한다.
+    val language: String
 )

@@ -21,8 +21,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.youngs.dailynet.R
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import java.util.Locale
@@ -104,10 +106,13 @@ fun WeightTrendScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("몸무게 추이") },
+                title = { Text(stringResource(R.string.weight_trend_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.cd_back)
+                        )
                     }
                 }
             )
@@ -151,7 +156,7 @@ fun WeightTrendScreen(
             )
 
             Text(
-                text = "좌우로 밀어서 지난 기록을 볼 수 있어요. 점을 누르면 위에 정보가 뜨고, 한 번 더 누르면 그날 정산이 열립니다.",
+                text = stringResource(R.string.weight_trend_hint),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(vertical = 12.dp)
@@ -177,7 +182,7 @@ private fun SelectedPointBar(record: DailyRecordModel?, onOpen: () -> Unit) {
         if (record == null) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                 Text(
-                    text = "그래프의 점을 눌러보세요",
+                    text = stringResource(R.string.weight_trend_tap_point),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -204,7 +209,7 @@ private fun SelectedPointBar(record: DailyRecordModel?, onOpen: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    text = "한 번 더 눌러 열기",
+                    text = stringResource(R.string.weight_trend_tap_again),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                 )
@@ -217,7 +222,7 @@ private fun SelectedPointBar(record: DailyRecordModel?, onOpen: () -> Unit) {
 private fun EmptyWeightMessage() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
-            text = "아직 기록된 몸무게가 없습니다.\n정산할 때 몸무게를 입력하면\n여기에 추이가 그려집니다.",
+            text = stringResource(R.string.weight_trend_empty),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -262,7 +267,10 @@ private fun WeightSummaryCard(shown: List<DailyRecordModel>) {
                             color = if (diff <= 0f) Color(0xFF4CAF50) else Color(0xFFF44336)
                         )
                         Text(
-                            text = "시작(${shown.last().date}) 대비",
+                            text = stringResource(
+                                R.string.weight_trend_since_start,
+                                shown.last().date
+                            ),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -275,9 +283,21 @@ private fun WeightSummaryCard(shown: List<DailyRecordModel>) {
             Spacer(modifier = Modifier.height(12.dp))
 
             Row(modifier = Modifier.fillMaxWidth()) {
-                WeightStat("최저", String.format(Locale.getDefault(), "%.1f kg", minWeight), Modifier.weight(1f))
-                WeightStat("최고", String.format(Locale.getDefault(), "%.1f kg", maxWeight), Modifier.weight(1f))
-                WeightStat("측정 일수", "${shown.size}일", Modifier.weight(1f))
+                WeightStat(
+                    stringResource(R.string.weight_stat_min),
+                    String.format(Locale.getDefault(), "%.1f kg", minWeight),
+                    Modifier.weight(1f)
+                )
+                WeightStat(
+                    stringResource(R.string.weight_stat_max),
+                    String.format(Locale.getDefault(), "%.1f kg", maxWeight),
+                    Modifier.weight(1f)
+                )
+                WeightStat(
+                    stringResource(R.string.weight_stat_days),
+                    stringResource(R.string.weight_stat_days_value, shown.size),
+                    Modifier.weight(1f)
+                )
             }
         }
     }

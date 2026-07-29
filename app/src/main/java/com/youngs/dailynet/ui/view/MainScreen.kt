@@ -27,7 +27,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import android.content.Context
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
@@ -66,7 +68,8 @@ fun getWeekIdentifier(dateString: String): Int {
 }
 
 // 1. 월별 주차를 계산하는 헬퍼 함수 추가
-fun getWeekOfMonthText(dateString: String): String {
+// 표기 형식이 언어마다 달라서(예: "05월 3주차" / "May, week 3") 문자열 리소스를 받아 채운다.
+fun getWeekOfMonthText(context: Context, dateString: String): String {
     return try {
         val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateString)
             ?: return dateString
@@ -77,8 +80,7 @@ fun getWeekOfMonthText(dateString: String): String {
         val month = calendar.get(Calendar.MONTH) + 1 // 0부터 시작하므로 +1
         val week = calendar.get(Calendar.WEEK_OF_MONTH)
 
-        // "05월 3주차" 형식으로 반환
-        String.format(Locale.getDefault(), "%02d월 %d주차", month, week)
+        context.getString(R.string.week_of_month, month, week)
     } catch (e: Exception) {
         dateString // 에러 시 기본 날짜 반환
     }
@@ -163,18 +165,24 @@ fun MainScreen(
     if (selectedDateToDelete != null) {
         AlertDialog(
             onDismissRequest = { selectedDateToDelete = null },
-            title = { Text("기록 삭제") },
-            text = { Text("${selectedDateToDelete}의 정산 기록을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.") },
+            title = { Text(stringResource(R.string.delete_record_title)) },
+            text = {
+                Text(stringResource(R.string.delete_record_message, selectedDateToDelete.orEmpty()))
+            },
             confirmButton = {
                 TextButton(onClick = {
                     selectedDateToDelete?.let { date ->
                         mainViewModel.deleteDailyRecord(date)
                     }
                     selectedDateToDelete = null
-                }) { Text("삭제", color = MaterialTheme.colorScheme.error) }
+                }) {
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                }
             },
             dismissButton = {
-                TextButton(onClick = { selectedDateToDelete = null }) { Text("취소") }
+                TextButton(onClick = { selectedDateToDelete = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
             }
         )
     }
@@ -207,13 +215,16 @@ fun MainScreen(
                     actions = {
                         // 1. 프로필 아이콘 (사용자 아바타)
                         IconButton(onClick = { showSheet = true }) {
-                            Icon(Icons.Default.AccountCircle, contentDescription = "프로필")
+                            Icon(
+                                Icons.Default.AccountCircle,
+                                contentDescription = stringResource(R.string.cd_profile)
+                            )
                         }
                         // 2. 설정 (회원탈퇴 등 위험한 항목은 이 안쪽에 둔다)
                         IconButton(onClick = onNavigateToSettings) {
                             Icon(
                                 painter = painterResource(R.drawable.ic_settings_gear),
-                                contentDescription = "설정"
+                                contentDescription = stringResource(R.string.settings_title)
                             )
                         }
                     }
@@ -223,7 +234,7 @@ fun MainScreen(
                 ExtendedFloatingActionButton(
                     onClick = onNavigateToInput,
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text("오늘의 정산") },
+                    text = { Text(stringResource(R.string.today_record)) },
                     containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
             }
@@ -240,7 +251,8 @@ fun MainScreen(
                 item {
                     SummaryHeaderCard(
                         totalCalories = totalCalories,
-                        latestDate = dailyRecords.firstOrNull()?.date ?: "기록 없음",
+                        latestDate = dailyRecords.firstOrNull()?.date
+                            ?: stringResource(R.string.no_records),
                         records = dailyRecords
                     )
                 }
@@ -258,7 +270,7 @@ fun MainScreen(
 
                 item {
                     Text(
-                        text = "정산 기록",
+                        text = stringResource(R.string.record_list_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
@@ -270,7 +282,7 @@ fun MainScreen(
                     key = { _, item -> item.date }
                 ) { index, item ->
                     val currentWeekId = getWeekIdentifier(item.date)
-                    val weekDisplayText = getWeekOfMonthText(item.date)
+                    val weekDisplayText = getWeekOfMonthText(LocalContext.current, item.date)
 
                     val totalWeeklyNet = weeklyCaloriesMap[currentWeekId] ?: 0
 
@@ -325,7 +337,7 @@ fun MainScreen(
                                 // 구글 계정 프로필 사진
                                 AsyncImage(
                                     model = photoUrl,
-                                    contentDescription = "프로필 사진",
+                                    contentDescription = stringResource(R.string.cd_profile_photo),
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
                                         .size(48.dp)
@@ -345,7 +357,8 @@ fun MainScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = firebaseUser?.displayName ?: "사용자",
+                                    text = firebaseUser?.displayName
+                                        ?: stringResource(R.string.default_user_name),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -365,20 +378,23 @@ fun MainScreen(
                             Spacer(modifier = Modifier.height(14.dp))
                             Row(modifier = Modifier.fillMaxWidth()) {
                                 HeroStat(
-                                    "키",
+                                    stringResource(R.string.profile_height),
                                     String.format(Locale.getDefault(), "%.1f cm", p.height),
                                     MaterialTheme.colorScheme.onSurface,
                                     Modifier.weight(1f)
                                 )
                                 HeroStat(
-                                    "시작 몸무게",
+                                    stringResource(R.string.profile_start_weight),
                                     String.format(Locale.getDefault(), "%.1f kg", p.initialWeight),
                                     MaterialTheme.colorScheme.onSurface,
                                     Modifier.weight(1f)
                                 )
                                 HeroStat(
-                                    "구독",
-                                    if (p.isSubscribed) "이용 중" else "무료",
+                                    stringResource(R.string.profile_subscription),
+                                    stringResource(
+                                        if (p.isSubscribed) R.string.subscription_active
+                                        else R.string.subscription_free
+                                    ),
                                     MaterialTheme.colorScheme.onSurface,
                                     Modifier.weight(1f)
                                 )
@@ -393,7 +409,7 @@ fun MainScreen(
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("설정 열기")
+                            Text(stringResource(R.string.open_settings))
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                     }
@@ -478,35 +494,35 @@ fun ProfileSetupDialog(
 
     AlertDialog(
         onDismissRequest = { /* 필수 입력 사항이므로 닫기 방지 */ },
-        title = { Text("신체 정보 입력") },
+        title = { Text(stringResource(R.string.profile_input_title)) },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    "더 정확한 AI 영양 분석을 위해\n정보를 입력해 주세요.",
+                    stringResource(R.string.profile_input_desc),
                     style = MaterialTheme.typography.bodyMedium
                 )
 
-                Text("성별", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.gender), style = MaterialTheme.typography.labelMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = selectedIsMale,
                         onClick = { selectedIsMale = true },
-                        label = { Text("남성") }
+                        label = { Text(stringResource(R.string.gender_male)) }
                     )
                     FilterChip(
                         selected = !selectedIsMale,
                         onClick = { selectedIsMale = false },
-                        label = { Text("여성") }
+                        label = { Text(stringResource(R.string.gender_female)) }
                     )
                 }
 
                 OutlinedTextField(
                     value = birthDateText,
                     onValueChange = { /* 읽기 전용으로 만들기 위해 비워둠 */ },
-                    label = { Text("생년월일") },
+                    label = { Text(stringResource(R.string.birth_date)) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
@@ -535,8 +551,8 @@ fun ProfileSetupDialog(
                 OutlinedTextField(
                     value = heightText,
                     onValueChange = { heightText = it },
-                    label = { Text("키 (cm)") },
-                    placeholder = { Text("예: 175.5") },
+                    label = { Text(stringResource(R.string.height_label)) },
+                    placeholder = { Text(stringResource(R.string.height_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true
@@ -545,8 +561,8 @@ fun ProfileSetupDialog(
                 OutlinedTextField(
                     value = weightText,
                     onValueChange = { weightText = it },
-                    label = { Text("시작 몸무게 (kg)") },
-                    placeholder = { Text("예: 70.0") },
+                    label = { Text(stringResource(R.string.start_weight_label)) },
+                    placeholder = { Text(stringResource(R.string.start_weight_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true
@@ -558,7 +574,7 @@ fun ProfileSetupDialog(
                 onClick = {
                     val h = heightText.toFloatOrNull() ?: 0f
                     val w = weightText.toFloatOrNull() ?: 0f
-                    val googleName = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.displayName ?: "사용자"
+                    val googleName = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.displayName ?: context.getString(R.string.default_user_name)
                     // 날짜 형식이 최소한의 형태를 갖췄는지 체크
                     if (h > 0f && w > 0f && birthDateText.contains("-")) {
                         onConfirm(googleName, h, w, selectedIsMale, birthDateText)
@@ -569,7 +585,7 @@ fun ProfileSetupDialog(
                         weightText.isNotBlank() &&
                         birthDateText.isNotBlank()
             ) {
-                Text("저장 및 시작")
+                Text(stringResource(R.string.save_and_start))
             }
         }
     )
@@ -614,30 +630,30 @@ fun ProfileEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("신체 정보 수정") },
+        title = { Text(stringResource(R.string.settings_edit_body_info)) },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("성별", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.gender), style = MaterialTheme.typography.labelMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = selectedIsMale,
                         onClick = { selectedIsMale = true },
-                        label = { Text("남성") }
+                        label = { Text(stringResource(R.string.gender_male)) }
                     )
                     FilterChip(
                         selected = !selectedIsMale,
                         onClick = { selectedIsMale = false },
-                        label = { Text("여성") }
+                        label = { Text(stringResource(R.string.gender_female)) }
                     )
                 }
 
                 OutlinedTextField(
                     value = birthDateText,
                     onValueChange = { },
-                    label = { Text("생년월일") },
+                    label = { Text(stringResource(R.string.birth_date)) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
@@ -667,8 +683,8 @@ fun ProfileEditDialog(
                 OutlinedTextField(
                     value = heightText,
                     onValueChange = { heightText = it },
-                    label = { Text("키 (cm)") },
-                    placeholder = { Text("예: 175.5") },
+                    label = { Text(stringResource(R.string.height_label)) },
+                    placeholder = { Text(stringResource(R.string.height_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true
@@ -677,15 +693,15 @@ fun ProfileEditDialog(
                 OutlinedTextField(
                     value = weightText,
                     onValueChange = { weightText = it },
-                    label = { Text("시작 몸무게 (kg)") },
-                    placeholder = { Text("예: 70.0") },
+                    label = { Text(stringResource(R.string.start_weight_label)) },
+                    placeholder = { Text(stringResource(R.string.start_weight_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true
                 )
 
                 Text(
-                    "시작 몸무게는 총 감량량 계산의 기준값입니다.",
+                    stringResource(R.string.start_weight_note),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -698,11 +714,11 @@ fun ProfileEditDialog(
                 onClick = { onConfirm(h, w, selectedIsMale, birthDateText) },
                 enabled = h > 0f && w > 0f && birthDateText.contains("-")
             ) {
-                Text("저장")
+                Text(stringResource(R.string.save))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("취소") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }
@@ -733,7 +749,7 @@ fun SummaryHeaderCard(totalCalories: Int, latestDate: String, records: List<Dail
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "누적 칼로리 결산",
+                text = stringResource(R.string.total_calories_title),
                 style = MaterialTheme.typography.labelLarge,
                 color = onPrimary.copy(alpha = 0.85f)
             )
@@ -755,7 +771,7 @@ fun SummaryHeaderCard(totalCalories: Int, latestDate: String, records: List<Dail
                 shape = RoundedCornerShape(50)
             ) {
                 Text(
-                    text = "최근 업데이트 · $latestDate",
+                    text = stringResource(R.string.last_updated, latestDate),
                     style = MaterialTheme.typography.labelMedium,
                     color = onPrimary,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
@@ -770,17 +786,32 @@ fun SummaryHeaderCard(totalCalories: Int, latestDate: String, records: List<Dail
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                HeroStat("예상 체중", weightText, onPrimary, Modifier.weight(1f))
+                HeroStat(
+                    stringResource(R.string.stat_est_weight),
+                    weightText,
+                    onPrimary,
+                    Modifier.weight(1f)
+                )
                 VerticalDivider(
                     modifier = Modifier.height(30.dp),
                     color = onPrimary.copy(alpha = 0.2f)
                 )
-                HeroStat("기록 일수", "${recordDays}일", onPrimary, Modifier.weight(1f))
+                HeroStat(
+                    stringResource(R.string.stat_record_days),
+                    stringResource(R.string.weight_stat_days_value, recordDays),
+                    onPrimary,
+                    Modifier.weight(1f)
+                )
                 VerticalDivider(
                     modifier = Modifier.height(30.dp),
                     color = onPrimary.copy(alpha = 0.2f)
                 )
-                HeroStat("평균 순칼로리", "$avgNet", onPrimary, Modifier.weight(1f))
+                HeroStat(
+                    stringResource(R.string.stat_avg_net),
+                    "$avgNet",
+                    onPrimary,
+                    Modifier.weight(1f)
+                )
             }
         }
     }
@@ -822,11 +853,21 @@ fun StatTilesRow(records: List<DailyRecordModel>, totalCalories: Int) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        StatTile(Modifier.weight(1f), "예상 체중", weightText, MaterialTheme.colorScheme.primary)
-        StatTile(Modifier.weight(1f), "기록 일수", "${recordDays}일", MaterialTheme.colorScheme.onSurface)
         StatTile(
             Modifier.weight(1f),
-            "평균 순칼로리",
+            stringResource(R.string.stat_est_weight),
+            weightText,
+            MaterialTheme.colorScheme.primary
+        )
+        StatTile(
+            Modifier.weight(1f),
+            stringResource(R.string.stat_record_days),
+            stringResource(R.string.weight_stat_days_value, recordDays),
+            MaterialTheme.colorScheme.onSurface
+        )
+        StatTile(
+            Modifier.weight(1f),
+            stringResource(R.string.stat_avg_net),
             "$avgNet",
             if (avgNet <= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
         )
@@ -937,13 +978,15 @@ fun RecentTrendChart(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "최근 추이",
+                    text = stringResource(R.string.recent_trend),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold
                 )
                 Icon(
                     imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (expanded) "접기" else "펼치기",
+                    contentDescription = stringResource(
+                        if (expanded) R.string.cd_collapse else R.string.cd_expand
+                    ),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -1068,7 +1111,9 @@ fun DailyRecordHistoryItem(
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = if (item.hasExercise) "운동 기록 있음 💪" else "휴식 😴",
+                    text = stringResource(
+                        if (item.hasExercise) R.string.has_exercise else R.string.rest_day
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

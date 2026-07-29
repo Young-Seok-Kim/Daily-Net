@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.health.connect.client.PermissionController
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import com.youngs.dailynet.R
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import com.youngs.dailynet.util.HealthStepReader
@@ -122,7 +123,11 @@ fun DailyRecordScreen(
         val targetDate = uiState.date
         scope.launch {
             if (!healthReader.sdkAvailable()) {
-                Toast.makeText(context, "이 기기에서는 Health Connect를 쓸 수 없어요", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.steps_health_connect_unavailable),
+                    Toast.LENGTH_SHORT
+                ).show()
                 return@launch
             }
             if (!healthReader.hasPermission()) {
@@ -139,10 +144,18 @@ fun DailyRecordScreen(
             }
             val steps = healthReader.getStepsForDate(targetDate)
             if (steps == null) {
-                Toast.makeText(context, "걸음 수를 불러오지 못했어요", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.steps_load_failed),
+                    Toast.LENGTH_SHORT
+                ).show()
             } else {
                 mainViewModel.applyAutoSteps(targetDate, steps.toInt(), force = true)
-                Toast.makeText(context, "걸음 수를 새로 불러왔어요 (${steps}보)", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.steps_reloaded, steps),
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }
@@ -150,7 +163,11 @@ fun DailyRecordScreen(
     BackHandler(enabled = true) {
         if (uiState.analyzing) {
             // 분석 중 이탈하면 결과를 못 보므로 붙잡아 둔다
-            Toast.makeText(context, "분석 중이에요. 잠시만 기다려주세요", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                                    context,
+                                    context.getString(R.string.analyzing_wait),
+                                    Toast.LENGTH_SHORT
+                                ).show()
         } else {
             mainViewModel.clearTodayDraft()
             onBack()
@@ -222,7 +239,10 @@ fun DailyRecordScreen(
                             // 💡 스크롤 위치와 상관없이 그날의 순칼로리가 항상 보이도록 상단바에 함께 표시
                             if (hasCalorieResult) {
                                 Text(
-                                    text = "순칼로리 ${uiState.netCalories} kcal",
+                                    text = stringResource(
+                                        R.string.net_calories_value,
+                                        uiState.netCalories
+                                    ),
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = calorieColor
@@ -233,13 +253,20 @@ fun DailyRecordScreen(
                     navigationIcon = {
                         IconButton(onClick = {
                             if (uiState.analyzing) {
-                                Toast.makeText(context, "분석 중이에요. 잠시만 기다려주세요", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.analyzing_wait),
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             } else {
                                 mainViewModel.clearTodayDraft()
                                 onBack()
                             }
                         }) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "뒤로가기")
+                            Icon(
+                                Icons.Default.ArrowBack,
+                                contentDescription = stringResource(R.string.cd_back)
+                            )
                         }
                     },
                     actions = {
@@ -247,7 +274,7 @@ fun DailyRecordScreen(
                         IconButton(onClick = { onNavigateToWeightTrend(uiState.date) }) {
                             Icon(
                                 painter = painterResource(R.drawable.ic_weight_chart),
-                                contentDescription = "몸무게 추이"
+                                contentDescription = stringResource(R.string.weight_trend_title)
                             )
                         }
                     }
@@ -269,8 +296,8 @@ fun DailyRecordScreen(
                             mainViewModel.updateField("weight", text)
                         }
                     },
-                    label = { Text("현재 체중 (kg)") },
-                    placeholder = { Text("예: 75.5") },
+                    label = { Text(stringResource(R.string.weight_label)) },
+                    placeholder = { Text(stringResource(R.string.weight_placeholder)) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
@@ -294,8 +321,8 @@ fun DailyRecordScreen(
                             else -> ""
                         },
                         onValueChange = { mainViewModel.updateField(category.fieldName, it) },
-                        label = { Text(category.label) },
-                        placeholder = { Text(category.hint) },
+                        label = { Text(stringResource(category.labelRes)) },
+                        placeholder = { Text(stringResource(category.hintRes)) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp),
@@ -314,18 +341,23 @@ fun DailyRecordScreen(
                                     mainViewModel.updateField("steps", text)
                                 }
                             },
-                            label = { Text("걸음수 👣") },
-                            placeholder = { Text("자동으로 채워져요") },
+                            label = { Text(stringResource(R.string.steps_label)) },
+                            placeholder = { Text(stringResource(R.string.steps_placeholder)) },
                             supportingText = {
                                 Text(
-                                    if (isToday) "오늘 걸음 수가 자동 반영됩니다 · 안 보이면 새로고침을 눌러주세요"
-                                    else "비어 있으면 그날 걸음 수가 자동으로 채워집니다"
+                                    stringResource(
+                                        if (isToday) R.string.steps_support_today
+                                        else R.string.steps_support_past
+                                    )
                                 )
                             },
                             trailingIcon = {
                                 if (!isReadOnly) {
                                     IconButton(onClick = { refreshSteps() }) {
-                                        Icon(Icons.Default.Refresh, contentDescription = "걸음수 새로고침")
+                                        Icon(
+                                            Icons.Default.Refresh,
+                                            contentDescription = stringResource(R.string.cd_refresh_steps)
+                                        )
                                     }
                                 }
                             },
@@ -363,7 +395,10 @@ fun DailyRecordScreen(
                             AnimatedAnalyzingText()
                         } else {
                             Text(
-                                if (uiState.analysisResult.isNotEmpty()) "다시 분석하기" else "오늘의 정산 분석하기",
+                                stringResource(
+                                    if (uiState.analysisResult.isNotEmpty()) R.string.analyze_again
+                                    else R.string.analyze_today
+                                ),
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -406,7 +441,7 @@ fun DailyRecordScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text(
-                                        text = "🤖 AI 분석 레포트",
+                                        text = stringResource(R.string.ai_report_title),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary
@@ -459,7 +494,7 @@ private fun JustCompletedBadge() {
         color = MaterialTheme.colorScheme.primary.copy(alpha = alpha)
     ) {
         Text(
-            text = "✅ 방금 완료",
+            text = stringResource(R.string.badge_just_done),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onPrimary,
@@ -476,10 +511,10 @@ private fun JustCompletedBadge() {
 @Composable
 private fun AnalyzingOverlay() {
     val phases = listOf(
-        "식단 내용을 읽고 있어요",
-        "칼로리를 계산하고 있어요",
-        "운동과 걸음 수를 반영하고 있어요",
-        "맞춤 피드백을 정리하고 있어요"
+        stringResource(R.string.analyzing_step_1),
+        stringResource(R.string.analyzing_step_2),
+        stringResource(R.string.analyzing_step_3),
+        stringResource(R.string.analyzing_step_4)
     )
 
     var elapsed by remember { mutableStateOf(0) }
@@ -529,7 +564,7 @@ private fun AnalyzingOverlay() {
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Text(
-                    text = "🤖 AI가 분석 중이에요",
+                    text = stringResource(R.string.analyzing_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -557,7 +592,7 @@ private fun AnalyzingOverlay() {
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
-                    text = "${elapsed}초 경과 · 보통 10~30초 걸려요",
+                    text = stringResource(R.string.analyzing_elapsed, elapsed),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -565,7 +600,7 @@ private fun AnalyzingOverlay() {
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "끝나면 결과 카드로 자동 이동해요",
+                    text = stringResource(R.string.analyzing_auto_move),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     textAlign = TextAlign.Center
@@ -590,7 +625,7 @@ private fun AnimatedAnalyzingText() {
     )
     val dots = ".".repeat(dotCount.toInt())
     Text(
-        text = "AI가 분석 중이에요$dots",
+        text = stringResource(R.string.analyzing_inline) + dots,
         fontSize = 16.sp,
         fontWeight = FontWeight.SemiBold
     )

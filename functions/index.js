@@ -1,6 +1,80 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 // 서버 배포 명령어 : firebase deploy --only functions
+
+/**
+ * 리포트에 들어가는 고정 문구. AI가 쓰는 문장이 아니라 서버가 조립하는 부분이라 여기서 번역한다.
+ * 언어를 추가하려면 이 표에 항목 하나만 더 넣으면 된다.
+ */
+const LABELS = {
+    ko: {
+        outputLanguage: "한국어",
+        reportTitle: "📋 오늘의 영양 분석 리포트",
+        breakfast: "🍳 아침", lunch: "🍳 점심", dinner: "🍳 저녁", snack: "🍰 간식",
+        total: "합계",
+        carb: "탄", protein: "단", fat: "지",
+        noInfo: "정보 없음",
+        exerciseTitle: "🔥 운동별 소모 칼로리",
+        totalBurned: "총",
+        noExercise: "   • 기록된 운동이 없습니다",
+        unknownExercise: "운동",
+        unknownMenu: "알 수 없음",
+        goalTitle: "🎯 다이어트 권장 목표 가이드",
+        goalIntake: "• 하루 권장 섭취량",
+        goalMacro: "• 추천 탄단지",
+        myIntake: "• 나의 오늘 섭취량",
+        over: "⚠️ 권장 초과",
+        under: "✅ 권장 이내",
+        macroTitle: "📊 나의 오늘 실제 탄단지 총합",
+        carbFull: "• 탄수화물", proteinFull: "• 단백질", fatFull: "• 지방",
+        inLabel: "🍎 인입 (IN)",
+        outLabel: "🏃 배출 (OUT)",
+        bmrNote: (bmr) => `기초대사 ${bmr} 포함`,
+        netLabel: "📉 최종 결산",
+        evalTitle: "💡 전문가 총평",
+        error: "분석 중 오류가 발생했습니다."
+    },
+    en: {
+        outputLanguage: "English",
+        reportTitle: "📋 Today's Nutrition Report",
+        breakfast: "🍳 Breakfast", lunch: "🍳 Lunch", dinner: "🍳 Dinner", snack: "🍰 Snack",
+        total: "total",
+        carb: "C", protein: "P", fat: "F",
+        noInfo: "No data",
+        exerciseTitle: "🔥 Calories Burned by Activity",
+        totalBurned: "total",
+        noExercise: "   • No activity recorded",
+        unknownExercise: "Activity",
+        unknownMenu: "Unknown",
+        goalTitle: "🎯 Recommended Daily Targets",
+        goalIntake: "• Recommended intake",
+        goalMacro: "• Recommended macros",
+        myIntake: "• Your intake today",
+        over: "⚠️ Over target",
+        under: "✅ Within target",
+        macroTitle: "📊 Your Macros Today",
+        carbFull: "• Carbs", proteinFull: "• Protein", fatFull: "• Fat",
+        inLabel: "🍎 IN",
+        outLabel: "🏃 OUT",
+        bmrNote: (bmr) => `includes BMR ${bmr}`,
+        netLabel: "📉 Net",
+        evalTitle: "💡 Expert Summary",
+        error: "An error occurred during analysis."
+    }
+};
+
+/**
+ * 앱이 보낸 언어 코드를 지원 언어로 바꾼다.
+ *
+ * 값이 아예 없으면(= language를 보내지 않는 구버전 앱) 한국어로 떨어뜨려
+ * 기존 사용자가 지금까지 받던 결과와 완전히 동일하게 유지한다.
+ * 값은 있는데 지원하지 않는 언어면, 한국어보다는 영어가 나으므로 영어로 보낸다.
+ */
+function resolveLang(raw) {
+    if (!raw) return "ko";
+    const primary = String(raw).toLowerCase().split(/[-_]/)[0];
+    return LABELS[primary] ? primary : "en";
+}
 exports.analyzeDiet = onRequest({
     region: "asia-northeast3",
     cors: true,
@@ -9,6 +83,10 @@ exports.analyzeDiet = onRequest({
     enforceAppCheck: true,
     timeoutSeconds: 120,
 }, async (req, res) => {
+
+    // 구버전 앱은 language를 보내지 않는다. 그때는 ko로 떨어져 지금까지와 완전히 동일하게 동작한다.
+    const lang = resolveLang(req.body && req.body.language);
+    const L = LABELS[lang];
 
     try {
         // Retrofit은 데이터를 body에 담아 보냅니다.
@@ -85,6 +163,10 @@ const prompt = `
                - [exercises] 리스트에는 사용자가 한 **운동을 항목별로 나누어** 각 운동의 소모 칼로리(kcal)를 담으세요. 걸음 수(${stepCount}보)가 0보다 크면 "걸음 ${stepCount}보" 항목도 별도로 추가하세요. 운동이 전혀 없으면 빈 배열([])로 두세요.
                - "calories"."exercise"는 [exercises] 리스트의 모든 kcal 합계와 반드시 일치시키세요.
                - Markdown 형식(\`\`\`json) 없이 오직 순수 JSON 문자열만 응답하십시오.
+            6. **응답 언어 (필수)**: JSON 안의 모든 자연어 텍스트를 반드시 **${L.outputLanguage}**로 작성하십시오.
+               - 대상: meals[].name, exercises[].name, descriptions의 모든 값, evaluation
+               - 사용자가 다른 언어로 입력했더라도 결과는 ${L.outputLanguage}로 번역해서 담으십시오.
+               - JSON의 키 이름은 절대 번역하지 말고 아래 형태 그대로 두십시오.
             {
                 "calories": { "breakfast": 0, "lunch": 0, "dinner": 0, "snack": 0, "exercise": 0 },
                 "meals": {
@@ -122,8 +204,8 @@ const prompt = `
         const mealDescriptions = data.descriptions || { breakfast: "", lunch: "", dinner: "", snack: "" };
 
         const buildMenuList = (mealArray) => {
-            if (!Array.isArray(mealArray)) return "정보 없음";
-            return mealArray.map(m => `${m.name || '알 수 없음'}(${m.kcal || 0}kcal)`).join(", ");
+            if (!Array.isArray(mealArray)) return L.noInfo;
+            return mealArray.map(m => `${m.name || L.unknownMenu}(${m.kcal || 0}kcal)`).join(", ");
         };
 
         const exerciseCalories = Math.abs(n(mealCalories.exercise));
@@ -155,51 +237,55 @@ const prompt = `
         const exerciseItems = Array.isArray(data.exercises) ? data.exercises : [];
         const exerciseBreakdown = exerciseItems.length > 0
             ? exerciseItems
-                .map(e => `   • ${e.name || '운동'} (-${Math.abs(e.kcal || 0)}kcal)`)
+                .map(e => `   • ${e.name || L.unknownExercise} (-${Math.abs(e.kcal || 0)}kcal)`)
                 .join("\n")
-            : "   • 기록된 운동이 없습니다";
+            : L.noExercise;
+
+        // 탄단지 한 줄. 언어별 약어(탄/단/지, C/P/F)만 달라지므로 함수로 묶는다.
+        const macroLine = (m) =>
+            `   [${L.carb} ${f1(m.carb)}g | ${L.protein} ${f1(m.protein)}g | ${L.fat} ${f1(m.fat)}g]`;
 
         const feedback = `
-📋 오늘의 영양 분석 리포트
+${L.reportTitle}
 
-🍳 아침: ${buildMenuList(data.meals?.breakfast)} (합계: ${sumKcal(data.meals?.breakfast)}kcal)
-   [탄 ${f1(bMacros.carb)}g | 단 ${f1(bMacros.protein)}g | 지 ${f1(bMacros.fat)}g]
+${L.breakfast}: ${buildMenuList(data.meals?.breakfast)} (${L.total}: ${sumKcal(data.meals?.breakfast)}kcal)
+${macroLine(bMacros)}
    💡 ${data.descriptions?.breakfast || ""}
 
-🍳 점심: ${buildMenuList(data.meals?.lunch)} (합계: ${sumKcal(data.meals?.lunch)}kcal)
-   [탄 ${f1(lMacros.carb)}g | 단 ${f1(lMacros.protein)}g | 지 ${f1(lMacros.fat)}g]
+${L.lunch}: ${buildMenuList(data.meals?.lunch)} (${L.total}: ${sumKcal(data.meals?.lunch)}kcal)
+${macroLine(lMacros)}
    💡 ${data.descriptions?.lunch || ""}
 
-🍳 저녁: ${buildMenuList(data.meals?.dinner)} (합계: ${sumKcal(data.meals?.dinner)}kcal)
-   [탄 ${f1(dMacros.carb)}g | 단 ${f1(dMacros.protein)}g | 지 ${f1(dMacros.fat)}g]
+${L.dinner}: ${buildMenuList(data.meals?.dinner)} (${L.total}: ${sumKcal(data.meals?.dinner)}kcal)
+${macroLine(dMacros)}
    💡 ${data.descriptions?.dinner || ""}
 
-🍰 간식: ${buildMenuList(data.meals?.snack)} (합계: ${sumKcal(data.meals?.snack)}kcal)
-   [탄 ${f1(sMacros.carb)}g | 단 ${f1(sMacros.protein)}g | 지 ${f1(sMacros.fat)}g]
+${L.snack}: ${buildMenuList(data.meals?.snack)} (${L.total}: ${sumKcal(data.meals?.snack)}kcal)
+${macroLine(sMacros)}
    💡 ${data.descriptions?.snack || ""}
 
-🔥 운동별 소모 칼로리 (총 -${exerciseCalories}kcal)
+${L.exerciseTitle} (${L.totalBurned} -${exerciseCalories}kcal)
 ${exerciseBreakdown}
 
 ---
 
-🎯 다이어트 권장 목표 가이드
-• 하루 권장 섭취량: ${recommendedCalories} kcal
-• 추천 탄단지: 탄 ${recCarb}g | 단 ${recProtein}g | 지 ${recFat}g
-• 나의 오늘 섭취량: ${totalIn} kcal (${totalIn > recommendedCalories ? '⚠️ 권장 초과' : '✅ 권장 이내'})
+${L.goalTitle}
+${L.goalIntake}: ${recommendedCalories} kcal
+${L.goalMacro}: ${L.carb} ${recCarb}g | ${L.protein} ${recProtein}g | ${L.fat} ${recFat}g
+${L.myIntake}: ${totalIn} kcal (${totalIn > recommendedCalories ? L.over : L.under})
 
-📊 나의 오늘 실제 탄단지 총합
-• 탄수화물: ${Number(totalCarb.toFixed(1))}g / ${recCarb}g
-• 단백질: ${Number(totalProtein.toFixed(1))}g / ${recProtein}g
-• 지방: ${Number(totalFat.toFixed(1))}g / ${recFat}g
+${L.macroTitle}
+${L.carbFull}: ${Number(totalCarb.toFixed(1))}g / ${recCarb}g
+${L.proteinFull}: ${Number(totalProtein.toFixed(1))}g / ${recProtein}g
+${L.fatFull}: ${Number(totalFat.toFixed(1))}g / ${recFat}g
 
 ---
 
-🍎 인입 (IN): +${totalIn} kcal
-🏃 배출 (OUT): -${totalOut} kcal (기초대사 ${bmr} 포함)
-📉 최종 결산: ${netCalories} kcal
+${L.inLabel}: +${totalIn} kcal
+${L.outLabel}: -${totalOut} kcal (${L.bmrNote(bmr)})
+${L.netLabel}: ${netCalories} kcal
 
-💡 전문가 총평
+${L.evalTitle}
 ${data.evaluation}
         `.trim();
 
@@ -211,7 +297,7 @@ ${data.evaluation}
         console.error("Internal Error:", error.message);
         res.status(500).json({
             net_calories: 0,
-            feedback: "분석 중 오류가 발생했습니다."
+            feedback: L.error
         });
     }
 });

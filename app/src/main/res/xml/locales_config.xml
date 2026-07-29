@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  앱이 지원하는 언어 목록.
+  이걸 선언해두면 안드로이드 13 이상에서 [설정 > 앱 > DailyNet > 언어]로
+  기기 언어와 무관하게 이 앱만 다른 언어로 쓸 수 있다.
+  언어를 추가하면 여기에도 한 줄 넣어야 목록에 나온다.
+-->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+    <locale android:name="ko" />
+</locale-config>

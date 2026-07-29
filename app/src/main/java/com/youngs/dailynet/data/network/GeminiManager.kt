@@ -7,6 +7,7 @@ import com.youngs.dailynet.data.model.AnalysisResponse
 import com.youngs.dailynet.data.model.DailyRecordModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -38,7 +39,9 @@ class GeminiManager @Inject constructor(
                     exercise = dailyRecordModel.exercise,
                     remark = dailyRecordModel.remark,
                     steps = dailyRecordModel.steps,
-                    appVersion = BuildConfig.VERSION_CODE
+                    appVersion = BuildConfig.VERSION_CODE,
+                    // 기기 언어를 그대로 보낸다. 앱 화면과 분석 리포트의 언어를 일치시키기 위함이다.
+                    language = Locale.getDefault().toLanguageTag()
                 )
 
                 // 서버 호출

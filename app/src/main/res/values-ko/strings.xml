@@ -1,0 +1,176 @@
+<resources>
+    <!--
+      한국어. 기본(폴백) 언어는 영어이며 values/strings.xml 에 있다.
+      기기 언어가 한국어일 때만 이 파일이 쓰이고, 번역이 없는 언어는 영어로 떨어진다.
+    -->
+
+    <!-- 공통 -->
+    <string name="cancel">취소</string>
+    <string name="confirm">확인</string>
+    <string name="go_back">돌아가기</string>
+    <string name="loading">불러오는 중...</string>
+    <string name="cd_back">뒤로</string>
+
+    <!-- 로그인 -->
+    <string name="login_tagline">데이터로 증명하는 다이어트</string>
+    <string name="cd_google_login">구글 계정으로 로그인</string>
+    <string name="login_failed">로그인 실패: %1$s</string>
+    <string name="login_error">로그인 오류: %1$s</string>
+    <string name="login_reauth_failed">구글 계정 재인증에 실패했습니다. 다시 시도하거나 기기 설정에서 구글 계정을 재확인해 주세요.</string>
+
+    <!-- 업데이트 안내 -->
+    <string name="update_title_forced">업데이트가 필요합니다</string>
+    <string name="update_title_recommend">새 버전이 있습니다</string>
+    <string name="update_action">업데이트</string>
+    <string name="update_later">나중에</string>
+    <string name="update_message_forced">지금 버전은 더 이상 지원되지 않습니다.\n최신 버전으로 업데이트해 주세요.</string>
+    <string name="update_message_recommend">새로운 버전이 나왔습니다.\n업데이트하면 더 나은 기능을 쓸 수 있습니다.</string>
+
+    <!-- 설정 -->
+    <string name="settings_title">설정</string>
+    <string name="settings_section_my_info">내 정보</string>
+    <string name="settings_edit_body_info">신체 정보 수정</string>
+    <string name="settings_body_info_summary">키 %1$scm · 시작 %2$skg · %3$s</string>
+    <string name="settings_section_account">계정</string>
+    <string name="settings_logout_subtitle">다시 로그인하면 기록이 그대로 복구됩니다</string>
+    <string name="settings_section_app_info">앱 정보</string>
+    <string name="settings_version">버전</string>
+    <string name="settings_section_danger">위험 구역</string>
+    <string name="settings_withdraw">회원탈퇴</string>
+    <string name="settings_withdraw_subtitle">모든 정산 기록과 신체 정보가 영구 삭제됩니다</string>
+
+    <!-- 로그아웃 -->
+    <string name="logout">로그아웃</string>
+    <string name="logout_confirm_message">로그아웃하시겠습니까?\n기록은 서버에 남아 있어 다시 로그인하면 그대로 복구됩니다.</string>
+    <string name="logout_in_progress">로그아웃 중입니다...</string>
+
+    <!-- 메인 화면 -->
+    <string name="today_record">오늘의 정산</string>
+    <string name="record_list_title">정산 기록</string>
+    <string name="no_records">기록 없음</string>
+    <string name="week_of_month">%1$02d월 %2$d주차</string>
+    <string name="delete">삭제</string>
+    <string name="save">저장</string>
+    <string name="save_and_start">저장 및 시작</string>
+    <string name="open_settings">설정 열기</string>
+    <string name="delete_record_title">기록 삭제</string>
+    <string name="delete_record_message">%1$s의 정산 기록을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.</string>
+    <string name="cd_profile">프로필</string>
+    <string name="cd_profile_photo">프로필 사진</string>
+    <string name="cd_expand">펼치기</string>
+    <string name="cd_collapse">접기</string>
+    <string name="default_user_name">사용자</string>
+    <string name="profile_height">키</string>
+    <string name="profile_start_weight">시작 몸무게</string>
+    <string name="profile_subscription">구독</string>
+    <string name="subscription_active">이용 중</string>
+    <string name="subscription_free">무료</string>
+    <string name="total_calories_title">누적 칼로리 결산</string>
+    <string name="last_updated">최근 업데이트 · %1$s</string>
+    <string name="stat_est_weight">예상 체중</string>
+    <string name="stat_record_days">기록 일수</string>
+    <string name="stat_avg_net">평균 순칼로리</string>
+    <string name="recent_trend">최근 추이</string>
+    <string name="has_exercise">운동 기록 있음 💪</string>
+    <string name="rest_day">휴식 😴</string>
+
+    <!-- 프로필 다이얼로그 -->
+    <string name="profile_input_title">신체 정보 입력</string>
+    <string name="profile_input_desc">더 정확한 AI 영양 분석을 위해\n정보를 입력해 주세요.</string>
+    <string name="gender">성별</string>
+    <string name="gender_male">남성</string>
+    <string name="gender_female">여성</string>
+    <string name="birth_date">생년월일</string>
+    <string name="height_label">키 (cm)</string>
+    <string name="height_placeholder">예: 175.5</string>
+    <string name="start_weight_label">시작 몸무게 (kg)</string>
+    <string name="start_weight_placeholder">예: 70.0</string>
+    <string name="start_weight_note">시작 몸무게는 총 감량량 계산의 기준값입니다.</string>
+
+    <!-- 정산 입력 항목 -->
+    <string name="category_breakfast">아침</string>
+    <string name="category_breakfast_hint">예: 사과 1개, 닭가슴살</string>
+    <string name="category_lunch">점심</string>
+    <string name="category_lunch_hint">예: 김치찌개, 현미밥 1공기</string>
+    <string name="category_dinner">저녁</string>
+    <string name="category_dinner_hint">예: 샐러드, 스테이크, 흰쌀밥 1공기, 고등어 등등</string>
+    <string name="category_snack">간식</string>
+    <string name="category_snack_hint">예: 아메리카노, 견과류</string>
+    <string name="category_exercise">운동</string>
+    <string name="category_exercise_hint">예: 스쿼트 100개, 런닝 5km</string>
+    <string name="category_remark">비고</string>
+    <string name="category_remark_hint">오늘의 특이사항 \n ex)삼겹살 먹을 때 비계 떼고 살코기 위주로 먹었고, 쌈을 많이 싸먹었어요.</string>
+
+    <!-- 토스트 -->
+    <string name="toast_profile_save_failed">프로필 저장 실패: %1$s</string>
+    <string name="toast_profile_updated">프로필이 수정되었습니다.</string>
+    <string name="toast_profile_update_failed">프로필 수정 실패: %1$s</string>
+    <string name="toast_record_deleted">정산 기록이 삭제 되었습니다.</string>
+    <string name="toast_delete_failed">삭제 실패: %1$s</string>
+    <string name="toast_withdraw_success">회원탈퇴가 정상적으로 처리되었습니다.</string>
+    <string name="toast_auth_expired">인증 정보가 만료되었습니다. 다시 로그인 해주세요.</string>
+    <string name="toast_reauth_required">보안을 위해 재인증이 필요합니다. 로그아웃 후 다시 로그인하여 시도해 주세요.</string>
+    <string name="toast_withdraw_failed">회원탈퇴 실패: %1$s</string>
+    <string name="toast_analysis_saved">분석 및 저장이 완료되었습니다.</string>
+    <string name="toast_analysis_limit">오늘 분석 횟수(3회)를 초과했습니다.</string>
+    <string name="toast_analysis_done">분석 완료! 오늘 %1$d/3회 분석했습니다.</string>
+    <string name="toast_analysis_failed">분석 실패: %1$s</string>
+    <string name="toast_data_check_failed">데이터 확인 실패: %1$s</string>
+    <string name="toast_error">오류 발생: %1$s</string>
+    <string name="error_unknown">알 수 없는 오류</string>
+    <string name="error_server_analysis">서버 분석 중 오류가 발생했습니다.</string>
+    <string name="toast_premium_activated">👑 프리미엄 멤버십이 활성화되었습니다!</string>
+    <string name="toast_subscription_failed">구독 갱신 실패: %1$s</string>
+
+    <!-- 정산 화면 -->
+    <string name="weight_label">현재 체중 (kg)</string>
+    <string name="weight_placeholder">예: 75.5</string>
+    <string name="net_calories_value">순칼로리 %1$d kcal</string>
+    <string name="steps_label">걸음수 👣</string>
+    <string name="steps_placeholder">자동으로 채워져요</string>
+    <string name="steps_support_today">오늘 걸음 수가 자동 반영됩니다 · 안 보이면 새로고침을 눌러주세요</string>
+    <string name="steps_support_past">비어 있으면 그날 걸음 수가 자동으로 채워집니다</string>
+    <string name="cd_refresh_steps">걸음수 새로고침</string>
+    <string name="steps_health_connect_unavailable">이 기기에서는 Health Connect를 쓸 수 없어요</string>
+    <string name="steps_load_failed">걸음 수를 불러오지 못했어요</string>
+    <string name="steps_reloaded">걸음 수를 새로 불러왔어요 (%1$d보)</string>
+    <string name="analyze_today">오늘의 정산 분석하기</string>
+    <string name="analyze_again">다시 분석하기</string>
+    <string name="ai_report_title">🤖 AI 분석 레포트</string>
+    <string name="badge_just_done">✅ 방금 완료</string>
+    <string name="analyzing_wait">분석 중이에요. 잠시만 기다려주세요</string>
+    <string name="analyzing_title">🤖 AI가 분석 중이에요</string>
+    <string name="analyzing_inline">AI가 분석 중이에요</string>
+    <string name="analyzing_elapsed">%1$d초 경과 · 보통 10~30초 걸려요</string>
+    <string name="analyzing_auto_move">끝나면 결과 카드로 자동 이동해요</string>
+    <string name="analyzing_step_1">식단 내용을 읽고 있어요</string>
+    <string name="analyzing_step_2">칼로리를 계산하고 있어요</string>
+    <string name="analyzing_step_3">운동과 걸음 수를 반영하고 있어요</string>
+    <string name="analyzing_step_4">맞춤 피드백을 정리하고 있어요</string>
+
+    <!-- 몸무게 추이 -->
+    <string name="weight_trend_title">몸무게 추이</string>
+    <string name="weight_trend_hint">좌우로 밀어서 지난 기록을 볼 수 있어요. 점을 누르면 위에 정보가 뜨고, 한 번 더 누르면 그날 정산이 열립니다.</string>
+    <string name="weight_trend_tap_point">그래프의 점을 눌러보세요</string>
+    <string name="weight_trend_tap_again">한 번 더 눌러 열기</string>
+    <string name="weight_trend_empty">아직 기록된 몸무게가 없습니다.\n정산할 때 몸무게를 입력하면\n여기에 추이가 그려집니다.</string>
+    <string name="weight_trend_since_start">시작(%1$s) 대비</string>
+    <string name="weight_stat_min">최저</string>
+    <string name="weight_stat_max">최고</string>
+    <string name="weight_stat_days">측정 일수</string>
+    <string name="weight_stat_days_value">%1$d일</string>
+
+    <!-- 회원탈퇴 -->
+    <string name="withdraw_final_title">마지막 확인</string>
+    <string name="withdraw_final_message">정말 탈퇴하시겠습니까?\n지금까지의 모든 정산 기록이 영구 삭제되며, 복구할 수 없습니다.</string>
+    <string name="withdraw_confirm_action">탈퇴하기</string>
+    <string name="withdraw_heading">탈퇴하면 아래 내용이 모두 삭제됩니다.</string>
+    <string name="withdraw_bullet_records">지금까지 기록한 모든 정산 내역</string>
+    <string name="withdraw_bullet_body">키 · 몸무게 · 생년월일 등 신체 정보</string>
+    <string name="withdraw_bullet_analysis">AI 분석 결과 및 피드백 기록</string>
+    <string name="withdraw_bullet_account">계정 정보 (다시 가입해도 복구되지 않음)</string>
+    <string name="withdraw_suggest_logout">잠시 쉬어가려는 것이라면 탈퇴 대신 로그아웃을 권합니다. 로그아웃은 기록이 그대로 남아 있어 다시 로그인하면 이어서 쓸 수 있습니다.</string>
+    <string name="withdraw_agree">위 내용을 모두 확인했으며, 복구할 수 없다는 점에 동의합니다.</string>
+    <string name="withdraw_proceed">회원탈퇴 진행</string>
+    <string name="withdraw_processing">회원탈퇴 처리 중입니다...</string>
+</resources>

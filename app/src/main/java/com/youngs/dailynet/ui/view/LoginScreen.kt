@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.youngs.dailynet.R // 본인 패키지명에 맞게 확인
 import com.youngs.dailynet.ui.viewmodel.AuthViewModel
@@ -38,7 +39,7 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "데이터로 증명하는 다이어트",
+            text = stringResource(R.string.login_tagline),
             style = MaterialTheme.typography.bodyLarge,
             color = Color.Gray
         )
@@ -47,7 +48,7 @@ fun LoginScreen(
 
         Image(
             painter = painterResource(id = R.drawable.android_light_rd_si),
-            contentDescription = "Google Login Button",
+            contentDescription = stringResource(R.string.cd_google_login),
             modifier = Modifier
                 .fillMaxWidth(0.8f) // 원하는 너비 조절
                 .height(56.dp)      // 공식 이미지 비율에 맞춰 조절
