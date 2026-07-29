@@ -71,6 +71,29 @@ class MainViewModel @Inject constructor(
 
     private val UNINITIALIZED = -1 // 오늘 횟수 가져오는데 실패하면 _todayCount를 -1로 셋팅해서 다시 시도하도록 유도함
 
+    /** 무료 사용자의 하루 분석 횟수. 최종 판단은 서버(quota.js)가 하며 여기는 사전 확인용이다. */
+    private val DAILY_FREE_ANALYSIS_LIMIT = 3
+
+    /**
+     * 서버 기준으로 오늘 무료 분석을 다 썼는지 확인하고, 로컬 값도 함께 맞춘다.
+     *
+     * 확인에 실패하면 **막지 않는다.** 진짜 초과라면 어차피 서버가 429로 거절하므로,
+     * 통신이 안 될 때 사용자를 미리 막아버리는 쪽이 더 나쁜 실패다.
+     */
+    private suspend fun isOverDailyLimitOnServer(): Boolean {
+        val uid = currentUserId ?: return false
+        return try {
+            val doc = firestore.collection("users").document(uid).get().await()
+            val count = (doc.getLong("todayAnalysisCount") ?: 0L).toInt()
+            val date = doc.getString("lastAnalyzedDate").orEmpty()
+            userProfileDao.updateAndGetLatest(count, date)
+            date == today && count >= DAILY_FREE_ANALYSIS_LIMIT
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
     /** 기기 언어에 맞는 문구로 토스트를 띄운다. */
     private fun toast(@StringRes resId: Int, vararg args: Any) {
         showToast(context.getString(resId, *args))
@@ -715,7 +738,14 @@ class MainViewModel @Inject constructor(
                             }, onFailure = {})
                         } else {
 
-                            if (profile.lastAnalyzedDate == today && profile.todayAnalysisCount >= 3) {
+                            // 로컬 값이 실제보다 클 수 있다. (실패한 분석을 서버가 환불했거나,
+                            // 다른 기기에서 쓴 값이 아직 반영되기 전이거나)
+                            // 그 상태로 막으면 남은 횟수가 있는데도 구독 창을 보게 되므로,
+                            // 막기 직전에 서버 값을 한 번 확인한다.
+                            if (profile.lastAnalyzedDate == today &&
+                                profile.todayAnalysisCount >= DAILY_FREE_ANALYSIS_LIMIT &&
+                                isOverDailyLimitOnServer()
+                            ) {
                                 toast(R.string.toast_analysis_limit)
                                 startSubscription(activity)
                                 return@launch
@@ -790,6 +820,8 @@ class MainViewModel @Inject constructor(
             } catch (e: AnalysisLimitException) {
                 // 서버가 한도 초과로 거절한 경우. 일반 실패와 안내가 달라야 한다.
                 _uiState.update { it.copy(analyzing = false) }
+                // 서버가 알려준 실제 횟수로 로컬을 맞춰, 다음 사전 확인이 틀리지 않게 한다
+                e.usage?.let { userProfileDao.updateAndGetLatest(it.count, today) }
                 toast(R.string.toast_analysis_limit)
                 onFailure(context.getString(R.string.toast_analysis_limit))
             } catch (e: Exception) {

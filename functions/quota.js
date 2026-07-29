@@ -27,6 +27,15 @@ const FREE_PHOTO_LIMIT = 3;
 const SUBSCRIBER_PHOTO_LIMIT = 30;
 
 /**
+ * 하루 사진 인식 "시도" 상한. 성공 여부와 무관하게 세며 환불하지 않는다.
+ *
+ * 결과를 못 낸 요청은 횟수를 돌려주는데(refundPhoto), 그것만 있으면
+ * 음식이 아닌 사진을 계속 보내는 식으로 Gemini 호출을 무한정 끌어낼 수 있다.
+ * 정상 사용자는 닿을 일이 없는 높이로 두고 비용 사고만 막는다.
+ */
+const DAILY_PHOTO_ATTEMPT_LIMIT = 30;
+
+/**
  * 인증 토큰이 없는 요청을 막을지 여부.
  *
  * b24 미만 앱은 토큰을 보내지 않으므로 지금은 false로 둔다. (막으면 구버전이 전부 실패한다)
@@ -151,22 +160,55 @@ async function reservePhoto(user) {
             const data = snap.exists ? snap.data() : {};
             const unlimited = !!(unlimitedSnap && unlimitedSnap.exists);
             const subscribed = data.isSubscribed === true;
-            const used = data.lastPhotoDate === today ? Number(data.todayPhotoCount) || 0 : 0;
+            const sameDay = data.lastPhotoDate === today;
+            const used = sameDay ? Number(data.todayPhotoCount) || 0 : 0;
+            const attempts = sameDay ? Number(data.todayPhotoAttempts) || 0 : 0;
 
             // 무제한 계정(운영자 등)은 분석과 마찬가지로 상한을 적용하지 않는다.
             // 횟수 자체는 계속 세어 콘솔에서 사용량을 볼 수 있게 둔다.
             if (!unlimited) {
+                if (attempts >= DAILY_PHOTO_ATTEMPT_LIMIT) {
+                    return { allowed: false, paid: subscribed };
+                }
                 const limit = subscribed ? SUBSCRIBER_PHOTO_LIMIT : FREE_PHOTO_LIMIT;
                 if (used >= limit) return { allowed: false, paid: subscribed };
             }
 
-            tx.set(userRef, { todayPhotoCount: used + 1, lastPhotoDate: today }, { merge: true });
+            tx.set(userRef, {
+                todayPhotoCount: used + 1,
+                todayPhotoAttempts: attempts + 1, // 환불 대상이 아님
+                lastPhotoDate: today
+            }, { merge: true });
             return { allowed: true, paid: unlimited || subscribed };
         });
     } catch (error) {
         // 횟수를 못 세는 상황 때문에 기능 자체를 막지는 않는다
         console.warn("사진 횟수 확인 실패:", error.message);
         return { allowed: true, paid: false };
+    }
+}
+
+/**
+ * 사진 인식이 쓸 만한 결과를 못 냈을 때 차감분을 되돌린다.
+ *
+ * 서버 오류는 물론이고 "음식을 못 알아봤다"도 환불 대상이다. 사용자가 얻은 게 없는데
+ * 무료 3회 중 하나가 날아가면, 사진 몇 장 잘못 찍는 것만으로 그날 기능을 못 쓰게 된다.
+ *
+ * 시도 횟수(todayPhotoAttempts)는 그대로 두어 악용은 계속 막는다.
+ */
+async function refundPhoto(uid) {
+    try {
+        const db = admin.firestore();
+        const userRef = db.collection("users").doc(uid);
+        await db.runTransaction(async (tx) => {
+            const snap = await tx.get(userRef);
+            const used = Number(snap.data() && snap.data().todayPhotoCount) || 0;
+            if (used > 0) {
+                tx.set(userRef, { todayPhotoCount: used - 1 }, { merge: true });
+            }
+        });
+    } catch (error) {
+        console.warn("사진 횟수 환불 실패:", error.message);
     }
 }
 
@@ -195,5 +237,6 @@ module.exports = {
     verifyUser,
     reserveAnalysis,
     reservePhoto,
-    refundAnalysis
+    refundAnalysis,
+    refundPhoto
 };

@@ -1,7 +1,9 @@
 package com.youngs.dailynet.data.network
 
 import com.google.firebase.auth.FirebaseAuth
+import com.google.gson.Gson
 import com.youngs.dailynet.BuildConfig
+import com.youngs.dailynet.data.model.AnalysisUsage
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.model.AnalysisRequest
 import com.youngs.dailynet.data.model.AnalysisResponse
@@ -67,7 +69,8 @@ class GeminiManager @Inject constructor(
                 )
             } catch (e: HttpException) {
                 if (e.code() == HTTP_TOO_MANY_REQUESTS) {
-                    throw AnalysisLimitException()
+                    // 서버가 센 실제 횟수를 함께 넘겨 로컬을 맞출 수 있게 한다
+                    throw AnalysisLimitException(parseUsage(e))
                 }
                 e.printStackTrace()
                 null
@@ -77,6 +80,12 @@ class GeminiManager @Inject constructor(
             }
         }
     }
+
+    /** 429 응답 본문에서 사용량을 꺼낸다. 못 읽어도 흐름을 막지 않는다. */
+    private fun parseUsage(e: HttpException): AnalysisUsage? = runCatching {
+        val body = e.response()?.errorBody()?.string()
+        Gson().fromJson(body, AnalysisResponse::class.java)?.usage
+    }.getOrNull()
 
     /**
      * 음식 사진에서 메뉴명을 읽어온다. 실패하면 null.

@@ -5,7 +5,7 @@ const { onRequest } = require("firebase-functions/v2/https");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { LABELS, resolveLang } = require("./labels");
 const { safeParseJson } = require("./gemini");
-const { verifyUser, reservePhoto } = require("./quota");
+const { verifyUser, reservePhoto, refundPhoto } = require("./quota");
 
 /**
  * 음식 사진에서 메뉴를 읽어 입력창에 채울 텍스트로 바꿔준다.
@@ -28,6 +28,10 @@ exports.extractMeal = onRequest({
     const lang = resolveLang(req.body && req.body.language);
     const L = LABELS[lang];
 
+    // 결과를 못 냈을 때 차감분을 되돌리려면 catch에서도 알아야 한다
+    let user = null;
+    let reserved = false;
+
     try {
         const { image, mimeType } = req.body;
 
@@ -37,7 +41,7 @@ exports.extractMeal = onRequest({
 
         // 이 함수는 b24에서 처음 생겼다. 호출하는 앱은 전부 토큰을 보내므로
         // analyzeDiet과 달리 구버전 호환을 걱정할 필요 없이 인증을 요구할 수 있다.
-        const user = await verifyUser(req);
+        user = await verifyUser(req);
         if (!user) {
             return res.status(401).json({ text: "", items: [], error: L.authRequired });
         }
@@ -53,6 +57,7 @@ exports.extractMeal = onRequest({
                 paid: photo.paid
             });
         }
+        reserved = true;
 
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         const model = genAI.getGenerativeModel({
@@ -90,6 +95,12 @@ exports.extractMeal = onRequest({
                 .map(m => ({ name: String(m.name), kcal: Number(m.kcal) || 0 }))
             : [];
 
+        // 음식을 못 알아봤으면 사용자가 얻은 게 없으므로 횟수를 돌려준다.
+        // (시도 횟수는 그대로 남아 악용은 계속 막힌다)
+        if (items.length === 0 && reserved) {
+            await refundPhoto(user.uid);
+        }
+
         // 입력창에 그대로 넣을 수 있는 형태로 합쳐서 준다
         res.status(200).json({
             text: items.map(m => m.name).join(", "),
@@ -97,6 +108,12 @@ exports.extractMeal = onRequest({
         });
     } catch (error) {
         console.error("extractMeal Error:", error.message);
+
+        // 오류로 끝났으면 차감분을 되돌린다
+        if (reserved && user) {
+            await refundPhoto(user.uid);
+        }
+
         res.status(500).json({ text: "", items: [], error: L.error });
     }
 });
