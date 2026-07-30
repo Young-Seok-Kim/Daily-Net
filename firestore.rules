@@ -1,0 +1,78 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    /**
+     * 서버(Cloud Functions)만 쓸 수 있는 필드.
+     *
+     * 사진 인식 횟수는 quota.js가 트랜잭션으로 세는 값이라, 앱이 손댈 수 있으면
+     * 세는 의미가 없다 (0으로 덮으면 하루 상한이 그대로 풀린다).
+     * Admin SDK는 이 규칙을 우회하므로 서버 코드는 영향을 받지 않는다.
+     *
+     * ⚠️ 분석 횟수(todayAnalysisCount / lastAnalyzedDate)와 구독 여부(isSubscribed)도
+     * 같은 이유로 여기 들어가야 하지만, 아직 앱이 직접 쓰고 있어 지금 막으면
+     * 신규 가입과 결제가 실패한다. 앱에서 해당 쓰기를 걷어내고 구버전을 정리한 뒤
+     * 이 목록에 추가할 것. (REQUIRE_AUTH 전환과 같은 시점)
+     */
+    function serverOnlyFields() {
+      return [
+        // 사진 인식 횟수. b24부터 서버만 쓰던 필드라 잠가도 앱이 깨지지 않는다.
+        'todayPhotoCount', 'todayPhotoAttempts', 'lastPhotoDate',
+
+        // 구독 검증 결과. verifySubscription과 RTDN이 쓴다.
+        //
+        // isSubscribed 본체는 아직 못 막지만 이 셋은 지금 막아야 한다.
+        // 안 그러면 나중에 isSubscribed를 잠그기 전에 미리
+        //   isSubscribed: true, subscriptionExpiry: "2099-..."
+        // 를 써둘 수 있고, 잠근 뒤에는 서버의 isSubscribedNow()가 이를 믿어
+        // 영구 프리미엄이 된다. 앱 쓰기가 막혀 되돌릴 수도 없다.
+        'subscriptionExpiry', 'subscriptionState', 'subscriptionCheckedAt'
+      ];
+    }
+
+    // 유저 문서 본체. 서버 전용 필드만 빼고 기존과 동일하게 열려 있다.
+    //
+    // 아래 서브컬렉션 규칙과 분리한 이유:
+    // rules_version 2의 {document=**}는 0개 세그먼트도 매칭해서 유저 문서 자신까지 포함한다.
+    // 규칙은 OR로 평가되므로 한쪽이라도 열려 있으면 통과다. 즉 예전처럼 한 블록으로 두면
+    // 여기서 필드를 막아도 서브컬렉션 규칙이 그대로 허용해 버린다.
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+
+      allow create: if isOwner(userId)
+                    && !request.resource.data.keys().hasAny(serverOnlyFields());
+
+      allow update: if isOwner(userId)
+                    && !request.resource.data.diff(resource.data)
+                          .affectedKeys().hasAny(serverOnlyFields());
+
+      // 회원 탈퇴(withdrawAccount)가 이 문서를 지운다.
+      // 지우면 사진 횟수도 함께 초기화되지만, 프로필 전체를 잃는 대가라
+      // 필드를 직접 0으로 덮는 것과 달리 상시 우회 수단은 못 된다.
+      // 완전히 막으려면 탈퇴를 Cloud Function으로 옮겨야 한다.
+      allow delete: if isOwner(userId);
+    }
+
+    // 하위 서브컬렉션(settlements 등)은 기존과 동일하게 본인만 읽고 쓴다.
+    match /users/{userId}/{sub}/{document=**} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // 분석 횟수 무제한 사용자 (문서 ID = 소문자 이메일, 내용은 비어 있어도 됨)
+    //
+    // 본인 문서만 읽을 수 있으므로 등록된 이메일 목록 전체가 노출되지 않는다.
+    // 추가/삭제는 콘솔에서만 한다 (앱에서는 쓰기 불가).
+    match /unlimited_users/{email} {
+      allow read: if request.auth != null
+                  && request.auth.token.email != null
+                  && request.auth.token.email.lower() == email;
+      allow write: if false;
+    }
+
+  }
+}

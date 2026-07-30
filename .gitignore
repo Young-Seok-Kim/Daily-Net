@@ -60,4 +60,3 @@ app/release/
 *.keystore
 key.properties
 keystore.properties
-/firestore.rules
