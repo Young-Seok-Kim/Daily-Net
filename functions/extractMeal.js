@@ -75,12 +75,15 @@ exports.extractMeal = onRequest({
 
             [지침]
             1. 보이는 메뉴를 각각 항목으로 나누십시오. 반찬처럼 여러 개가 함께 있으면 묶어도 됩니다.
-            2. 각 메뉴의 양을 눈대중으로 추정해 1인분 기준 칼로리를 산출하십시오.
+            2. 각 메뉴의 양을 눈대중으로 추정해 amount에 적고, 그 양을 기준으로 칼로리를 산출하십시오.
+               - 일상에서 쓰는 짧은 표현으로 적으십시오. (예: 1공기, 1인분, 2개, 반 접시, 조금)
+               - 그램(g)은 사용자가 가늠하기 어려우니 피하고, 눈에 보이는 단위를 쓰십시오.
+               - 양을 도저히 가늠할 수 없으면 amount를 빈 문자열("")로 두십시오. 지어내지 마십시오.
             3. 음식이 아니거나 식별할 수 없으면 빈 배열([])을 반환하십시오. 추측으로 지어내지 마십시오.
-            4. 메뉴명은 반드시 ${L.outputLanguage}로 작성하십시오.
+            4. 메뉴명(name)과 양(amount) 모두 반드시 ${L.outputLanguage}로 작성하십시오.
             5. Markdown 없이 순수 JSON만 응답하십시오.
 
-            { "items": [{ "name": "메뉴명", "kcal": 0 }] }
+            { "items": [{ "name": "메뉴명", "amount": "1인분", "kcal": 0 }] }
         `;
 
         const result = await model.generateContent([
@@ -92,7 +95,12 @@ exports.extractMeal = onRequest({
         const items = Array.isArray(data.items)
             ? data.items
                 .filter(m => m && m.name)
-                .map(m => ({ name: String(m.name), kcal: Number(m.kcal) || 0 }))
+                .map(m => ({
+                    name: String(m.name),
+                    // 못 알아본 양은 빈 문자열로 통일한다. 없는 필드와 null을 나눠 다루지 않기 위함.
+                    amount: m.amount ? String(m.amount).trim() : "",
+                    kcal: Number(m.kcal) || 0
+                }))
             : [];
 
         // 음식을 못 알아봤으면 사용자가 얻은 게 없으므로 횟수를 돌려준다.
@@ -101,9 +109,16 @@ exports.extractMeal = onRequest({
             await refundPhoto(user.uid);
         }
 
-        // 입력창에 그대로 넣을 수 있는 형태로 합쳐서 준다
+        // 입력창에 그대로 넣을 수 있는 형태로 합쳐서 준다.
+        //
+        // 양을 함께 넣는 이유는 두 가지다.
+        // 하나는 사용자가 "밥 1공기"를 "밥 반공기"로 고치는 편이 처음부터 타이핑하는 것보다 쉬워서고,
+        // 다른 하나는 이 문자열이 그대로 analyzeDiet으로 넘어가기 때문이다.
+        // "밥"만 있을 때보다 "밥 1공기"가 있을 때 칼로리 추정이 훨씬 정확해진다.
+        //
+        // 앱은 이 text만 보고 입력창을 채우므로 구버전에서도 그대로 적용된다.
         res.status(200).json({
-            text: items.map(m => m.name).join(", "),
+            text: items.map(m => (m.amount ? `${m.name} ${m.amount}` : m.name)).join(", "),
             items: items
         });
     } catch (error) {
