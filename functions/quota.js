@@ -32,8 +32,13 @@ const SUBSCRIBER_PHOTO_LIMIT = 30;
  * 결과를 못 낸 요청은 횟수를 돌려주는데(refundPhoto), 그것만 있으면
  * 음식이 아닌 사진을 계속 보내는 식으로 Gemini 호출을 무한정 끌어낼 수 있다.
  * 정상 사용자는 닿을 일이 없는 높이로 두고 비용 사고만 막는다.
+ *
+ * 반드시 SUBSCRIBER_PHOTO_LIMIT보다 넉넉히 커야 한다.
+ * 예전에는 둘 다 30이라, 시도 횟수가 항상 성공 횟수보다 크거나 같은 탓에
+ * 구독자는 성공 30회에 닿기 전에 시도 30회에서 먼저 막혔다.
+ * 인식에 몇 번 실패하면 환불을 받아도 그만큼 손해라 환불이 사실상 동작하지 않았다.
  */
-const DAILY_PHOTO_ATTEMPT_LIMIT = 30;
+const DAILY_PHOTO_ATTEMPT_LIMIT = 50;
 
 /**
  * 인증 토큰이 없는 요청을 막을지 여부.
