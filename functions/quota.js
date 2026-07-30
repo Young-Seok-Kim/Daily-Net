@@ -105,6 +105,30 @@ async function readUnlimited(tx, db, email) {
 }
 
 /**
+ * 지금 구독 중인지 판단한다. isSubscribed 플래그와 만료 시각을 함께 본다.
+ *
+ * 플래그만 믿으면 RTDN 알림이 유실됐을 때 만료가 영영 반영되지 않는다.
+ * (Pub/Sub 처리 중 오류가 나면 그 알림은 사라진다. 앱을 켜지 않는 사용자는
+ *  verifySubscription도 호출되지 않아 계속 구독자로 남는다.)
+ * 만료 시각을 함께 보면 알림 전달에 의존하지 않고도 스스로 끊어진다.
+ *
+ * 만료 정보가 없는 문서는 예전처럼 플래그만 믿는다.
+ * b24까지 앱이 직접 쓴 기록에는 subscriptionExpiry가 없어서, 여기서 막으면
+ * 기존 구독자가 한꺼번에 구독을 잃는다.
+ */
+function isSubscribedNow(data) {
+    if (data.isSubscribed !== true) return false;
+
+    const expiry = data.subscriptionExpiry;
+    if (!expiry) return true;
+
+    const expiresAt = new Date(expiry).getTime();
+    if (Number.isNaN(expiresAt)) return true; // 값이 깨졌으면 막지 않는다
+
+    return expiresAt > Date.now();
+}
+
+/**
  * 분석 횟수를 먼저 차감(예약)한다.
  *
  * 클라이언트가 세던 것을 서버로 옮긴 이유는, 앱 데이터를 지우거나 문서를 손대면
@@ -126,7 +150,7 @@ async function reserveAnalysis(user) {
         ]);
 
         const data = snap.exists ? snap.data() : {};
-        const subscribed = data.isSubscribed === true;
+        const subscribed = isSubscribedNow(data);
         const exempt = (unlimitedSnap && unlimitedSnap.exists) || subscribed;
 
         // 날짜가 바뀌었으면 0부터 다시 센다
@@ -164,7 +188,7 @@ async function reservePhoto(user) {
 
             const data = snap.exists ? snap.data() : {};
             const unlimited = !!(unlimitedSnap && unlimitedSnap.exists);
-            const subscribed = data.isSubscribed === true;
+            const subscribed = isSubscribedNow(data);
             const sameDay = data.lastPhotoDate === today;
             const used = sameDay ? Number(data.todayPhotoCount) || 0 : 0;
             const attempts = sameDay ? Number(data.todayPhotoAttempts) || 0 : 0;

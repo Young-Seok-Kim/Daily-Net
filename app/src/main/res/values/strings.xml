@@ -132,6 +132,9 @@
     <string name="error_server_analysis">Something went wrong while analyzing on the server.</string>
     <string name="toast_premium_activated">👑 Premium membership is now active!</string>
     <string name="toast_subscription_failed">Could not update subscription: %1$s</string>
+    <!-- Payment went through, but the server could not confirm it yet.
+         Never say the purchase failed here - the money was taken. -->
+    <string name="toast_subscription_verify_pending">Payment complete. Your subscription will be activated shortly.</string>
 
     <!-- Daily record screen -->
     <string name="weight_label">Current weight (kg)</string>

@@ -8,3 +8,7 @@
  */
 exports.analyzeDiet = require("./analyzeDiet").analyzeDiet;
 exports.extractMeal = require("./extractMeal").extractMeal;
+
+// 구독 검증. 앱이 보낸 "나 구독자야"를 믿지 않고 서버가 Play에 직접 확인한다.
+exports.verifySubscription = require("./subscription").verifySubscription;
+exports.playSubscriptionEvent = require("./subscription").playSubscriptionEvent;

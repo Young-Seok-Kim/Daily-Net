@@ -130,6 +130,9 @@
     <string name="error_server_analysis">서버 분석 중 오류가 발생했습니다.</string>
     <string name="toast_premium_activated">👑 프리미엄 멤버십이 활성화되었습니다!</string>
     <string name="toast_subscription_failed">구독 갱신 실패: %1$s</string>
+    <!-- 결제는 끝났는데 서버 확인만 아직인 상태.
+         결제가 실패했다고 말하면 안 된다. 돈은 이미 빠져나갔다. -->
+    <string name="toast_subscription_verify_pending">결제가 완료되었습니다. 구독은 잠시 후 반영됩니다.</string>
 
     <!-- 정산 화면 -->
     <string name="weight_label">현재 체중 (kg)</string>

@@ -13,6 +13,10 @@ object Constants {
     const val EXTRACT_MEAL_URL =
         "https://asia-northeast3-daily-net-95d28.cloudfunctions.net/extractMeal"
 
+    /** 구매 토큰을 검증받는 함수 주소. 구독 여부는 서버가 Play에 물어봐서 정한다. */
+    const val VERIFY_SUBSCRIPTION_URL =
+        "https://asia-northeast3-daily-net-95d28.cloudfunctions.net/verifySubscription"
+
     /** 연결 수립 타임아웃 */
     const val CONNECT_TIMEOUT_MS = 15000L
 

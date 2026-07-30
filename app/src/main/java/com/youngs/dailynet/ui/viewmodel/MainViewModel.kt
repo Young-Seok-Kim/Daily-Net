@@ -67,7 +67,9 @@ class MainViewModel @Inject constructor(
     private val firestore: FirebaseFirestore,
     val billingManager: com.youngs.dailynet.data.network.BillingManager, // 👑 결제 매니저 주입
     private val adminManager: com.youngs.dailynet.util.AdminManager, // 무제한 사용자 판별
-    private val geminiManager: GeminiManager // 음식 사진 → 메뉴 텍스트 변환
+    private val geminiManager: GeminiManager, // 음식 사진 → 메뉴 텍스트 변환
+    // 구독 여부는 앱이 정하지 않고 서버가 Play에 확인해서 정한다
+    private val subscriptionVerifier: com.youngs.dailynet.data.network.SubscriptionVerifier
 ) : BaseViewModel() {
 
     private val UNINITIALIZED = -1 // 오늘 횟수 가져오는데 실패하면 _todayCount를 -1로 셋팅해서 다시 시도하도록 유도함
@@ -167,7 +169,8 @@ class MainViewModel @Inject constructor(
 
     init {
         billingManager.onPurchaseSuccess = { purchase ->
-            updateSubscriptionStatus()
+            // 구매 토큰을 서버에 넘겨 검증받는다. 앱이 구독 여부를 직접 기록하지 않는다.
+            updateSubscriptionStatus(purchase.purchaseToken)
         }
     }
 
@@ -281,9 +284,10 @@ class MainViewModel @Inject constructor(
                     "initialWeight" to weight,
                     "isMale" to isMale,
                     "birthDate" to birthDate,
-                    "todayAnalysisCount" to 0,
-                    "lastAnalyzedDate" to "",
-                    "isSubscribed" to false,
+                    // 분석 횟수와 구독 여부는 서버가 관리한다.
+                    // 여기서 초기값을 쓰면 앱이 그 필드를 쓸 수 있어야 하고, 그러면
+                    // 결제 없이 isSubscribed를 true로 바꾸는 우회가 열린다.
+                    // 값이 없어도 서버는 0으로, 앱은 false로 읽으므로 문제 없다.
                     "profileCompleted" to true
                 )
                 // createdAt은 markSignedUp이 최초 로그인 시각으로 이미 넣어뒀다.
@@ -772,7 +776,8 @@ class MainViewModel @Inject constructor(
         onFailure: (String) -> Unit
     ) {
         viewModelScope.launch {
-            val uid = currentUserId ?: return@launch
+            // 로그인 상태에서만 진행한다 (분석 결과를 저장할 대상이 있어야 한다)
+            currentUserId ?: return@launch
             val currentState = _uiState.value
             _uiState.update { it.copy(analyzing = true) }
 
@@ -798,14 +803,11 @@ class MainViewModel @Inject constructor(
                 val refreshedProfile = userProfileDao.updateAndGetLatest(newCount, today)
                 Log.d("DB_DEBUG", "방금 DB에 저장된 최신 값: ${refreshedProfile?.todayAnalysisCount}")
 
-                // 💡 [성공 시 2] Firestore 유저 문서 갱신.
-                //    서버가 이미 같은 트랜잭션 안에서 기록했으면 다시 쓰지 않는다.
-                //    여기서 덮어쓰면 서버가 센 값이 앱의 계산으로 밀려 우회 여지가 생긴다.
-                if (outcome.usage == null) {
-                    firestore.collection("users").document(uid).update(
-                        mapOf("todayAnalysisCount" to newCount, "lastAnalyzedDate" to today)
-                    ).await()
-                }
+                // 💡 [성공 시 2] Firestore 유저 문서는 건드리지 않는다.
+                //    횟수는 서버가 트랜잭션 안에서 이미 기록했다.
+                //    예전에는 서버가 못 센 경우(구버전 경로)에 앱이 대신 썼는데,
+                //    그 쓰기가 열려 있으면 횟수를 0으로 되돌리는 우회가 가능해 없앴다.
+                //    서버가 못 센 경우는 로컬 값만 올라가고 다음 분석 때 서버 값으로 맞춰진다.
 
                 // 방금 분석한 결과이므로 한 줄씩 스트리밍하도록 표시
                 _shouldStreamResult.value = true
@@ -896,55 +898,57 @@ class MainViewModel @Inject constructor(
         billingManager.launchBillingFlow(activity, PRODUCT_ID_MONTHLY)
     }
 
-    // 👑 결제 성공 시 Firestore 서버와 로컬 DB를 동기화하는 함수
-    private fun updateSubscriptionStatus() = viewModelScope.launch {
-        val uid = currentUserId ?: return@launch
-        try {
-            // 1. 원격 Firestore 업데이트
-            firestore.collection("users").document(uid).update("isSubscribed", true).await()
+    /**
+     * 👑 결제 성공 직후 서버에 구매를 검증받고 로컬 DB를 맞춘다.
+     *
+     * Firestore의 isSubscribed는 더 이상 앱이 쓰지 않는다.
+     * 구매 토큰을 서버에 넘기면 서버가 Play에 직접 확인해서 기록한다.
+     */
+    private fun updateSubscriptionStatus(purchaseToken: String) = viewModelScope.launch {
+        val verified = subscriptionVerifier.verify(purchaseToken)
 
-            // 2. 로컬 Room DB 동기화
-            val profile = userProfileDao.getProfile()
-            if (profile != null) {
-                userProfileDao.insertProfile(profile.copy(isSubscribed = true))
-            }
-            toast(R.string.toast_premium_activated)
-        } catch (e: Exception) {
-            toast(R.string.toast_subscription_failed, e.message.orEmpty())
-        }
-    }
-
-    fun syncSubscriptionStatus() = viewModelScope.launch {
-        val user = auth.currentUser ?: return@launch
-        val uid = user.uid
-        val email = user.email
-
-        // 무제한 사용자는 결제 여부와 무관하게 구독 상태로 취급한다 (프로필 표시용)
-        if (adminManager.isUnlimited(email)) {
-            firestore.collection("users").document(uid).update("isSubscribed", true).await()
-            userProfileDao.getProfile()?.let {
-                userProfileDao.insertProfile(it.copy(isSubscribed = true))
-            }
+        if (verified == null) {
+            // 서버가 판단하지 못했다. 결제 자체는 끝났으므로 실패라고 말하지 않는다.
+            // 다음 실행 때 syncSubscriptionStatus가 다시 확인해서 반영한다.
+            toast(R.string.toast_subscription_verify_pending)
             return@launch
         }
 
-        // 1. 구글 결제 서버에 진짜 구독 중인지 확인
-        billingManager.checkSubscriptionStatus { isSubscribed ->
+        applySubscriptionLocally(verified)
+        if (verified) toast(R.string.toast_premium_activated)
+    }
+
+    /**
+     * 앱을 켤 때 구독 상태를 서버 기준으로 다시 맞춘다.
+     *
+     * 구매 토큰만 앱이 찾아서 넘기고, 유효한지는 서버가 판단한다.
+     */
+    fun syncSubscriptionStatus() = viewModelScope.launch {
+        val user = auth.currentUser ?: return@launch
+
+        // 무제한 사용자는 결제와 무관하게 구독자로 보이게 한다 (화면 표시용).
+        // 서버는 unlimited_users 컬렉션을 따로 보므로 Firestore에 쓸 필요가 없다.
+        if (adminManager.isUnlimited(user.email)) {
+            applySubscriptionLocally(true)
+            return@launch
+        }
+
+        billingManager.queryActivePurchaseToken { result ->
+            // 조회 자체가 실패했으면 아무것도 하지 않는다.
+            // 여기서 "구매 없음"으로 처리하면 정상 구독자의 구독이 서버에서 풀린다.
+            val purchaseToken = result.getOrElse { return@queryActivePurchaseToken }
+
             viewModelScope.launch {
-                // 2. 파이어베이스와 로컬 DB 업데이트
-                firestore.collection("users").document(uid).update("isSubscribed", isSubscribed)
-                    .await()
-
-                val profile = userProfileDao.getProfile()
-                if (profile != null) {
-                    userProfileDao.insertProfile(profile.copy(isSubscribed = isSubscribed))
-                }
-
-                if (!isSubscribed) {
-                    // 구독이 만료된 경우 로그 출력 혹은 알림
-                    println("👑 구독 정보가 만료되었습니다. 로컬 DB 동기화 완료.")
-                }
+                val verified = subscriptionVerifier.verify(purchaseToken) ?: return@launch
+                applySubscriptionLocally(verified)
             }
+        }
+    }
+
+    /** 서버가 판단한 구독 여부를 로컬 Room에 반영한다. 화면은 이 값을 본다. */
+    private suspend fun applySubscriptionLocally(isSubscribed: Boolean) {
+        userProfileDao.getProfile()?.let {
+            userProfileDao.insertProfile(it.copy(isSubscribed = isSubscribed))
         }
     }
 }
