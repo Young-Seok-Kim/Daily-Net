@@ -92,6 +92,9 @@ function resolveActive(subscription) {
     };
 }
 
+// 테스트에서 검증하려고 내보낸다. 이 함수는 서버 안에서만 쓰이며 동작은 그대로다.
+exports.resolveActive = resolveActive;
+
 /** Play에 구매 토큰을 물어본다. */
 async function fetchSubscription(purchaseToken) {
     const res = await androidPublisher.purchases.subscriptionsv2.get({

@@ -263,6 +263,8 @@ module.exports = {
     QUOTA_TIMEOUT_MS,
     withTimeout,
     seoulToday,
+    // 테스트에서 검증하려고 내보낸다. 이 함수는 서버 안에서만 쓰이며 동작은 그대로다.
+    isSubscribedNow,
     verifyUser,
     reserveAnalysis,
     reservePhoto,
