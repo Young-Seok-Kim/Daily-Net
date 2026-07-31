@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 위젯 미리보기 배경. 실제 위젯 배경(TodayWidget.BackgroundColor)과 같은 색이다. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#FFFBFE" />
+    <corners android:radius="16dp" />
+</shape>

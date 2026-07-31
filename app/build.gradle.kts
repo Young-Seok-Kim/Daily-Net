@@ -29,8 +29,8 @@ android {
         minSdk = 26
         targetSdk = 36
         // 변경 내역은 프로젝트 루트의 CHANGELOG.md 참고 (버전 올릴 때 거기에 기록)
-        versionCode = 25
-        versionName = "1.7.7"
+        versionCode = 26
+        versionName = "1.7.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -137,6 +137,9 @@ dependencies {
 
     // 매일 정산 리마인더 알림
     implementation(libs.androidx.work.runtime)
+
+    // 홈 화면 위젯 (오늘의 순칼로리)
+    implementation(libs.androidx.glance.appwidget)
 }
 
 // 2. 파일 맨 하단에 이 블록을 정확하게 넣어주세요.

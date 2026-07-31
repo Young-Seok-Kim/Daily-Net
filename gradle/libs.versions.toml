@@ -27,6 +27,7 @@ okhttp = "4.12.0"
 playBilling = "9.1.0"
 workManager = "2.10.0"
 crashlytics = "3.0.2"
+glance = "1.1.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -87,6 +88,9 @@ coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coi
 
 # 매일 정해진 시각에 정산 리마인더를 띄우기 위한 백그라운드 스케줄러
 androidx-work-runtime = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workManager" }
+
+# 홈 화면 위젯. RemoteViews를 직접 다루지 않고 Compose와 같은 문법으로 쓸 수 있다.
+androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

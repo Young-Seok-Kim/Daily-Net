@@ -27,12 +27,14 @@ import com.youngs.dailynet.util.CrashReporter
 import com.youngs.dailynet.util.DailyReminder
 import com.youngs.dailynet.util.MealPhoto
 import com.youngs.dailynet.ui.view.getWeekIdentifier
+import com.youngs.dailynet.widget.TodayWidget
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -172,6 +174,33 @@ class MainViewModel @Inject constructor(
             // 구매 토큰을 서버에 넘겨 검증받는다. 앱이 구독 여부를 직접 기록하지 않는다.
             updateSubscriptionStatus(purchase.purchaseToken)
         }
+        observeTodayRecordForWidget()
+    }
+
+    /**
+     * 오늘 순칼로리가 바뀌면 홈 화면 위젯을 다시 그린다.
+     *
+     * 갱신 지점을 손으로 골라 심는 방식(분석 완료 / 삭제 / 동기화 …)을 쓰지 않는 이유는,
+     * 한 군데만 빠져도 위젯이 자체 갱신 주기인 30분 동안 옛 값을 보여주기 때문이다.
+     * 실제로 위젯을 붙인 직후 로그인 동기화가 뒤늦게 끝나면서, 정산을 마친 날인데도
+     * "정산 전"이 그대로 남는 문제가 있었다.
+     *
+     * 그래서 지점을 세지 않고 Room을 구독한다. 기록이 어떤 경로로 바뀌든
+     * (분석 · 삭제 · 서버 동기화 · 전체 삭제) 여기로 들어온다.
+     * 값이 실제로 달라졌을 때만 갱신하므로 목록이 갱신될 때마다 위젯을 건드리지는 않는다.
+     */
+    private fun observeTodayRecordForWidget() = viewModelScope.launch {
+        dailyRecordDao.getAllDailyRecordRoomFlow()
+            .map { records ->
+                // [today]는 ViewModel이 만들어질 때 고정되므로 여기서 다시 구한다.
+                // 앱을 켜둔 채 자정을 넘겨도 위젯은 그날 값을 따라가야 한다.
+                val currentDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                records.firstOrNull { it.date == currentDate }
+                    ?.takeIf { it.finalized }
+                    ?.netCalories
+            }
+            .distinctUntilChanged()
+            .collect { TodayWidget.refresh(context) }
     }
 
     val mainListState = LazyListState()
@@ -699,6 +728,9 @@ class MainViewModel @Inject constructor(
                     // 예: settlementDao.deleteAll()이 구현되어 있다면 사용, 없다면 아래 쿼리 기반 메서드 추가 필요
                     dailyRecordDao.clearAllDailyRecord()
                     userProfileDao.clearProfile()
+                    // 로그아웃과 같은 이유로 직접 부른다.
+                    // 탈퇴한 계정의 기록이 홈 화면에 남는 것은 관찰에 맡길 문제가 아니다.
+                    TodayWidget.refresh(context)
 
                     // 3. Firebase Authentication 유저 계정 탈퇴 처리
                     currentUser.delete().await()
@@ -820,6 +852,7 @@ class MainViewModel @Inject constructor(
 
                 // 오늘 정산을 끝냈으니 저녁 리마인더는 울리지 않아야 한다
                 DailyReminder.markRecorded(context, analyzedData.date)
+                // 홈 화면 위젯은 observeTodayRecordForWidget()이 Room 변경을 보고 알아서 갱신한다
 
                 onSuccess(newCount)
             } catch (e: AnalysisLimitException) {
@@ -881,6 +914,11 @@ class MainViewModel @Inject constructor(
                 withContext(Dispatchers.IO) {
                     repository.clearAllLocalData()
                 }
+                // 여기만 observeTodayRecordForWidget()에 맡기지 않고 직접 부른다.
+                // 로그아웃 직후에는 화면이 넘어가면서 ViewModel이 정리될 수 있어,
+                // Room 변경 통지가 도착하기 전에 관찰이 끊기면 이전 사용자의 순칼로리가
+                // 홈 화면에 그대로 남는다. 남의 기록이 보이는 쪽은 감수할 수 없다.
+                TodayWidget.refresh(context)
                 _isLoggingOut.value = false // 로딩 종료
                 onResult(true)
 

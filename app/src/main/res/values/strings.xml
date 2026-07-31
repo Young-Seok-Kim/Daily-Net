@@ -207,4 +207,13 @@
     <string name="withdraw_agree">I have read the above and understand this cannot be undone.</string>
     <string name="withdraw_proceed">Delete my account</string>
     <string name="withdraw_processing">Deleting your account…</string>
+
+    <!-- Home screen widget -->
+    <string name="widget_label">Today\'s net calories</string>
+    <string name="widget_description">See today\'s net calories at a glance, and tap to log your day.</string>
+    <string name="widget_kcal_today">kcal today</string>
+    <!-- 1x1 크기에서 쓰는 짧은 단위. "kcal today"는 한 칸에 들어가지 않는다. -->
+    <string name="widget_kcal_short">kcal</string>
+    <string name="widget_not_recorded">Log today</string>
+    <string name="widget_not_recorded_hint">Not logged yet</string>
 </resources>

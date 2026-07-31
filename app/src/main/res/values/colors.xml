@@ -7,4 +7,21 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!--
+      홈 화면 위젯 색 (라이트). 다크는 values-night/colors.xml 에 같은 이름으로 있다.
+
+      Glance 1.1.1에는 day/night를 코드로 지정하는 ColorProvider가 없어서
+      리소스 한정자로 처리한다. 위젯이 그려질 때 시스템 테마에 맞는 쪽이 선택된다.
+    -->
+    <color name="widget_background">#FFFBFE</color>
+    <color name="widget_sub_text">#6E6A75</color>
+    <!-- 정산 전 안내에 쓰는 강조색. 앱 테마의 primary(Purple40)와 같다. -->
+    <color name="widget_accent">#6650A4</color>
+    <!--
+      순칼로리 색. 정산 화면(DailyRecordScreen)의 기준과 같아야 한다.
+      한쪽만 바꾸면 위젯과 화면이 같은 날을 다른 색으로 보여준다.
+    -->
+    <color name="widget_deficit">#2E7D32</color>
+    <color name="widget_surplus">#C62828</color>
 </resources>

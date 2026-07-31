@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  오늘의 순칼로리 위젯 정의.
+
+  기본 크기는 두 칸(2x1)이다. 셀 계산식은 70*n - 30 이라 2칸이면 110dp, 1칸이면 40dp.
+
+  한 칸으로 두면 폰의 좁은 셀에서 "정산하기"조차 다 안 보인다.
+  (태블릿은 셀이 넓어 괜찮지만 폰이 기준이어야 한다)
+  대신 minResize는 한 칸까지 열어 둬서, 원하는 사람은 줄일 수 있다.
+  폭에 따라 레이아웃이 바뀌는 처리는 TodayWidget의 SizeMode.Responsive가 한다.
+  targetCellWidth/Height는 안드로이드 12부터 쓰이며, 그 이전 기기는 min* 값으로 배치된다.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_description"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:minWidth="110dp"
+    android:minHeight="40dp"
+    android:minResizeWidth="40dp"
+    android:minResizeHeight="40dp"
+    android:previewLayout="@layout/widget_today_preview"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="2"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  홈 화면 위젯 색 (다크). 이름은 values/colors.xml 과 반드시 같아야 한다.
+
+  어두운 배경에서는 같은 색이라도 채도가 낮으면 묻히므로,
+  적자/흑자 색을 라이트보다 한 단계 밝은 쪽으로 쓴다.
+-->
+<resources>
+    <color name="widget_background">#1C1B1F</color>
+    <color name="widget_sub_text">#B5B0BC</color>
+    <color name="widget_accent">#D0BCFF</color>
+    <color name="widget_deficit">#4CAF50</color>
+    <color name="widget_surplus">#F44336</color>
+</resources>

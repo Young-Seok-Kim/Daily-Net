@@ -1,6 +1,7 @@
 package com.youngs.dailynet.ui
 
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -55,8 +56,24 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var appUpdateChecker: AppUpdateChecker
 
+    /**
+     * 밖에서(위젯 등) 특정 화면을 지정해 들어온 경우 그 화면 이름.
+     *
+     * 값을 한 번 쓰고 비우기 위해 상태로 둔다. 그러지 않으면 화면을 옮긴 뒤에도
+     * 재구성될 때마다 다시 그 화면으로 끌려간다.
+     */
+    private var pendingRoute by mutableStateOf<String?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // 앱이 이미 떠 있는 상태에서 위젯을 누르면 onCreate가 아니라 여기로 들어온다
+        setIntent(intent)
+        pendingRoute = intent.getStringExtra(EXTRA_ROUTE)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingRoute = intent?.getStringExtra(EXTRA_ROUTE)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         enableEdgeToEdge()
         setContent {
@@ -92,6 +109,19 @@ class MainActivity : ComponentActivity() {
                     if (user == null) {
                         current = ScreenEntry("login")
                     }
+                }
+
+                // 위젯을 눌러 들어온 경우 지정된 화면으로 한 번만 이동한다.
+                //
+                // 로그인 전이면 아직 옮기지 않는다. 로그인 화면이 먼저 떠야 하고,
+                // pendingRoute를 비우지 않은 채 두면 로그인을 마친 뒤(user가 채워지면)
+                // 이 블록이 다시 돌아 원래 가려던 화면으로 이어진다.
+                LaunchedEffect(pendingRoute, user) {
+                    val route = pendingRoute ?: return@LaunchedEffect
+                    if (user == null) return@LaunchedEffect
+
+                    if (current.screen != route) navigateTo(ScreenEntry(route))
+                    pendingRoute = null
                 }
 
                 // 서버와 형식이 맞지 않는 구버전을 걸러내기 위한 업데이트 안내.
@@ -219,5 +249,13 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    companion object {
+        /** 밖에서 열 화면을 지정할 때 쓰는 인텐트 키. 값은 [ScreenEntry.screen]과 같은 이름이다. */
+        const val EXTRA_ROUTE = "com.youngs.dailynet.extra.ROUTE"
+
+        /** 오늘 정산 입력 화면 */
+        const val ROUTE_INPUT = "input"
     }
 }

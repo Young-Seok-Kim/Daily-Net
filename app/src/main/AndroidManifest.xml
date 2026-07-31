@@ -63,6 +63,22 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!--
+          홈 화면 위젯 (오늘의 순칼로리).
+          시스템이 명시적 컴포넌트로 브로드캐스트를 보내므로 exported는 false로 둔다.
+        -->
+        <receiver
+            android:name=".widget.TodayWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/today_widget_info" />
+        </receiver>
+
         <!-- Health Connect 권한 사용 이유 화면 (Android 14 이상) -->
         <activity-alias
             android:name="ViewPermissionUsageActivity"
