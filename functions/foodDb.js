@@ -40,7 +40,7 @@ const NAME_PARAM = process.env.FOOD_API_NAME_PARAM || "FOOD_NM_KR";
  * 라떼가 검은콩 라떼로 붙던 문제를 고쳤는데 캐시 때문에 그대로였다.
  * 규칙을 바꿀 때마다 이 값을 올릴 것.
  */
-const RULES_VERSION = "v2";
+const RULES_VERSION = "v3";
 
 /**
  * 한 번에 받아올 후보 수.
@@ -52,12 +52,30 @@ const RULES_VERSION = "v2";
 const CANDIDATE_COUNT = 15;
 
 /**
+ * 검색어로 삼을 낱말 수의 상한.
+ *
+ * 이걸 넘는 이름은 아예 조회하지 않는다. 식약처 DB의 식품명은 짧은데
+ * 모델은 "베러핏 고단백 저당 쉐이크 옛날커피맛" 같은 긴 이름을 내놓는다.
+ * 찾을 가망이 없으면서 재조회까지 타서 **7초를 쓰고 실패**한다.
+ *
+ * 3으로 뒀더니 "파워에이드 마운틴 블라스트"가 통과해 매 정산 3초를 먹었다.
+ * 2면 "농심 자갈치"(브랜드+이름)는 살고 맛 이름까지 붙은 것은 걸러진다.
+ */
+const MAX_QUERY_WORDS = 2;
+
+/**
  * 개별 조회 제한 시간.
  *
  * 실측하니 이 API가 느리다 — 행 수와 거의 무관하게 **1~4초**가 걸린다.
- * 2.5초로 두면 절반 넘게 타임아웃으로 버려져 조회한 보람이 없다.
+ *
+ * ⚠️ 반드시 [TOTAL_BUDGET_MS]보다 **뚜렷하게 짧아야** 한다.
+ * 둘이 같으면 개별 타임아웃이 잡히기 전에 전체 예산이 먼저 잘라버려,
+ * 실패를 캐시할 틈이 없어진다. 그러면 같은 조회를 매 정산마다 다시 하며 계속 시간만 쓴다.
+ *
+ * 2초로 조였더니 신라면·코카콜라처럼 **찾을 수 있는 것까지 잘려나갔다.**
+ * 한 번 찾아두면 그 뒤로는 캐시라 60ms면 끝나므로, 첫 조회에는 여유를 주는 편이 낫다.
  */
-const TIMEOUT_MS = 3800;
+const TIMEOUT_MS = 2800;
 
 /**
  * 조회 단계 전체 제한 시간.
@@ -174,6 +192,18 @@ const SINGLE_PACK_MAX_G = 500;
  * expireAt 기준 TTL 정책을 켜야** 실제로 삭제된다. (README 참고)
  */
 const CACHE_TTL_DAYS = 90;
+
+/**
+ * 조회를 끝내지 못했을 때 다시 시도하기까지 기다리는 시간(시간).
+ *
+ * "DB에 없다"와 달리 **"지금은 안 된다"** 이므로 90일씩 묶어두면 안 된다.
+ * 그렇다고 안 막아두면 매 정산마다 같은 조회를 다시 시도하며 시간만 쓴다.
+ *
+ * 24시간으로 뒀더니 너무 길었다. 캐시를 비운 직후 여러 개를 한꺼번에 조회하다
+ * **우리 예산에 잘린 것**까지 하루 종일 묶여, 멀쩡히 찾을 수 있는 신라면·코카콜라가
+ * 보정되지 않았다. 목적은 "매번 재시도하지 않는 것"이지 "하루 포기"가 아니다.
+ */
+const FAILURE_RETRY_HOURS = 1;
 
 /**
  * 종류를 가리키는 말 → DB 식품대분류(FOOD_CAT1_NM)에서 찾을 조각.
@@ -457,6 +487,12 @@ function portionFactor(row) {
     // 아래로는 1g짜리(방울토마토 한 알 단위로 적힌 행), 위로는 업소용 대용량이 걸린다.
     if (!portion || portion < MIN_PORTION_G || portion > MAX_PORTION_G) return null;
 
+    // 먹는 양이 기준량과 **똑같으면** 환산한 게 아니다.
+    // 그런 행은 실제 1인분·포장 정보가 없어서 기준량(대개 100g)이 그대로 적힌 것이다.
+    // 제육볶음이 그랬다 — 100g치 151kcal이 1인분으로 들어가 AI 추정(550)을 절반 이하로 깎았다.
+    // 100g들이 제품이 실제로 있긴 하지만 드물고, 틀리는 쪽의 손해가 훨씬 크다.
+    if (Math.abs(portion - basis) < 0.5) return null;
+
     return { factor: portion / basis, portion, source };
 }
 
@@ -703,6 +739,12 @@ async function lookupFood(name, apiKey) {
     // 한 글자짜리는 무엇과도 비슷해 보인다. 검색 자체를 하지 않는다.
     if (normalized.length < 2) return null;
 
+    // 낱말이 많은 서술형 이름은 **찾을 가망이 없다.**
+    // "베러핏 고단백 저당 쉐이크 옛날커피맛" 같은 건 식약처 DB의 식품명과 형태가 다르다.
+    // 그런데 이런 이름일수록 첫 검색이 0건이라 재조회까지 타서 7초 넘게 쓰고 실패한다.
+    // 실제로 보정에 성공한 건 전부 짧은 이름이었다 (코카콜라·새우깡·김치찌개·신라면).
+    if (normalized.split(" ").filter(Boolean).length > MAX_QUERY_WORDS) return null;
+
     const db = getFirestore();
     const ref = db.collection("foodCache").doc(cacheKey(name));
 
@@ -724,20 +766,39 @@ async function lookupFood(name, apiKey) {
     try {
         let rows = await fetchCandidates(core, apiKey);
         if (rows) food = pickBest(rows, core, hint);
+        const firstWasEmpty = !rows || rows.length === 0;
 
         // DB의 식품명에는 브랜드가 없다. 이름은 "아메리카노"고 업체는 따로 들고 있다.
         // 그래서 "스타벅스 아메리카노"로 검색하면 **0건**이 나온다.
         // 사진에서 브랜드를 읽어 붙이게 해놓고 그것 때문에 못 찾으면 앞뒤가 안 맞으므로,
         // 첫 낱말을 떼고 한 번만 더 찾는다. (맞았을 때는 재조회하지 않아 지연이 늘지 않는다)
+        // 재조회는 **첫 검색이 0건일 때만** 한다.
+        // 결과가 왔는데 기준을 못 넘은 거라면 이름을 줄여 다시 찾아도 대개 마찬가지고,
+        // 그 한 번이 3.8초라 예산을 통째로 먹는다.
         const words = core.split(" ").filter(Boolean);
-        if (!food && words.length > 1) {
+        if (!food && firstWasEmpty && words.length > 1) {
             rows = await fetchCandidates(words.slice(1).join(" "), apiKey);
             // 점수는 원래 검색어로 잰다. 업체명까지 봐야 브랜드가 맞는지 확인된다.
             if (rows) food = pickBest(rows, core, hint);
         }
     } catch (e) {
-        // 타임아웃·네트워크 오류. 캐시에 남기지 않는다 (다음엔 될 수도 있다)
+        // 타임아웃·네트워크 오류.
+        //
+        // 예전에는 아무것도 안 남기고 나갔는데, 그러면 **매번 다시 시도하며 매번 시간만 쓴다.**
+        // 실제로 겪었다 — 조회가 예산에 잘려 캐시에 못 들어가니, 같은 메뉴를 정산할 때마다
+        // 3초씩 내고 계속 실패했다. 끝을 못 보는 조회일수록 더 자주 반복되는 셈이었다.
+        //
+        // 그래서 **짧은 기한**으로 막아둔다. 하루 뒤 만료되면 다시 시도한다.
+        // "없다"가 아니라 "지금은 안 된다"라서 90일씩 묶어두면 안 된다.
         console.warn(`식약처 조회 실패 [${core}]:`, e.message);
+        try {
+            await ref.set({
+                miss: true,
+                transient: true,   // 진짜 없는 게 아니라 조회를 못 끝냈다는 표시
+                updatedAt: FieldValue.serverTimestamp(),
+                expireAt: new Date(Date.now() + FAILURE_RETRY_HOURS * 60 * 60 * 1000)
+            });
+        } catch (_) { /* 캐시에 못 써도 분석은 계속된다 */ }
         return null;
     }
 
@@ -800,10 +861,13 @@ async function lookupMany(names, apiKey) {
  *
  * 원래 이 가드는 **개수 문제**를 막으려고 뒀는데, 이제 [quantityOf]가 개수를 직접 읽으므로
  * 그 역할은 끝났다. 지금 남은 역할은 "명백히 다른 것이 붙었을 때"만 막는 것이라 넉넉히 잡는다.
- * (포장 크기가 여러 가지인 제품에서 다른 크기 행이 걸리는 정도는 통과시킨다 —
- *  콜라 250 vs 500mL의 차이보다, 아예 안 고쳐서 모델 기억을 그대로 쓰는 쪽이 더 나쁘다)
+ *
+ * 4로 뒀더니 **새우깡 3봉지(AI 155 vs DB 1395, 9배)가 걸려 그대로 통과**했다.
+ * AI가 크게 틀린 경우일수록 가드에 막혀 안 고쳐지는, 앞뒤가 안 맞는 동작이었다.
+ * 이름 매칭은 이미 [MIN_SCORE] 0.95로 엄격하고 환산 근거도 위에서 걸러내므로,
+ * 여기서까지 좁게 잡을 이유가 없다.
  */
-const MAX_RATIO = 4.0;
+const MAX_RATIO = 10.0;
 
 /**
  * 분석 결과의 칼로리를 DB 값으로 바로잡는다. (순수 함수 — 네트워크를 타지 않는다)

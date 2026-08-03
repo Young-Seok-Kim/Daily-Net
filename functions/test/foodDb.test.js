@@ -370,8 +370,9 @@ test("correctWithFoodDb - 칼로리를 바로잡고 탄단지를 따라 맞춘�
 
     await t.test("아주 동떨어진 값은 여전히 손대지 않는다", () => {
         const data = build();
-        // 모델 200 vs DB 20 → 10배. 엉뚱한 게 붙은 것으로 본다
-        const found = new Map([["코카콜라", { name: "코카콜라", kcal: 20 }]]);
+        // 모델 200 vs DB 10 → 20배. 이쯤 되면 엉뚱한 게 붙은 것으로 본다.
+        // (9배쯤은 통과시킨다 — 새우깡 3봉지에서 AI가 그만큼 틀린 적이 있다)
+        const found = new Map([["코카콜라", { name: "코카콜라", kcal: 10 }]]);
 
         const applied = correctWithFoodDb(data, found);
 
