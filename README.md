@@ -56,6 +56,7 @@
 | **Database** | Room (Local), Firebase Firestore (Remote)    |
 | **Backend** | Firebase Functions (Node.js), App Check, Remote Config |
 | **AI Engine** | Google Gemini 2.5 Flash (텍스트 + 이미지)      |
+| **영양 데이터** | 식품의약품안전처 식품영양성분 DB (OpenAPI I2790) |
 | **결제 / 헬스** | Play Billing, Health Connect                |
 | **운영** | Crashlytics, WorkManager                          |
 | **Library** | Coroutines, Flow, Retrofit2, Gson, Coil      |
@@ -92,7 +93,8 @@
        ▼
 [ Cloud Functions ]  analyzeDiet · extractMeal · quota
        ├─▶ [ Gemini 2.5 Flash ]  텍스트 + 이미지
-       └─▶ [ Firestore ]  기록 · 프로필 · 사용량
+       ├─▶ [ 식약처 식품영양성분 DB ]  브랜드 제품 칼로리 보정
+       └─▶ [ Firestore ]  기록 · 프로필 · 사용량 · 영양 캐시
 
 앱은 AI API Key를 갖지 않는다. 모든 호출은 서버를 거치고, 사용량도 서버가 센다.
 ```
@@ -111,6 +113,43 @@
 ### 3. AI Engine (Gemini)
 * **역할:** 서버(Functions)로부터 전달받은 가공 데이터를 바탕으로 정밀 분석 결과를 생성합니다.
 * **특징:** Mifflin-St Jeor 공식을 적용한 정교한 BMR 산출 및 사용자 맞춤형 영양 조언을 피드백으로 제공합니다.
+
+### 4. 영양 데이터 (식약처 식품영양성분 DB)
+
+칼로리는 원래 **모델의 기억**에서 나왔습니다. 브랜드 가공식품처럼 정답이 정해진 것까지
+추정으로 답하고 있었기에, 실제 DB를 조회해 바로잡는 단계를 넣었습니다.
+
+```
+사용자 입력 "스타벅스 아메리카노 톨 1잔, 베이글"
+   │
+   ├─ Gemini 분석 ──▶ 메뉴 단위로 분리 + 칼로리 추정
+   │                   (문장 그대로는 DB를 검색할 수 없어 모델이 먼저 갈라준다)
+   │
+   └─ 식약처 조회 ──▶ 이름이 확실히 맞는 것만 DB 값으로 교체
+                       └─ Firestore `foodCache`에 저장 (같은 메뉴 재조회 없음)
+```
+
+지켜야 할 원칙이 둘 있습니다. 둘 다 **"애매하면 손대지 않는다"** 입니다.
+
+* **이름이 확실할 때만 교체합니다** (`MIN_SCORE`). 잘못 붙인 제품의 정확한 숫자는
+  대충 맞는 추정값보다 나쁩니다. 사용자는 그 숫자가 DB에서 왔다는 걸 모르므로 틀려도 의심하지 않습니다.
+* **모델 추정과 2배 넘게 벌어지면 교체하지 않습니다** (`MAX_RATIO`). DB는 1회 제공량 기준인데
+  사용자는 "3캔"을 먹었을 수 있습니다. 그 경우 모델 쪽이 맞습니다.
+
+`FOOD_API_KEY`가 없거나 조회에 실패하면 **아무것도 바뀌지 않고** 기존 추정값이 그대로 나갑니다.
+영양 DB는 정확도를 올리는 보조 수단이지 분석의 전제 조건이 아닙니다.
+
+데이터 출처는 **공공데이터포털의 [식품의약품안전처_식품영양성분DB정보](https://www.data.go.kr/data/15127578/openapi.do)** 입니다.
+식품안전나라(foodsafetykorea)에도 같은 데이터가 있지만 남은 서비스가 전부 파일 다운로드 유형이라
+OpenAPI 이용신청 자체가 되지 않습니다. 실시간 조회가 가능한 경로는 포털뿐입니다.
+
+> ⚠️ 성분을 `AMT_NUM1`, `AMT_NUM2` … 처럼 **번호로만** 주는데 **데이터셋마다 순서가 다릅니다.**
+> (열량·탄수화물·단백질·지방 순인 표가 있고, 열량·수분·단백질·지방·회분·탄수화물 순인 표가 있습니다)
+> 틀린 자리를 읽어도 숫자는 그럴듯해 보여 배포 후에는 못 잡습니다.
+> **키를 발급받은 직후 `functions/scripts/probeFoodDb.js`를 돌려 확인하십시오.**
+> 이 스크립트는 엔드포인트 후보를 자동으로 찔러보고 동작하는 주소와 응답 필드를 알려줍니다.
+>
+> 마지막 방어선으로 값이 상식 밖이면(열량 2,000kcal 초과, 탄단지 300g 초과) 보정을 포기합니다.
 
 ---
 
@@ -158,9 +197,25 @@ keytool -printcert -jarfile <생성된_AAB_경로> | grep SHA256
 
 ### 3. 서버(Cloud Functions) 배포
 
+서버가 쓰는 키는 소스가 아니라 **Firebase Secret Manager**에 둡니다.
+
+| 시크릿 | 용도 | 없으면 |
+|---|---|---|
+| `GEMINI_API_KEY` | Gemini 호출 | 분석·사진 인식이 동작하지 않음 |
+| `FOOD_API_KEY` | 식약처 식품영양성분 DB 조회 | 조회를 건너뛰고 모델 추정값을 그대로 씀 (분석은 정상) |
+
 ```bash
+# 값을 물어보면 발급받은 키를 붙여넣습니다 (입력값은 화면에 남지 않습니다)
+firebase functions:secrets:set FOOD_API_KEY
+
+# 등록 확인
+firebase functions:secrets:access FOOD_API_KEY
+
 firebase deploy --only functions
 ```
+
+> 시크릿을 새로 넣거나 바꾸면 **함수를 다시 배포해야** 반영됩니다.
+> 실행 중인 인스턴스는 기존 값을 들고 있습니다.
 
 `functions/` 는 역할별로 나뉘어 있고, `index.js` 는 배포 대상만 모아 내보냅니다.
 
@@ -172,6 +227,8 @@ firebase deploy --only functions
 | `quota.js` | 인증, 하루 사용 횟수 제한 |
 | `labels.js` | 리포트 언어별 고정 문구 |
 | `gemini.js` | Gemini 응답 JSON 파싱·재시도 |
+| `foodDb.js` | 식약처 영양 DB 조회·캐시·칼로리 보정 |
+| `scripts/probeFoodDb.js` | 식약처 응답 필드 확인용 (배포 대상 아님) |
 
 함수 하나만 고쳤다면 그것만 올릴 수 있습니다.
 

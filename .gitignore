@@ -28,6 +28,16 @@ local.properties
 functions/node_modules/
 functions/lib/
 functions/npm-debug.log*
+
+# 서버 키는 Firebase Secret Manager에 두고 코드에는 두지 않는다.
+# 다만 로컬 테스트용으로 .env를 만드는 순간 커밋될 수 있어 미리 막아둔다.
+# (GEMINI_API_KEY / FOOD_API_KEY 등)
+.env
+.env.*
+!.env.example
+functions/.env
+functions/.env.*
+functions/.secret.local
 functions/firebase-debug.log*
 .firebase/
 
