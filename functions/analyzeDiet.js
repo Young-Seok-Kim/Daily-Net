@@ -7,6 +7,12 @@ const { LABELS, resolveLang } = require("./labels");
 const { generateAndParse } = require("./gemini");
 const { recommendedIntake } = require("./nutrition");
 const {
+    lookupMany,
+    correctWithFoodDb,
+    collectMealNames,
+    mergeDuplicateItems
+} = require("./foodDb");
+const {
     REQUIRE_AUTH,
     QUOTA_TIMEOUT_MS,
     withTimeout,
@@ -18,7 +24,8 @@ const {
 exports.analyzeDiet = onRequest({
     region: "asia-northeast3",
     cors: true,
-    secrets: ["GEMINI_API_KEY"],
+    // FOOD_API_KEY는 없어도 동작한다 (조회를 건너뛰고 모델 추정값을 그대로 쓴다)
+    secrets: ["GEMINI_API_KEY", "FOOD_API_KEY"],
     // [보안] 인증된 앱의 요청만 허용 (App Check 필수 활성화 필요)
     enforceAppCheck: true,
     timeoutSeconds: 120,
@@ -124,6 +131,13 @@ const prompt = `
                - 모든 음식은 식약처 표준 영양 성분 DB를 기준으로 합니다.
                - 양이 명시되지 않았다면 성인 1인분(표준 중량)을 기준으로 하되, 터무니없는 고칼로리 산출을 절대 금지합니다.
                - 메뉴명이 아닌 식당이름을 명시했을경우 해당 식당에서 사용자가 먹은 메뉴를 예상하여 예상한 메뉴를 기준으로 칼로리를 계산하십시오.
+               - **무언가에 타거나 섞어 먹었다고 적었으면, 섞은 재료도 반드시 별도 항목으로 나누어 계산하십시오.**
+                 ("~에 타서", "~에 말아", "~와 섞어", "~를 넣고", "~에 부어" 등)
+                 - 예: "프로틴을 우유에 타먹음" → [프로틴 1스쿱] + [우유 200ml] **두 항목**
+                 - 예: "밥을 국에 말아먹음" → [밥 1공기] + [국 1그릇] **두 항목**
+                 - 섞은 재료의 양이 없으면 통상적인 양으로 가정하십시오. (우유 200ml, 물 0kcal 등)
+                 - **물처럼 열량이 없는 것만 빼고, 나머지는 절대 빠뜨리지 마십시오.**
+                   타 먹는 재료(우유·두유·요거트)는 그 자체로 100kcal이 넘습니다.
                - 사용자가 비고 혹은 운동에 도보를 명시했을경우 사용자의 키, 몸무게에 따른 소모 칼로리를에 추가하여 계산하십시오.
                - 걸음 수(${stepCount}보)가 0보다 크면, 사용자의 키/몸무게 기준 걸음당 소모 칼로리를 추정해 운동 소모 칼로리(calories.exercise)에 합산하십시오. (도보가 이미 운동/비고에 명시된 경우 중복 계산하지 않도록 주의)
             2. **단계별 사고(Chain of Thought)**: 내부적으로 [메뉴명 -> 예상 중량(g) -> 100g당 칼로리 -> 최종 칼로리] 단계를 거쳐 계산한 뒤 결과값만 JSON에 담으세요.
@@ -169,6 +183,28 @@ const prompt = `
         const tPrompt = Date.now();
         const data = await generateAndParse(model, prompt);
         const tGemini = Date.now();
+
+        // 브랜드 가공식품처럼 정답이 정해진 것은 모델 기억 대신 식약처 DB 값으로 바로잡는다.
+        //
+        // 모델을 먼저 돌리는 이유: 사용자가 적는 건 "스타벅스 아메리카노 톨 1잔"처럼 문장이라
+        // 그대로는 DB를 검색할 수 없다. 모델이 메뉴 단위로 갈라준 뒤라야 이름으로 찾을 수 있다.
+        //
+        // 키가 없거나 조회가 실패하면 아무것도 안 바뀐다 — 지금까지의 추정값 그대로 나간다.
+        const foodApiKey = process.env.FOOD_API_KEY;
+        let corrected = [];
+        try {
+            const found = await lookupMany(collectMealNames(data), foodApiKey);
+            corrected = correctWithFoodDb(data, found);
+        } catch (e) {
+            // 영양 DB는 정확도를 올리는 보조 수단이다. 여기서 분석 전체를 실패시키면 안 된다.
+            console.warn("식약처 보정 건너뜀:", e.message);
+        }
+        const tFoodDb = Date.now();
+
+        // 모델이 "코카콜라 2개"를 같은 이름 두 줄로 쪼개 놓는 일이 잦다.
+        // 합계는 맞지만 리포트에 같은 메뉴가 두 번 뜨므로 한 줄로 합친다.
+        // (보정 뒤에 합쳐야 각 줄이 DB 값으로 바뀐 뒤의 합이 된다)
+        const mergedMeals = mergeDuplicateItems(data);
 
         // 숫자/포맷 안전 헬퍼 (필드 누락 시에도 예외가 나지 않도록)
         const n = (v) => Number(v) || 0;
@@ -310,8 +346,39 @@ ${data.evaluation}
 
         console.log(
             `[timing] auth=${tAuth - t0}ms quota=${tQuota - tAuth}ms ` +
-            `prep=${tPrompt - tQuota}ms gemini=${tGemini - tPrompt}ms total=${Date.now() - t0}ms`
+            `prep=${tPrompt - tQuota}ms gemini=${tGemini - tPrompt}ms ` +
+            `fooddb=${tFoodDb - tGemini}ms total=${Date.now() - t0}ms`
         );
+        if (corrected.length > 0) {
+            // 어떤 이름이 어떤 제품으로 붙어 얼마나 바뀌었는지. 오매칭을 잡을 유일한 단서다.
+            console.log("[fooddb]", JSON.stringify(corrected));
+        }
+        if (mergedMeals.length > 0) {
+            console.log("[merge] 같은 메뉴를 합친 끼니:", mergedMeals.join(","));
+        }
+
+        // 모델이 끼니를 어떤 항목으로 쪼갰는지.
+        //
+        // [fooddb]는 **DB로 고친 것만** 남기기 때문에, 항목이 아예 빠진 문제는 거기서 안 보인다.
+        // 예를 들어 "프로틴을 우유에 타먹음"에서 우유가 통째로 누락돼도
+        // 우유는 식약처 DB에 없어서 [fooddb]에 찍힐 일이 없다 — 로그만 보면 멀쩡해 보인다.
+        // 무엇이 들어갔는지를 알아야 무엇이 빠졌는지를 알 수 있다.
+        // 끼니 이름은 L(언어별 라벨)을 쓰지 않는다. 사용자 언어에 따라 로그 모양이 바뀌면
+        // 나중에 찾아보기 어렵고, 이모지까지 섞여 읽기 나쁘다. 로그는 늘 같은 말로 남긴다.
+        const MEAL_LOG_NAMES = { breakfast: "아침", lunch: "점심", dinner: "저녁", snack: "간식" };
+        const mealLog = Object.entries(MEAL_LOG_NAMES)
+            .map(([meal, label]) => {
+                const items = data.meals?.[meal];
+                if (!Array.isArray(items) || items.length === 0) return null;
+                const listed = items
+                    .map((m) => `${m.name || "?"} ${n(m.kcal)}${m.source === "mfds" ? "*" : ""}`)
+                    .join(" / ");
+                return `${label}: ${listed}`;
+            })
+            .filter(Boolean)
+            .join(" | ");
+        // *는 식약처 DB 값으로 바로잡은 항목이라는 표시
+        if (mealLog) console.log("[meals]", mealLog);
 
         res.status(200).json({
             net_calories: netCalories,
