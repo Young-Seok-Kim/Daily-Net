@@ -24,6 +24,7 @@ import com.youngs.dailynet.ui.theme.DailyNetTheme
 import com.youngs.dailynet.ui.view.AppUpdateDialog
 import com.youngs.dailynet.ui.view.LoginScreen
 import com.youngs.dailynet.ui.view.MainScreen
+import com.youngs.dailynet.ui.view.MonthReportScreen
 import com.youngs.dailynet.ui.view.DailyRecordScreen
 import com.youngs.dailynet.ui.view.WeightTrendScreen
 import com.youngs.dailynet.ui.view.SettingsScreen
@@ -42,9 +43,10 @@ import javax.inject.Inject
 /**
  * 화면 한 칸. 뒤로가기 기록에 쌓인다.
  *
- * @param screen "main" / "input" / "detail" / "settings" / "withdraw" / "weight"
+ * @param screen "main" / "input" / "detail" / "settings" / "withdraw" / "weight" / "month"
  * @param date   그 화면이 다루는 날짜.
  *               "detail"이면 보여줄 정산 날짜, "weight"면 그래프를 열 기준 날짜.
+ *               "month"만 날짜가 아니라 "yyyy-MM" 형태의 달을 담는다.
  *               나머지 화면은 쓰지 않는다.
  */
 private data class ScreenEntry(val screen: String, val date: String = "")
@@ -206,6 +208,17 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
+                            "month" -> {
+                                MonthReportScreen(
+                                    mainViewModel = mainViewModel,
+                                    yearMonth = current.date,
+                                    onBack = { goBack() },
+                                    onNavigateToDetail = { date ->
+                                        navigateTo(ScreenEntry("detail", date))
+                                    }
+                                )
+                            }
+
                             "weight" -> {
                                 WeightTrendScreen(
                                     mainViewModel = mainViewModel,
@@ -232,6 +245,9 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onNavigateToSettings = {
                                         navigateTo(ScreenEntry("settings"))
+                                    },
+                                    onNavigateToMonth = { yearMonth ->
+                                        navigateTo(ScreenEntry("month", yearMonth))
                                     }
                                 )
                             }

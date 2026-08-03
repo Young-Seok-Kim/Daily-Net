@@ -3,8 +3,10 @@ package com.youngs.dailynet.ui.viewmodel
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.credentials.ClearCredentialStateRequest
@@ -45,6 +47,7 @@ import java.text.SimpleDateFormat
 import androidx.annotation.StringRes
 import com.youngs.dailynet.R
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
@@ -208,6 +211,14 @@ class MainViewModel @Inject constructor(
     // 최근 추이 차트의 가로 스크롤 위치. 상세 화면에 갔다 돌아와도 보던 구간이 유지되도록 ViewModel에 보관
     val trendChartState = LazyListState()
 
+    // 최근 추이 차트가 몇 달 전까지 펼쳐져 있는지. 0이면 이번 달만.
+    // 왼쪽 끝(과거)까지 밀 때마다 1씩 늘어난다.
+    //
+    // 스크롤 위치와 짝이라서 함께 ViewModel에 둔다. 이 값만 화면 쪽에 두면
+    // 상세에 갔다 돌아왔을 때 목록은 이번 달로 줄어드는데 스크롤 위치만 남아
+    // 보던 구간이 엉뚱한 곳으로 튄다.
+    var trendChartMonthsBack by mutableIntStateOf(0)
+
     // 몸무게 추이 차트의 가로 스크롤 위치 (위와 같은 이유).
     // 그래프 → 정산 상세 → 뒤로가기로 돌아와도 보던 구간이 그대로 남는다.
     val weightChartState = LazyListState()
@@ -215,6 +226,21 @@ class MainViewModel @Inject constructor(
     // 위 스크롤을 어느 기준 날짜에 맞춰뒀는지. 기준일이 바뀔 때만 다시 맞춘다.
     // (돌아올 때마다 다시 맞추면 사용자가 옮겨둔 위치가 날아간다)
     var weightChartFocusedDate: String? = null
+
+    // 월 정산 화면의 세로 스크롤 위치. 거기서 어떤 날을 눌러 상세로 갔다 돌아와도
+    // 보던 자리가 그대로 남도록 화면 밖(ViewModel)에 둔다.
+    val monthReportScrollState = ScrollState(0)
+
+    // 그 스크롤이 어느 달의 것인지. 다른 달을 열면 맨 위에서 시작해야 한다.
+    var monthReportScrolledMonth: String? = null
+
+    // 목록에서 펼쳐둔 주차·달.
+    //
+    // 화면을 옮기면 MainScreen이 구성에서 빠져 remember로 들고 있던 값이 사라진다.
+    // 그러면 상세에 갔다 돌아왔을 때 펼쳐둔 패널이 전부 접혀서, 스크롤 위치가 남아 있어도
+    // 화면은 아까와 다른 모습이 된다. 스크롤 위치와 같은 이유로 여기에 둔다.
+    var expandedWeeks by mutableStateOf(setOf<Int>())
+    var expandedMonths by mutableStateOf(setOf<String>())
 
     private val _isPagingLoading = MutableStateFlow(false)
     val isPagingLoading = _isPagingLoading.asStateFlow()
@@ -563,6 +589,43 @@ class MainViewModel @Inject constructor(
                 _isPagingLoading.value = false
             }
         }
+    }
+
+    /**
+     * 최근 추이 차트를 한 달치 더 펼친다.
+     *
+     * 기록이 하나도 없는 달은 건너뛴다. 한 달씩만 물러나면 공백 구간에서는
+     * 아무리 밀어도 막대가 늘지 않아 멈춘 것처럼 보이기 때문에,
+     * 다음으로 기록이 있는 달까지 한 번에 물러난다.
+     *
+     * Room에는 서버에서 받아온 만큼만 쌓여 있으므로 다음 페이지도 함께 당겨온다.
+     */
+    fun expandTrendChart() {
+        val next = trendChartMonthsBack + 1
+        val boundary = monthStart(next)
+        // allDailyRecord는 최신순(DESC)이라, 경계보다 과거인 것 중 첫 번째가 "바로 다음 기록"이다
+        val older = allDailyRecord.value.firstOrNull { it.date < boundary }
+        trendChartMonthsBack = if (older == null) next else maxOf(next, monthsBackOf(older.date))
+        loadMoreDailyRecords()
+    }
+
+    /** monthsBack 달 전 1일 (yyyy-MM-01). 날짜가 고정폭이라 문자열 비교로 대소를 가릴 수 있다. */
+    private fun monthStart(monthsBack: Int): String {
+        val c = Calendar.getInstance()
+        c.add(Calendar.MONTH, -monthsBack)
+        return String.format(
+            Locale.getDefault(), "%04d-%02d-01",
+            c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1
+        )
+    }
+
+    /** yyyy-MM-dd가 이번 달로부터 몇 달 전인지 */
+    private fun monthsBackOf(date: String): Int {
+        val c = Calendar.getInstance()
+        val nowIndex = c.get(Calendar.YEAR) * 12 + c.get(Calendar.MONTH)
+        val year = date.substring(0, 4).toIntOrNull() ?: return 0
+        val month = date.substring(5, 7).toIntOrNull() ?: return 0
+        return (nowIndex - (year * 12 + (month - 1))).coerceAtLeast(0)
     }
 
     val allDailyRecord: StateFlow<List<DailyRecordModel>> = repository.getAllDailyRecordRoom()

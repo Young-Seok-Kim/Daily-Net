@@ -79,6 +79,25 @@
     <string name="week_summary_net_avg">Net %1$d kcal per day</string>
     <string name="week_summary_macro_title">Daily average macros</string>
     <string name="week_summary_macro_basis">(based on %1$d days)</string>
+
+    <!-- Monthly summary (tap the month divider) -->
+    <string name="month_summary_total">Month total</string>
+    <string name="month_summary_weight">Weight change</string>
+    <string name="month_summary_open">See the whole month</string>
+
+    <!-- Month report screen -->
+    <string name="month_report_daily_title">Net calories by day</string>
+    <string name="month_report_daily_hint">Tap a bar to see its details above, and tap again to open that day.</string>
+    <string name="month_report_tap_day">Tap a bar on the chart</string>
+    <string name="month_report_no_record">No record</string>
+    <string name="month_report_weekly_title">Week by week</string>
+    <string name="month_report_weight_title">Weight change</string>
+    <string name="month_report_weight_empty">Weight was logged on fewer than two days, so there is no curve to draw.</string>
+    <string name="month_report_highlight_title">Highlights</string>
+    <string name="month_report_best">Best day</string>
+    <string name="month_report_worst">Biggest surplus</string>
+    <string name="month_report_exercise_days">Days with exercise</string>
+    <string name="month_report_empty">No records for this month.</string>
     <string name="macro_carb">C</string>
     <string name="macro_protein">P</string>
     <string name="macro_fat">F</string>

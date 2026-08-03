@@ -77,6 +77,25 @@
     <string name="week_summary_net_avg">하루 평균 순칼로리 %1$d kcal</string>
     <string name="week_summary_macro_title">하루 평균 탄단지</string>
     <string name="week_summary_macro_basis">(%1$d일 기준)</string>
+
+    <!-- 월간 요약 (월 구분선을 누르면 펼쳐짐) -->
+    <string name="month_summary_total">월 합계</string>
+    <string name="month_summary_weight">체중 변화</string>
+    <string name="month_summary_open">이 달 한눈에 보기</string>
+
+    <!-- 월 정산 화면 -->
+    <string name="month_report_daily_title">일별 순칼로리</string>
+    <string name="month_report_daily_hint">막대를 누르면 위에 정보가 뜨고, 한 번 더 누르면 그날 정산이 열립니다.</string>
+    <string name="month_report_tap_day">막대를 눌러보세요</string>
+    <string name="month_report_no_record">기록 없음</string>
+    <string name="month_report_weekly_title">주차별 비교</string>
+    <string name="month_report_weight_title">체중 변화</string>
+    <string name="month_report_weight_empty">체중이 적힌 날이 이틀 미만이라 곡선을 그릴 수 없습니다.</string>
+    <string name="month_report_highlight_title">이 달의 기록</string>
+    <string name="month_report_best">가장 잘한 날</string>
+    <string name="month_report_worst">가장 많이 먹은 날</string>
+    <string name="month_report_exercise_days">운동한 날</string>
+    <string name="month_report_empty">이 달에는 정산 기록이 없습니다.</string>
     <string name="macro_carb">탄</string>
     <string name="macro_protein">단</string>
     <string name="macro_fat">지</string>
