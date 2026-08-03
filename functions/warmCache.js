@@ -30,7 +30,7 @@
  */
 const { onRequest } = require("firebase-functions/v2/https");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
-const { lookupFood, cacheKey, CACHE_PREFIX } = require("./foodDb");
+const { lookupFood, cacheKey, CACHE_PREFIX, CACHE_TTL_DAYS } = require("./foodDb");
 const { COMMON_MENUS } = require("./commonMenus");
 
 // quota.js가 import 시점에 admin.initializeApp()을 부른다
@@ -69,9 +69,17 @@ exports.warmCache = onRequest({
         const stale = [];
         const numeric = [];
 
+        // TTL을 나중에 도입해서, 그 전에 만들어진 문서에는 expireAt이 없다.
+        // 채워주지 않으면 **정책을 켜도 영원히 안 지워진다.**
+        const noExpiry = [];
+
         snap.forEach((doc) => {
-            if (!doc.id.startsWith(CACHE_PREFIX)) stale.push(doc.ref);
-            else if (typeof doc.get("updatedAt") === "number") numeric.push(doc.ref);
+            if (!doc.id.startsWith(CACHE_PREFIX)) {
+                stale.push(doc.ref);
+                return;
+            }
+            if (typeof doc.get("updatedAt") === "number") numeric.push(doc.ref);
+            if (!doc.get("expireAt")) noExpiry.push(doc.ref);
         });
 
         // Firestore 배치는 한 번에 500건까지다
@@ -88,11 +96,23 @@ exports.warmCache = onRequest({
             b.set(ref, { updatedAt: FieldValue.serverTimestamp() }, { merge: true })
         ));
 
-        console.log(`[warmCache] 정리: 삭제 ${stale.length} / 날짜변환 ${numeric.length}`);
+        // 오늘 만든 문서가 오늘 다 만료되면 캐시가 통째로 비니, 만료일을 흩뿌린다.
+        // (원래는 조회 시점이 제각각이라 저절로 흩어진다)
+        const expireAt = (i) =>
+            new Date(Date.now() + (CACHE_TTL_DAYS - (i % 30)) * 24 * 60 * 60 * 1000);
+        await flush(noExpiry.map((ref, i) => (b) =>
+            b.set(ref, { expireAt: expireAt(i) }, { merge: true })
+        ));
+
+        console.log(
+            `[warmCache] 정리: 삭제 ${stale.length} / 날짜변환 ${numeric.length} ` +
+            `/ 만료일추가 ${noExpiry.length}`
+        );
         res.status(200).json({
             total: snap.size,
             deleted: stale.length,
             dateFixed: numeric.length,
+            expiryAdded: noExpiry.length,
             prefix: CACHE_PREFIX
         });
         return;

@@ -156,6 +156,26 @@ const MAX_PORTION_G = 1500;
 const SINGLE_PACK_MAX_G = 500;
 
 /**
+ * 캐시 한 칸이 살아 있는 기간(일).
+ *
+ * 두 가지를 한 번에 해결한다.
+ *
+ * 1) **캐시가 늙지 않게 한다.** 지금 구조는 한 번 캐시되면 영원히 그 값이다.
+ *    식약처가 성분을 고치거나 없던 제품이 새로 등록돼도 우리는 옛날 값(또는 miss)을 계속 쓴다.
+ *    만료되면 다음 조회 때 다시 물어보므로 그 창구가 열린다.
+ * 2) **RULES_VERSION을 올렸을 때 옛 문서가 저절로 사라진다.**
+ *    새 판으로 넘어가면 옛 이름은 아무도 다시 쓰지 않아 만료되고 그대로 지워진다.
+ *
+ * "안 쓰면 지운다"가 아니라 **"쓴 지 오래되면 지운다"** 이다.
+ * 문서는 캐시에 없을 때만 쓰므로, 매일 조회되는 메뉴여도 이 기간이 지나면 한 번 다시 물어본다.
+ * 읽을 때마다 기한을 늘리려면 캐시 적중이 전부 쓰기가 되는데, 그러면 캐시를 쓰는 의미가 없다.
+ *
+ * ⚠️ 이 필드만 넣는다고 지워지지 않는다. **Firebase 콘솔에서 foodCache 컬렉션에
+ * expireAt 기준 TTL 정책을 켜야** 실제로 삭제된다. (README 참고)
+ */
+const CACHE_TTL_DAYS = 90;
+
+/**
  * 종류를 가리키는 말 → DB 식품대분류(FOOD_CAT1_NM)에서 찾을 조각.
  *
  * 왜 필요한가:
@@ -726,7 +746,15 @@ async function lookupFood(name, apiKey) {
         // 언제 캐시된 값인지 눈으로 확인할 수 있다 (users의 createdAt과 같은 이유).
         // 서버 시각이라 인스턴스 시계가 어긋나도 값이 뒤섞이지 않는다.
         const updatedAt = FieldValue.serverTimestamp();
-        await ref.set(food ? { food, updatedAt } : { miss: true, updatedAt });
+
+        // TTL 정책이 보는 필드. serverTimestamp는 값이 아직 정해지지 않은 자리표라
+        // 여기에 더하기를 할 수 없어, 만료 시각만은 로컬 시계로 계산한다.
+        // 캐시 수명이 몇 초 어긋나는 건 아무 문제가 없다.
+        const expireAt = new Date(Date.now() + CACHE_TTL_DAYS * 24 * 60 * 60 * 1000);
+
+        await ref.set(
+            food ? { food, updatedAt, expireAt } : { miss: true, updatedAt, expireAt }
+        );
     } catch (e) {
         console.warn("foodCache write failed:", e.message);
     }
@@ -928,6 +956,7 @@ module.exports = {
     lookupFood,
     cacheKey,
     CACHE_PREFIX,
+    CACHE_TTL_DAYS,
     lookupMany,
     correctWithFoodDb,
     collectMealNames,
