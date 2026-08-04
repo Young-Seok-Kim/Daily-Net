@@ -818,6 +818,17 @@ class MainViewModel @Inject constructor(
 
     fun checkAndAnalyze(activity: android.app.Activity) {
         viewModelScope.launch {
+            // 누른 즉시 진행 표시를 켠다.
+            //
+            // 예전에는 [analyzeAndFinalize] 안에서 켰는데, 거기까지 오는 길에
+            // 무제한 여부(Firestore 읽기)와 구독 상태(Play Billing 조회)가 있다.
+            // 회선이 느리거나 Billing이 콜드 스타트면 그동안 화면이 **아무 반응도 없어서**
+            // 눌린 건지 알 수 없었다. 실제로 5~6초씩 비는 경우가 있었다.
+            //
+            // 켜는 자리를 앞으로 당긴 대신, **중간에 빠져나가는 길에서 반드시 꺼야 한다.**
+            // 빠뜨리면 버튼이 "분석 중"에 갇혀 다시 누를 수 없다.
+            _uiState.update { it.copy(analyzing = true) }
+
             try {
                 val profile = userProfileDao.getProfile()
 
@@ -848,6 +859,8 @@ class MainViewModel @Inject constructor(
                                 profile.todayAnalysisCount >= DAILY_FREE_ANALYSIS_LIMIT &&
                                 isOverDailyLimitOnServer()
                             ) {
+                                // 분석하지 않고 구독 창으로 빠지는 길. 표시를 꺼야 한다.
+                                _uiState.update { it.copy(analyzing = false) }
                                 toast(R.string.toast_analysis_limit)
                                 startSubscription(activity)
                                 return@launch
@@ -861,6 +874,7 @@ class MainViewModel @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
+                _uiState.update { it.copy(analyzing = false) }
                 toast(R.string.toast_data_check_failed, e.message.orEmpty())
             }
         }
@@ -872,7 +886,11 @@ class MainViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             // 로그인 상태에서만 진행한다 (분석 결과를 저장할 대상이 있어야 한다)
-            currentUserId ?: return@launch
+            if (currentUserId == null) {
+                // [checkAndAnalyze]가 눌린 즉시 켜둔 표시를 여기서 반드시 끈다.
+                _uiState.update { it.copy(analyzing = false) }
+                return@launch
+            }
             val currentState = _uiState.value
             _uiState.update { it.copy(analyzing = true) }
 
