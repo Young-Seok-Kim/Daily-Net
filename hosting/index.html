@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DailyNet — 먹은 걸 적으면 오늘 살이 쪘는지 빠졌는지 나옵니다</title>
+<meta name="description" content="먹은 걸 적으면 AI가 그날의 순칼로리를 계산합니다. 섭취에서 기초대사량과 운동·걸음 수를 뺀 값이라 '많이 먹었나'가 아니라 '쓴 것보다 더 먹었나'가 나옵니다.">
+<meta name="theme-color" content="#5FE1B0">
+<link rel="icon" href="img/icon.png">
+
+<!-- 카카오톡·인스타로 공유될 때 보이는 카드 -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="DailyNet — AI 다이어트 식단 기록">
+<meta property="og:description" content="먹은 걸 적으면 오늘 살이 쪘는지 빠졌는지 숫자로 나옵니다.">
+<meta property="og:image" content="https://dailynet.web.app/img/main.webp">
+<meta property="og:url" content="https://dailynet.web.app/">
+
+<style>
+  /*
+    인스타 프로필 링크로 들어오는 사람이 대부분이라 모바일 우선으로 짰다.
+    Play 스토어로는 **사용자가 직접 버튼을 눌러** 이동한다.
+    프로필 링크를 스토어 주소로 바로 걸면 안드로이드가 앱 핸드오프를 타는데,
+    인스타 인앱 브라우저에서 그게 조용히 실패하는 기기가 있다. 이 페이지가 그걸 피한다.
+  */
+  :root{
+    --mint:#5FE1B0; --ink:#06303F; --sub:#245C6C;
+    --coral:#FF4D2E; --black:#11181C; --card:#EEFDF6;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--mint); color:var(--ink);
+    font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:560px; margin:0 auto; padding:28px 22px 56px}
+
+  header{display:flex; align-items:center; gap:12px; margin-bottom:38px}
+  header img{width:44px; height:44px; border-radius:11px}
+  header b{font-size:22px; letter-spacing:-.02em}
+
+  h1{
+    font-size:clamp(32px, 9vw, 44px); line-height:1.24; margin:0 0 18px;
+    letter-spacing:-.03em; font-weight:800;
+  }
+  h1 .hl{color:var(--coral)}
+  .lead{font-size:17px; line-height:1.65; color:var(--sub); margin:0 0 30px}
+
+  .cta{
+    display:block; background:var(--black); color:#fff; text-decoration:none;
+    text-align:center; font-weight:700; font-size:18px;
+    padding:19px 20px; border-radius:16px; letter-spacing:-.01em;
+  }
+  .cta:active{transform:translateY(1px)}
+  .cta small{display:block; font-weight:500; font-size:13px; opacity:.72; margin-top:5px}
+
+  .shots{
+    display:flex; gap:14px; overflow-x:auto; margin:36px -22px 0; padding:4px 22px 14px;
+    scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch;
+  }
+  .shots figure{margin:0; flex:0 0 auto; width:200px; scroll-snap-align:center}
+  .shots img{
+    width:100%; display:block; border-radius:18px; background:#fff;
+    border:5px solid var(--black); box-shadow:0 8px 20px rgba(6,48,62,.16);
+  }
+  .shots figcaption{font-size:13px; color:var(--sub); margin-top:9px; text-align:center}
+
+  h2{font-size:23px; margin:44px 0 16px; letter-spacing:-.02em}
+  .item{background:var(--card); border-radius:18px; padding:18px 20px; margin-bottom:12px}
+  .item b{display:block; font-size:17px; margin-bottom:5px}
+  .item p{margin:0; font-size:14.5px; line-height:1.6; color:var(--sub)}
+
+  .event{background:var(--black); color:#fff; border-radius:22px; padding:26px 22px; margin-top:44px}
+  .event .tag{
+    display:inline-block; background:var(--coral); color:#fff; font-weight:700;
+    font-size:13px; padding:6px 14px; border-radius:20px; margin-bottom:14px;
+  }
+  .event h3{margin:0 0 12px; font-size:25px; line-height:1.35; letter-spacing:-.02em}
+  .event h3 span{color:var(--mint)}
+  .event p{margin:0; font-size:14.5px; line-height:1.7; color:#B7D2DC}
+  .event ul{margin:14px 0 0; padding-left:18px; font-size:14.5px; line-height:1.8; color:#B7D2DC}
+  .event ul b{color:var(--mint)}
+
+  footer{margin-top:40px; font-size:13px; color:var(--sub); line-height:1.8}
+  footer a{color:var(--sub)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <img src="img/icon.png" alt="DailyNet 앱 아이콘">
+    <b>DailyNet</b>
+  </header>
+
+  <h1>먹은 걸 적으면<br>오늘 살이 <span class="hl">쪘는지<br>빠졌는지</span> 나옵니다</h1>
+
+  <p class="lead">
+    섭취 칼로리에서 기초대사량과 운동·걸음 수 소모량을 뺍니다.
+    그래서 “많이 먹었나”가 아니라 <b>“쓴 것보다 더 먹었나”</b>가 나옵니다.
+  </p>
+
+  <a class="cta" href="https://play.google.com/store/apps/details?id=com.youngs.dailynet"
+     target="_blank" rel="noopener">
+    Google Play 에서 받기
+    <small>Android · 무료</small>
+  </a>
+
+  <div class="shots">
+    <figure>
+      <img src="img/main.webp" alt="누적 칼로리 결산과 최근 추이 그래프가 보이는 메인 화면" loading="lazy">
+      <figcaption>누적 결산 · 추이</figcaption>
+    </figure>
+    <figure>
+      <img src="img/report.webp" alt="메뉴별 칼로리와 탄단지가 적힌 AI 분석 리포트" loading="lazy">
+      <figcaption>AI 분석 리포트</figcaption>
+    </figure>
+    <figure>
+      <img src="img/month.webp" alt="한 달치 일별 순칼로리와 주차별 비교가 보이는 월 정산 화면" loading="lazy">
+      <figcaption>월 정산</figcaption>
+    </figure>
+  </div>
+
+  <h2>이런 걸 합니다</h2>
+
+  <div class="item">
+    <b>사진만 찍으면 메뉴가 채워집니다</b>
+    <p>AI가 사진에서 메뉴를 읽어 입력창에 넣어줍니다. 결과는 초안이라 직접 고칠 수 있고,
+       사진은 텍스트로 바꾼 뒤 저장하지 않고 폐기합니다.</p>
+  </div>
+
+  <div class="item">
+    <b>칼로리를 지어내지 않습니다</b>
+    <p>브랜드 가공식품은 식품의약품안전처 식품영양성분 DB를 조회해 실제 값으로 바로잡습니다.
+       “새우깡 3개”, “우유 200ml”처럼 개수와 용량도 반영하고 제로 표기도 구분합니다.</p>
+  </div>
+
+  <div class="item">
+    <b>한 달이 한 화면에 들어옵니다</b>
+    <p>1일부터 말일까지 일별 순칼로리, 주차별 비교, 체중 곡선, 가장 잘한 날까지.
+       안 적은 날은 빈칸으로 남아서 빠뜨린 날이 그대로 보입니다.</p>
+  </div>
+
+  <div class="item">
+    <b>손이 덜 가게</b>
+    <p>걸음 수는 Health Connect에서 자동으로 읽어옵니다. 홈 화면 위젯으로 앱을 열지 않아도
+       오늘의 순칼로리가 보이고, 정산을 안 한 날은 밤 9시에 한 번 알려줍니다.</p>
+  </div>
+
+  <div class="event">
+    <span class="tag">EVENT</span>
+    <h3>인스타 게시글에 댓글 남기면<br><span>3개월 이용권</span>을 DM으로</h3>
+    <p>이용권이 있으면</p>
+    <ul>
+      <li>식단 분석 <b>무제한</b> (무료는 하루 3회)</li>
+      <li>음식 사진 인식 <b>하루 30회</b> (무료는 하루 3회)</li>
+    </ul>
+  </div>
+
+  <a class="cta" href="https://play.google.com/store/apps/details?id=com.youngs.dailynet"
+     target="_blank" rel="noopener" style="margin-top:26px">
+    지금 받기
+    <small>play.google.com</small>
+  </a>
+
+  <!-- 개인 이메일은 싣지 않는다. 문의처는 Play 스토어 리스팅에 이미 있다. -->
+  <footer>
+    화면은 실제 앱 캡처입니다.<br>
+    문의는 Google Play 리스팅의 개발자 연락처로 부탁드립니다.
+  </footer>
+
+</div>
+</body>
+</html>

@@ -2,6 +2,17 @@
   "firestore": {
     "rules": "firestore.rules"
   },
+  "hosting": {
+    "site": "dailynet",
+    "public": "hosting",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "headers": [
+      {
+        "source": "**/*.@(webp|png)",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800" }]
+      }
+    ]
+  },
   "functions": [
     {
       "source": "functions",
