@@ -7,7 +7,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { safeParseJson } = require("../gemini");
+const { safeParseJson, salvageTruncatedJson, generateAndParse } = require("../gemini");
 const { resolveLang, LABELS } = require("../labels");
 
 test("safeParseJson - 모델이 섞어 보내는 것들을 걷어낸다", async (t) => {
@@ -40,6 +40,111 @@ test("safeParseJson - 모델이 섞어 보내는 것들을 걷어낸다", async 
         for (const bad of ["", null, undefined, "설명만 있고 JSON이 없다", "{잘못된 json}"]) {
             assert.throws(() => safeParseJson(bad), SyntaxError, `입력: ${bad}`);
         }
+    });
+});
+
+/**
+ * 실제로 겪은 실패 응답의 모양.
+ *
+ * 2026-08-04 08:49 정산이 통째로 실패했다. `maxOutputTokens`에 걸려 응답이 끊겼는데,
+ * safeParseJson이 마지막 '}'까지 자르는 바람에 **배열이 안 닫힌 문자열**이 남아
+ * `Expected ',' or ']' after array element`가 났다.
+ */
+const CUT_IN_ARRAY = `{
+  "calories": { "breakfast": 0, "lunch": 0, "dinner": 0, "snack": 400, "exercise": 0 },
+  "meals": {
+    "snack": [
+      { "name": "바나프레소 초코쉐이크", "kcal": 400 },
+      { "name": "아메리카노", "kc`;
+
+test("salvageTruncatedJson - 잘린 응답에서 온전한 데까지 건진다", async (t) => {
+    await t.test("실제 실패 응답을 살려낸다", () => {
+        // 먼저 원래 경로가 정말 깨지는지부터 확인한다. 안 깨지면 이 함수를 탈 일이 없다.
+        assert.throws(() => safeParseJson(CUT_IN_ARRAY), SyntaxError);
+
+        const data = salvageTruncatedJson(CUT_IN_ARRAY);
+        assert.equal(data.calories.snack, 400);
+        // 끊긴 항목은 버리고 온전한 것만 남는다
+        assert.equal(data.meals.snack.length, 1);
+        assert.equal(data.meals.snack[0].name, "바나프레소 초코쉐이크");
+    });
+
+    await t.test("숫자 한가운데서 끊긴 값은 버린다", () => {
+        // 40으로 읽었는데 실제로 400이면 조용히 틀린 칼로리가 나간다. 빠뜨리는 쪽이 낫다.
+        const data = salvageTruncatedJson('{"a":[{"kcal":400},{"kcal":12');
+        assert.deepEqual(data, { a: [{ kcal: 400 }] });
+    });
+
+    await t.test("문자열 안의 괄호에 흔들리지 않는다", () => {
+        const data = salvageTruncatedJson('{"a":[{"name":"{이상한] 메뉴}"}');
+        assert.deepEqual(data, { a: [{ name: "{이상한] 메뉴}" }] });
+    });
+
+    await t.test("온전한 JSON은 그대로 돌려준다", () => {
+        assert.deepEqual(salvageTruncatedJson('{"a":{"b":[1,2]}}'), { a: { b: [1, 2] } });
+    });
+
+    await t.test("건질 게 없으면 null", () => {
+        for (const bad of ["", null, undefined, "설명만 있고 JSON이 없다", '{"a":1']) {
+            assert.equal(salvageTruncatedJson(bad), null, `입력: ${bad}`);
+        }
+    });
+});
+
+// 실제 SDK 대신 정해둔 응답을 돌려주는 모델. 요청을 기록해 재시도 방식까지 확인한다.
+function fakeModel(texts) {
+    const requests = [];
+    return {
+        requests,
+        generationConfig: { temperature: 0.4, maxOutputTokens: 4096 },
+        async generateContent(request) {
+            requests.push(request);
+            const text = texts[Math.min(requests.length - 1, texts.length - 1)];
+            return {
+                response: {
+                    text: () => text,
+                    candidates: [{ finishReason: "MAX_TOKENS" }],
+                    usageMetadata: { promptTokenCount: 100, candidatesTokenCount: 4096 }
+                }
+            };
+        }
+    };
+}
+
+test("generateAndParse - 깨진 응답을 다루는 방식", async (t) => {
+    await t.test("재시도는 temperature를 올려 다시 묻는다", async () => {
+        // 같은 온도로 다시 물으면 같은 답이 온다. 실제로 세 번 다 똑같이 잘려 실패했다.
+        const model = fakeModel([CUT_IN_ARRAY, '{"ok":1}']);
+        assert.deepEqual(await generateAndParse(model, "p", { maxRetries: 2 }), { ok: 1 });
+
+        assert.equal(model.requests.length, 2);
+        assert.equal(model.requests[0].generationConfig, undefined, "첫 시도는 모델 설정 그대로");
+        assert.equal(model.requests[1].generationConfig.temperature, 0.7);
+        // 온도만 바꿔야 한다. 요청에 실으면 모델 설정을 통째로 덮어쓰므로 나머지를 빠뜨리면 안 된다.
+        assert.equal(model.requests[1].generationConfig.maxOutputTokens, 4096);
+    });
+
+    await t.test("끝까지 실패하면 필수 키가 다 살았을 때만 건져 쓴다", async () => {
+        const model = fakeModel([CUT_IN_ARRAY]);
+        const data = await generateAndParse(model, "p", {
+            maxRetries: 1,
+            salvageIfHas: ["calories", "meals"]
+        });
+        assert.equal(data.calories.snack, 400);
+    });
+
+    await t.test("필수 키가 하나라도 빠지면 건지지 않고 실패시킨다", async () => {
+        // 숫자가 반쯤 빠진 리포트를 멀쩡한 척 보여주는 것보다 실패가 낫다.
+        const model = fakeModel([CUT_IN_ARRAY]);
+        await assert.rejects(
+            generateAndParse(model, "p", { maxRetries: 1, salvageIfHas: ["calories", "macros"] }),
+            SyntaxError
+        );
+    });
+
+    await t.test("salvageIfHas를 안 주면 건지지 않는다", async () => {
+        const model = fakeModel([CUT_IN_ARRAY]);
+        await assert.rejects(generateAndParse(model, "p", { maxRetries: 1 }), SyntaxError);
     });
 });
 

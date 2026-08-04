@@ -180,8 +180,15 @@ const prompt = `
         `;
 
         // ⚙️ 생성 + JSON 파싱을 함께 재시도하여 간헐적 파싱 실패를 방지
+        //
+        // 세 번 다 실패하면 잘린 응답에서라도 건져 쓴다. 다만 **숫자가 다 살아났을 때만** 쓴다.
+        // 스키마 순서가 calories → meals → exercises → macros → descriptions → evaluation 이라,
+        // macros까지 왔으면 계산에 쓰는 값은 전부 온 것이고 뒤에 빠진 건 한줄평뿐이다.
+        // (한줄평은 아래에서 기본값으로 떨어져 빈 칸으로 나간다)
         const tPrompt = Date.now();
-        const data = await generateAndParse(model, prompt);
+        const data = await generateAndParse(model, prompt, {
+            salvageIfHas: ["calories", "meals", "macros"]
+        });
         const tGemini = Date.now();
 
         // 브랜드 가공식품처럼 정답이 정해진 것은 모델 기억 대신 식약처 DB 값으로 바로잡는다.
