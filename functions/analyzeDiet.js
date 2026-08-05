@@ -80,14 +80,18 @@ exports.analyzeDiet = onRequest({
 
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         const model = genAI.getGenerativeModel({
-            // 정확도를 위해 flash 모델 유지 (lite 아님)
-            model: "gemini-2.5-flash",
+            // 무료 등급 한도가 2.5-flash는 하루 20회뿐이라 3.5-flash-lite로 옮겼다 (하루 500회).
+            // 예전에 뺐던 lite는 2.5-flash-lite였고 이건 그보다 한 세대 위다.
+            // 칼로리 숫자가 흔들리면 "gemini-2.5-flash"로 되돌리고 재배포할 것.
+            model: "gemini-3.5-flash-lite",
             generationConfig: {
                 responseMimeType: "application/json",
                 temperature: 0.4,        // 칼로리 산출 일관성 향상
                 maxOutputTokens: 4096,
                 // ⚡ 속도 개선의 핵심: 기본 'thinking' 지연 제거 (프롬프트의 단계별 사고 지시로 보완)
-                thinkingConfig: { thinkingBudget: 0 }
+                // 3.x 계열은 thinkingBudget을 안 받는다(INVALID_ARGUMENT). thinkingLevel로 지정한다.
+                // minimal이면 thinking 토큰 0으로, 기존 thinkingBudget: 0과 같은 효과다.
+                thinkingConfig: { thinkingLevel: "minimal" }
             }
         });
 

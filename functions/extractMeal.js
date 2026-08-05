@@ -61,12 +61,14 @@ exports.extractMeal = onRequest({
 
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         const model = genAI.getGenerativeModel({
-            model: "gemini-2.5-flash",
+            // 무료 등급 하루 한도 때문에 3.5-flash-lite (analyzeDiet.js 주석 참고)
+            model: "gemini-3.5-flash-lite",
             generationConfig: {
                 responseMimeType: "application/json",
                 temperature: 0.2, // 메뉴 인식은 창의성이 필요 없다
                 maxOutputTokens: 1024,
-                thinkingConfig: { thinkingBudget: 0 }
+                // 3.x는 thinkingBudget 대신 thinkingLevel (analyzeDiet.js 주석 참고)
+                thinkingConfig: { thinkingLevel: "minimal" }
             }
         });
 
