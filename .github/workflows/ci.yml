@@ -1,0 +1,112 @@
+# push / PR 마다 이미 있는 테스트를 자동으로 돌린다.
+# 서버(functions)와 앱(android)은 서로 영향이 없으므로 따로 돌린다. 하나가 깨져도 나머지 결과는 본다.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 같은 브랜치에 연달아 push하면 앞의 실행은 취소한다 (러너 낭비 방지)
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  functions:
+    name: 서버 테스트 (functions)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # functions/package.json 의 engines.node 와 맞춘다
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - run: npm ci
+
+      # package.json 의 "test": "node --test"
+      - run: npm test
+
+  android:
+    name: 앱 유닛 테스트 (android)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          # AGP 8.9.1 은 JDK 17 이상을 요구한다.
+          # 앱의 jvmTarget 이 11 인 것과는 별개다 (빌드 도구가 도는 JDK 이야기)
+          java-version: '17'
+          distribution: temurin
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # google-services.json 과 local.properties 는 git에 없다(.gitignore).
+      # 저장소 시크릿이 있으면 그걸 쓰고, 없으면 유닛 테스트용 더미로 채운다.
+      # 유닛 테스트는 JVM에서만 돌아 Firebase에 접속하지 않으므로 더미로 충분하다.
+      - name: 빌드에 필요한 설정 파일 준비
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            echo "$GOOGLE_SERVICES_JSON" | base64 -d > app/google-services.json
+            echo "google-services.json: 저장소 시크릿 사용"
+          else
+            cat > app/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "ci-placeholder",
+              "storage_bucket": "ci-placeholder.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+                  "android_client_info": {
+                    "package_name": "com.youngs.dailynet"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  { "current_key": "AIzaSyCIplaceholderCIplaceholderCIplace" }
+                ],
+                "services": {
+                  "appinvite_service": { "other_platform_oauth_client": [] }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
+            echo "google-services.json: 더미 사용 (유닛 테스트 전용)"
+          fi
+
+          # secrets-gradle-plugin 이 local.properties 를 읽어 BuildConfig 필드를 만든다.
+          # GOOGLE_WEB_CLIENT_ID 가 없으면 AuthViewModel.kt 가 컴파일되지 않는다.
+          # sdk.dir 은 러너의 ANDROID_HOME 을 그대로 쓴다.
+          {
+            echo "sdk.dir=$ANDROID_HOME"
+            echo "GOOGLE_WEB_CLIENT_ID=${GOOGLE_WEB_CLIENT_ID:-ci-placeholder.apps.googleusercontent.com}"
+          } > local.properties
+
+      - name: 유닛 테스트
+        run: ./gradlew testDebugUnitTest --console=plain --stacktrace
+
+      # 실패했을 때 어느 테스트가 왜 깨졌는지 보려면 리포트가 필요하다
+      - name: 테스트 리포트 업로드
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-report
+          path: app/build/reports/tests/testDebugUnitTest/
+          retention-days: 7
