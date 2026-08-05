@@ -52,6 +52,9 @@ jobs:
       # google-services.json 과 local.properties 는 git에 없다(.gitignore).
       # 저장소 시크릿이 있으면 그걸 쓰고, 없으면 유닛 테스트용 더미로 채운다.
       # 유닛 테스트는 JVM에서만 돌아 Firebase에 접속하지 않으므로 더미로 충분하다.
+      #
+      # 더미 값은 실제 키 형식(AIza + 35자)을 절대 흉내내지 말 것.
+      # 그렇게 적었다가 GitHub 시크릿 스캐너가 진짜 유출로 잡아 경보를 띄웠다.
       - name: 빌드에 필요한 설정 파일 준비
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
@@ -78,7 +81,7 @@ jobs:
                 },
                 "oauth_client": [],
                 "api_key": [
-                  { "current_key": "AIzaSyCIplaceholderCIplaceholderCIplace" }
+                  { "current_key": "ci-placeholder-not-a-real-key" }
                 ],
                 "services": {
                   "appinvite_service": { "other_platform_oauth_client": [] }
