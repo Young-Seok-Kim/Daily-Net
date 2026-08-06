@@ -16,6 +16,7 @@ const {
     pickBest,
     scoreRow,
     correctWithFoodDb,
+    bulkUnitOf,
     collectMealNames,
     mergeDuplicateItems,
     MIN_SCORE
@@ -258,6 +259,29 @@ test("pickBest - 확실할 때만 고른다", async (t) => {
     });
 });
 
+test("bulkUnitOf - 덩어리 단위만 골라낸다", async (t) => {
+    await t.test("숫자나 수사가 앞에 붙은 마리·판·통", () => {
+        assert.equal(bulkUnitOf("닭강정 1마리"), "마리");
+        assert.equal(bulkUnitOf("피자 1판"), "판");
+        assert.equal(bulkUnitOf("치킨 한마리"), "마리");
+        assert.equal(bulkUnitOf("아이스크림 2통"), "통");
+    });
+
+    await t.test("이름에 그냥 들어간 글자는 아니다", () => {
+        // 이걸 안 가리면 통닭·통밀빵이 전부 보정에서 빠진다
+        assert.equal(bulkUnitOf("통닭"), null);
+        assert.equal(bulkUnitOf("통밀빵"), null);
+        assert.equal(bulkUnitOf("판모밀"), null);
+    });
+
+    await t.test("크기가 대충 맞는 단위는 그대로 둔다", () => {
+        // 콜라 1캔은 DB의 1캔이고 새우깡 1봉지는 DB의 1봉지다. 개수만 곱하면 된다
+        assert.equal(bulkUnitOf("코카콜라 2캔"), null);
+        assert.equal(bulkUnitOf("새우깡 3봉지"), null);
+        assert.equal(bulkUnitOf("잡곡밥 1공기"), null);
+    });
+});
+
 test("correctWithFoodDb - 칼로리를 바로잡고 탄단지를 따라 맞춘다", async (t) => {
     const build = () => ({
         calories: { breakfast: 500, lunch: 0, dinner: 0, snack: 0, exercise: 0 },
@@ -332,6 +356,44 @@ test("correctWithFoodDb - 칼로리를 바로잡고 탄단지를 따라 맞춘�
             new Map([["코카콜라 2캔", { name: "코카콜라", kcal: 129 }]])
         );
         assert.equal(applied.length, 1);
+    });
+
+    await t.test("마리·판·통이 붙으면 보정하지 않는다", () => {
+        // 실제로 겪은 사례 (2026-08-05 22:59). 닭강정 1마리는 800g쯤인데
+        // DB가 아는 닭강정은 184g들이 포장 하나라 403kcal이다.
+        // 개수(1)를 곱해봐야 403 그대로다. 곱할 단위 자체가 틀렸다.
+        const data = {
+            calories: { dinner: 2200 },
+            meals: { dinner: [{ name: "닭강정 1마리", kcal: 2200 }] },
+            macros: { dinner: { carb: 150, protein: 120, fat: 100 } }
+        };
+        const applied = correctWithFoodDb(
+            data,
+            new Map([["닭강정 1마리", { name: "닭강정", kcal: 403, portion: 184 }]])
+        );
+
+        assert.equal(applied.length, 0);
+        assert.equal(data.meals.dinner[0].kcal, 2200, "모델 추정을 그대로 둬야 한다");
+        assert.equal(data.meals.dinner[0].source, undefined);
+        // 안 고쳤으면 탄단지도 건드리면 안 된다
+        assert.equal(data.macros.dinner.carb, 150);
+    });
+
+    await t.test("그램이 적혀 있으면 마리가 붙어도 보정한다", () => {
+        // "800g"은 추정이 아니라 읽은 사실이다. 그 크기로 환산하면 믿을 수 있다.
+        const data = {
+            calories: { dinner: 2200 },
+            meals: { dinner: [{ name: "닭강정 1마리 800g", kcal: 2200 }] },
+            macros: { dinner: { carb: 150, protein: 120, fat: 100 } }
+        };
+        const applied = correctWithFoodDb(
+            data,
+            new Map([["닭강정 1마리 800g", { name: "닭강정", kcal: 403, portion: 184 }]])
+        );
+
+        assert.equal(applied.length, 1);
+        // 403 × (800 / 184) = 1752
+        assert.equal(data.meals.dinner[0].kcal, 1752);
     });
 
     await t.test("무게·부피는 개수가 아니다", () => {

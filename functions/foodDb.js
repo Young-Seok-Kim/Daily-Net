@@ -347,6 +347,30 @@ const COUNTER_VALUE = {
 const COUNT_UNITS = "인분|공기|그릇|잔|컵|캔|병|팩|봉지|봉|개|조각|장|줄|마리|스푼|숟갈|접시|판|알";
 
 /**
+ * **덩어리 단위** — 붙으면 DB가 아는 한 번 먹는 양과 크기가 아예 다른 것을 가리킨다.
+ *
+ * 다른 세는 단위는 DB 값과 크기가 대충 맞는다. 콜라 1캔은 DB의 1캔이고, 새우깡 1봉지는 DB의 1봉지다.
+ * 그래서 개수만 곱하면 됐다. 그런데 이 셋은 다르다:
+ *   - **마리** — 닭강정 1마리는 800g쯤인데 DB가 아는 닭강정은 184g들이 포장 하나다
+ *   - **판**   — 피자 1판은 DB의 한 조각이 아니다
+ *   - **통**   — 치킨 1통, 아이스크림 1통도 마찬가지다
+ *
+ * 실제로 겪었다 — `닭강정 1마리`를 모델이 2,200kcal로 봤는데 184g 기준 403으로 덮어썼다.
+ * 개수를 곱해도 소용없다. 1을 곱하니 그대로 403이다. 애초에 곱할 단위가 틀린 것이다.
+ * (2026-08-05 22:59)
+ *
+ * 숫자나 한글 수사가 **바로 앞에 붙은 경우만** 본다. 그러지 않으면 `통닭`·`통밀빵`의 '통'이 걸린다.
+ */
+const BULK_UNITS = "마리|판|통";
+
+function bulkUnitOf(rawName) {
+    const numerals = Object.keys(COUNTER_VALUE).join("|");
+    const matched = String(rawName || "")
+        .match(new RegExp(`(?:\\d+(?:\\.\\d+)?|${numerals})\\s*(${BULK_UNITS})`));
+    return matched ? matched[1] : null;
+}
+
+/**
  * "코카콜라 500ml"에서 **500**을 읽어낸다. 적혀 있지 않으면 null.
  *
  * 개수([quantityOf])와 반대 개념이다. 이건 **그 제품의 크기**다.
@@ -906,6 +930,20 @@ function correctWithFoodDb(data, foundMap) {
             const stated = statedAmountOf(item.name);
             const sizeFactor = stated && food.portion > 0 ? stated / food.portion : 1;
 
+            // 마리·판·통은 DB가 아는 양과 크기가 아예 다르다. 곱할 단위가 틀렸으므로 손대지 않는다.
+            //
+            // 다만 g·mL이 적혀 있으면 얘기가 다르다. 그건 읽은 사실이고 위 sizeFactor가
+            // 그 크기로 환산해 주므로, "닭강정 1마리 800g"은 정상적으로 보정된다.
+            const bulk = bulkUnitOf(item.name);
+            if (bulk && !stated) {
+                // 조용히 넘어가면 안 된다. 왜 안 고쳐졌는지는 이 줄이 유일한 단서다.
+                console.warn(
+                    `[fooddb] 보정 건너뜀 - "${item.name}": `
+                    + `DB "${food.name}"는 ${food.portion || "?"}g 기준이라 1${bulk}과 다르다`
+                );
+                continue;
+            }
+
             const dbKcal = Math.round(food.kcal * sizeFactor * qty);
 
             // 가드는 **한 개끼리** 비교한다.
@@ -1026,6 +1064,7 @@ module.exports = {
     collectMealNames,
     mergeDuplicateItems,
     quantityOf,
+    bulkUnitOf,
     statedAmountOf,
     splitCategoryHint,
     normalize,
