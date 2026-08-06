@@ -384,6 +384,23 @@ function bulkUnitOf(rawName) {
 }
 
 /**
+ * **나눠 먹었다는 표시**. 있으면 DB의 1인분 값으로 덮어쓰면 안 된다.
+ *
+ * 프롬프트는 여럿이 나눠 먹었다고 적으면 사용자 몫의 **중량(g)을 이름에 적도록** 지시한다.
+ * 그러면 [statedAmountOf]가 읽어 정확히 환산하므로 이 함수가 걸릴 일이 없다.
+ * 여기는 **모델이 그 지시를 안 지켰을 때를 받는 그물**이다.
+ *
+ * 이게 없으면 이렇게 된다 — `탕수육 1접시 3명이서 나눔`을 모델이 130kcal로 잘 나눠놔도,
+ * 보정이 DB의 1인분(388)으로 도로 올려버린다. 나눠 먹은 사실이 통째로 사라진다.
+ */
+const SHARED_MARKERS = /\d\s*\/\s*\d|\d\s*명이서|나눠|나눔|등분|반씩/;
+
+function sharedMarkerOf(rawName) {
+    const matched = String(rawName || "").match(SHARED_MARKERS);
+    return matched ? matched[0].trim() : null;
+}
+
+/**
  * "코카콜라 500ml"에서 **500**을 읽어낸다. 적혀 있지 않으면 null.
  *
  * 개수([quantityOf])와 반대 개념이다. 이건 **그 제품의 크기**다.
@@ -958,6 +975,17 @@ function correctWithFoodDb(data, foundMap) {
                 continue;
             }
 
+            // 나눠 먹었다고 적혔는데 몫이 g으로 안 적혔으면 DB의 1인분으로 덮으면 안 된다.
+            // 모델이 130으로 잘 나눠놔도 보정이 388로 도로 올려, 나눈 사실이 통째로 사라진다.
+            const shared = sharedMarkerOf(item.name);
+            if (shared && !stated) {
+                console.warn(
+                    `[fooddb] 보정 건너뜀 - "${item.name}": `
+                    + `나눠 먹은 표시("${shared}")가 있는데 몫이 g으로 안 적혀 있다`
+                );
+                continue;
+            }
+
             const dbKcal = Math.round(food.kcal * sizeFactor * qty);
 
             // 가드는 **한 개끼리** 비교한다.
@@ -1079,6 +1107,7 @@ module.exports = {
     mergeDuplicateItems,
     quantityOf,
     bulkUnitOf,
+    sharedMarkerOf,
     statedAmountOf,
     splitCategoryHint,
     normalize,

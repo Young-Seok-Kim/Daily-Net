@@ -17,6 +17,7 @@ const {
     scoreRow,
     correctWithFoodDb,
     bulkUnitOf,
+    sharedMarkerOf,
     collectMealNames,
     mergeDuplicateItems,
     MIN_SCORE
@@ -282,6 +283,30 @@ test("bulkUnitOf - 덩어리 단위만 골라낸다", async (t) => {
     });
 });
 
+test("sharedMarkerOf - 나눠 먹은 표시를 찾는다", async (t) => {
+    await t.test("나눈 티가 나는 표현들", () => {
+        assert.ok(sharedMarkerOf("탕수육 1접시 3명이서"));
+        assert.ok(sharedMarkerOf("피자 친구랑 반씩"));
+        assert.ok(sharedMarkerOf("치킨 나눠 먹음"));
+        assert.ok(sharedMarkerOf("보쌈 4등분"));
+        assert.ok(sharedMarkerOf("탕수육 1/3접시"));
+    });
+
+    await t.test("똑같이 안 나눈 표현도 잡는다", () => {
+        // 이런 문장이 실제로 들어온다. "나눠"만 잡으면 되지만, 표현이 바뀌어도
+        // 걸리는지 확인해 둔다. 여기서 놓치면 DB가 1인분으로 도로 덮어쓴다.
+        assert.ok(sharedMarkerOf("치킨 2명이서 나눠먹었는데 내가 좀 더 먹음"));
+        assert.ok(sharedMarkerOf("치킨 2명이서 나눠먹은것같음"));
+        assert.ok(sharedMarkerOf("피자 2명이서 먹음"));
+    });
+
+    await t.test("혼자 먹은 것은 아니다", () => {
+        assert.equal(sharedMarkerOf("탕수육 1접시"), null);
+        assert.equal(sharedMarkerOf("코카콜라 2캔"), null);
+        assert.equal(sharedMarkerOf("잡곡밥 1공기"), null);
+    });
+});
+
 test("correctWithFoodDb - 칼로리를 바로잡고 탄단지를 따라 맞춘다", async (t) => {
     const build = () => ({
         calories: { breakfast: 500, lunch: 0, dinner: 0, snack: 0, exercise: 0 },
@@ -377,6 +402,40 @@ test("correctWithFoodDb - 칼로리를 바로잡고 탄단지를 따라 맞춘�
         assert.equal(data.meals.dinner[0].source, undefined);
         // 안 고쳤으면 탄단지도 건드리면 안 된다
         assert.equal(data.macros.dinner.carb, 150);
+    });
+
+    await t.test("나눠 먹은 표시가 있으면 보정하지 않는다", () => {
+        // 모델이 3명이서 나눈 몫으로 130을 냈는데 보정이 DB 1인분(388)으로 도로 올리면
+        // 나눠 먹은 사실이 통째로 사라진다.
+        const data = {
+            calories: { dinner: 130 },
+            meals: { dinner: [{ name: "탕수육 1접시 3명이서 나눔", kcal: 130 }] },
+            macros: { dinner: { carb: 13, protein: 8, fat: 5 } }
+        };
+        const applied = correctWithFoodDb(
+            data,
+            new Map([["탕수육 1접시 3명이서 나눔", { name: "탕수육", kcal: 388, portion: 343 }]])
+        );
+
+        assert.equal(applied.length, 0);
+        assert.equal(data.meals.dinner[0].kcal, 130);
+    });
+
+    await t.test("몫이 g으로 적혀 있으면 나눠 먹었어도 보정한다", () => {
+        // 프롬프트가 시키는 정상 경로다. 몫이 114g이면 그 크기로 환산하면 된다.
+        const data = {
+            calories: { dinner: 130 },
+            meals: { dinner: [{ name: "탕수육 114g", kcal: 130 }] },
+            macros: { dinner: { carb: 13, protein: 8, fat: 5 } }
+        };
+        const applied = correctWithFoodDb(
+            data,
+            new Map([["탕수육 114g", { name: "탕수육", kcal: 388, portion: 343 }]])
+        );
+
+        assert.equal(applied.length, 1);
+        // 388 × (114 / 343) = 129
+        assert.equal(data.meals.dinner[0].kcal, 129);
     });
 
     await t.test("그램이 적혀 있으면 마리가 붙어도 보정한다", () => {
