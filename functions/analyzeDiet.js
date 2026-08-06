@@ -6,12 +6,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { LABELS, resolveLang } = require("./labels");
 const { generateAndParse } = require("./gemini");
 const { recommendedIntake } = require("./nutrition");
-const {
-    lookupMany,
-    correctWithFoodDb,
-    collectMealNames,
-    mergeDuplicateItems
-} = require("./foodDb");
+const { mergeDuplicateItems } = require("./mergeItems");
 const {
     REQUIRE_AUTH,
     QUOTA_TIMEOUT_MS,
@@ -24,8 +19,7 @@ const {
 exports.analyzeDiet = onRequest({
     region: "asia-northeast3",
     cors: true,
-    // FOOD_API_KEY는 없어도 동작한다 (조회를 건너뛰고 모델 추정값을 그대로 쓴다)
-    secrets: ["GEMINI_API_KEY", "FOOD_API_KEY"],
+    secrets: ["GEMINI_API_KEY"],
     // [보안] 인증된 앱의 요청만 허용 (App Check 필수 활성화 필요)
     enforceAppCheck: true,
     timeoutSeconds: 120,
@@ -86,7 +80,13 @@ exports.analyzeDiet = onRequest({
             model: "gemini-3.5-flash-lite",
             generationConfig: {
                 responseMimeType: "application/json",
-                temperature: 0.4,        // 칼로리 산출 일관성 향상
+                // 같은 입력을 다시 분석하면 다른 숫자가 나오던 것 때문에 0.4에서 내렸다.
+                // 로그에서 `우유 200ml`이 70~150까지 흔들렸다 — 양이 완전히 지정된,
+                // 정답이 하나뿐인 항목인데도 두 배 넘게 벌어졌다. 추세를 보는 앱에서
+                // 이건 값이 조금 틀리는 것보다 나쁘다.
+                // 0으로 두지 않은 이유는 사진·문장 해석에는 약간의 폭이 필요해서다.
+                // (메뉴만 읽는 extractMeal은 0.2를 쓴다)
+                temperature: 0.1,
                 maxOutputTokens: 4096,
                 // ⚡ 속도 개선의 핵심: 기본 'thinking' 지연 제거 (프롬프트의 단계별 사고 지시로 보완)
                 // 3.x 계열은 thinkingBudget을 안 받는다(INVALID_ARGUMENT). thinkingLevel로 지정한다.
@@ -133,7 +133,21 @@ const prompt = `
             [분석 및 응답 지침] - **Lite 모델 최적화 버전**
             1. **칼로리 산출 로직 고정**:
                - 모든 음식은 식약처 표준 영양 성분 DB를 기준으로 합니다.
+               - **브랜드·제품명이 적혀 있으면 그 제품이 공표한 값을 쓰십시오.**
+                 ("스타벅스 아메리카노 톨", "코카콜라 제로 355ml", "GS25 참치마요 삼각김밥")
+                 - 같은 계열의 다른 제품 값으로 대신하지 마십시오. 제로·라이트·무설탕 표기는
+                   그 하나로 열량이 0에 가깝게 달라집니다
+                 - 제품을 모르면 브랜드를 빼고 일반 메뉴로 계산하십시오. 지어내면 안 됩니다
                - 양이 명시되지 않았다면 성인 1인분(표준 중량)을 기준으로 하되, 터무니없는 고칼로리 산출을 절대 금지합니다.
+               - **확실하지 않을 때 한쪽으로 치우치지 마십시오. 통상적인 값을 쓰십시오.**
+                 - 바로 위의 "터무니없는 고칼로리 금지"는 말 그대로 **터무니없는 값**을 막으라는 것이지,
+                   애매할 때마다 낮은 쪽으로 깎으라는 뜻이 아닙니다.
+                   항목마다 조금씩 깎으면 하루 총합에서 수백 kcal이 조용히 사라집니다
+                 - 조리법이 적혀 있으면 반드시 반영하십시오. 튀기거나 볶은 것은 기름이 더해지고
+                   굽거나 찐 것은 그렇지 않습니다. 안 적혀 있으면 그 음식의 **가장 흔한 조리법**으로 잡으십시오
+                 - 눈에 안 보이는 기름·설탕·소스를 빠뜨리지 마십시오. 볶음밥의 기름,
+                   양념의 설탕, 샐러드 드레싱은 그것만으로 100kcal이 넘는 경우가 흔합니다
+                 - 다만 **없는 것을 넣어 올리지도 마십시오.** 적힌 것만 계산하십시오
                - 메뉴명이 아닌 식당이름을 명시했을경우 해당 식당에서 사용자가 먹은 메뉴를 예상하여 예상한 메뉴를 기준으로 칼로리를 계산하십시오.
                - **무언가에 타거나 섞어 먹었다고 적었으면, 섞은 재료도 반드시 별도 항목으로 나누어 계산하십시오.**
                  ("~에 타서", "~에 말아", "~와 섞어", "~를 넣고", "~에 부어" 등)
@@ -160,8 +174,9 @@ const prompt = `
                      사용자가 기억하는 대로 적은 것이니 무시하지 마십시오
                    - 얼마나 더 먹었는지 안 적혀 있으면 **6:4 정도로만** 잡으십시오.
                      "좀 더"를 두 배로 해석하면 안 됩니다
-               - 위 두 경우 **중량(g)을 이름에 적는 것이 중요합니다.** 서버가 그 중량으로
-                 영양 DB 값을 환산하는데, 안 적으면 1인분치로 되돌아가 계산이 어긋납니다
+               - 위 두 경우 **중량(g)을 이름에 적는 것이 중요합니다.** 1인분이 아닌 양으로 계산했다면
+                 그 근거가 이름에 남아 있어야 사용자가 보고 맞는지 틀린지 판단할 수 있습니다.
+                 (안 적으면 사용자에게는 그냥 "삼겹살 2340kcal"로만 보입니다)
                - 사용자가 비고 혹은 운동에 도보를 명시했을경우 사용자의 키, 몸무게에 따른 소모 칼로리를에 추가하여 계산하십시오.
                - 걸음 수(${stepCount}보)가 0보다 크면, 사용자의 키/몸무게 기준 걸음당 소모 칼로리를 추정해 운동 소모 칼로리(calories.exercise)에 합산하십시오. (도보가 이미 운동/비고에 명시된 경우 중복 계산하지 않도록 주의)
             2. **단계별 사고(Chain of Thought)**: 내부적으로 [메뉴명 -> 예상 중량(g) -> 100g당 칼로리 -> 최종 칼로리] 단계를 거쳐 계산한 뒤 결과값만 JSON에 담으세요.
@@ -225,26 +240,18 @@ const prompt = `
         });
         const tGemini = Date.now();
 
-        // 브랜드 가공식품처럼 정답이 정해진 것은 모델 기억 대신 식약처 DB 값으로 바로잡는다.
+        // 칼로리는 모델이 낸 값을 그대로 쓴다. 여기 식약처 DB 조회·보정이 있었고, 지웠다.
         //
-        // 모델을 먼저 돌리는 이유: 사용자가 적는 건 "스타벅스 아메리카노 톨 1잔"처럼 문장이라
-        // 그대로는 DB를 검색할 수 없다. 모델이 메뉴 단위로 갈라준 뒤라야 이름으로 찾을 수 있다.
-        //
-        // 키가 없거나 조회가 실패하면 아무것도 안 바뀐다 — 지금까지의 추정값 그대로 나간다.
-        const foodApiKey = process.env.FOOD_API_KEY;
-        let corrected = [];
-        try {
-            const found = await lookupMany(collectMealNames(data), foodApiKey);
-            corrected = correctWithFoodDb(data, found);
-        } catch (e) {
-            // 영양 DB는 정확도를 올리는 보조 수단이다. 여기서 분석 전체를 실패시키면 안 된다.
-            console.warn("식약처 보정 건너뜀:", e.message);
-        }
-        const tFoodDb = Date.now();
+        // 이름으로 제품을 찾는 일이 끝내 안 맞았다. "치킨"에 치킨데리야끼가, "라떼"에
+        // 검은콩라떼가, 외식 탕수육에 냉동 간편식 행이 붙었다. 전부 DB에 실재하는 정당한
+        // 행이라 버그가 아니었다 — 이름 말고는 고를 근거가 없었던 것이 문제였다.
+        // 되살릴 거라면 유사도를 더 조이는 쪽이 아니라, **브랜드가 적힌 이름만 조회하는**
+        // 쪽으로 다시 짜야 한다. 사고는 전부 일반명사에서 났다.
+        // 지운 코드는 CHANGELOG의 `## 서버 2026-08-07` 항목과 그 직전 커밋들에 남아 있다.
 
         // 모델이 "코카콜라 2개"를 같은 이름 두 줄로 쪼개 놓는 일이 잦다.
         // 합계는 맞지만 리포트에 같은 메뉴가 두 번 뜨므로 한 줄로 합친다.
-        // (보정 뒤에 합쳐야 각 줄이 DB 값으로 바뀐 뒤의 합이 된다)
+        // (이건 계산이 아니라 표시 정리라서 보정을 끊은 뒤에도 그대로 둔다)
         const mergedMeals = mergeDuplicateItems(data);
 
         // 총평이 **숫자를 쓰거나 살이 빠질지 찔지 판정하면** 프롬프트 지시를 어긴 것이다.
@@ -405,21 +412,17 @@ ${data.evaluation}
         console.log(
             `[timing] auth=${tAuth - t0}ms quota=${tQuota - tAuth}ms ` +
             `prep=${tPrompt - tQuota}ms gemini=${tGemini - tPrompt}ms ` +
-            `fooddb=${tFoodDb - tGemini}ms total=${Date.now() - t0}ms`
+            `total=${Date.now() - t0}ms`
         );
-        if (corrected.length > 0) {
-            // 어떤 이름이 어떤 제품으로 붙어 얼마나 바뀌었는지. 오매칭을 잡을 유일한 단서다.
-            console.log("[fooddb]", JSON.stringify(corrected));
-        }
         if (mergedMeals.length > 0) {
             console.log("[merge] 같은 메뉴를 합친 끼니:", mergedMeals.join(","));
         }
 
         // 모델이 끼니를 어떤 항목으로 쪼갰는지.
         //
-        // [fooddb]는 **DB로 고친 것만** 남기기 때문에, 항목이 아예 빠진 문제는 거기서 안 보인다.
-        // 예를 들어 "프로틴을 우유에 타먹음"에서 우유가 통째로 누락돼도
-        // 우유는 식약처 DB에 없어서 [fooddb]에 찍힐 일이 없다 — 로그만 보면 멀쩡해 보인다.
+        // 보정을 끊은 지금은 이 줄이 **칼로리가 어떻게 나왔는지 볼 수 있는 유일한 자리다.**
+        // 숫자가 이상하면 항목이 빠졌는지(예: "프로틴을 우유에 타먹음"에서 우유 누락),
+        // 양을 잘못 잡았는지를 여기서 갈라야 하고, 둘의 대처는 서로 다르다.
         // 무엇이 들어갔는지를 알아야 무엇이 빠졌는지를 알 수 있다.
         // 끼니 이름은 L(언어별 라벨)을 쓰지 않는다. 사용자 언어에 따라 로그 모양이 바뀌면
         // 나중에 찾아보기 어렵고, 이모지까지 섞여 읽기 나쁘다. 로그는 늘 같은 말로 남긴다.
@@ -429,13 +432,12 @@ ${data.evaluation}
                 const items = data.meals?.[meal];
                 if (!Array.isArray(items) || items.length === 0) return null;
                 const listed = items
-                    .map((m) => `${m.name || "?"} ${n(m.kcal)}${m.source === "mfds" ? "*" : ""}`)
+                    .map((m) => `${m.name || "?"} ${n(m.kcal)}`)
                     .join(" / ");
                 return `${label}: ${listed}`;
             })
             .filter(Boolean)
             .join(" | ");
-        // *는 식약처 DB 값으로 바로잡은 항목이라는 표시
         if (mealLog) console.log("[meals]", mealLog);
 
         res.status(200).json({
