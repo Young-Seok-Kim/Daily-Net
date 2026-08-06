@@ -952,7 +952,8 @@ function correctWithFoodDb(data, foundMap) {
                 // 조용히 넘어가면 안 된다. 왜 안 고쳐졌는지는 이 줄이 유일한 단서다.
                 console.warn(
                     `[fooddb] 보정 건너뜀 - "${item.name}": `
-                    + `DB "${food.name}"는 ${food.portion || "?"}g 기준이라 1${bulk}과 다르다`
+                    // "1마리과"처럼 조사가 틀어지지 않게 단위 뒤에 "기준"을 붙여 받침을 고정한다
+                    + `DB "${food.name}"는 ${food.portion || "?"}g 기준이라 1${bulk} 기준과 다르다`
                 );
                 continue;
             }
