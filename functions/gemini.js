@@ -21,6 +21,28 @@ const RAW_TAIL_CHARS = 300;
  */
 const RETRY_TEMPERATURES = [0.7, 1.0];
 
+/**
+ * 한 번의 호출을 이만큼 기다렸는데도 답이 없으면 끊고 다시 묻는다.
+ *
+ * 무료 등급으로 옮긴 날 실제로 겪었다 — 에러도 응답도 없이 한 호출이 100초 넘게 매달려 있었고,
+ * 세 번째에 답이 왔을 땐 이미 180초가 지나 함수 타임아웃(120초)도 앱 타임아웃(120초)도
+ * 넘긴 뒤였다. 서버 로그에만 성공으로 남고 사용자는 실패를 봤다.
+ * (2026-08-05 11:31 gemini=180735ms, 13:54 gemini=146393ms)
+ * 끊어야 재시도라도 할 수 있다.
+ */
+const ATTEMPT_TIMEOUT_MS = 25000;
+
+/**
+ * 대기 시간까지 포함해 모델에 쓸 수 있는 전체 시간.
+ *
+ * 함수 타임아웃이 120초인데 뒤에 식약처 조회(최대 6초)와 응답 조립이 남는다.
+ * 여기서 다 써버리면 어차피 아무것도 못 돌려준다.
+ */
+const TOTAL_BUDGET_MS = 80000;
+
+/** 재시도 간격 상한. 이보다 더 기다려봐야 예산만 먹는다. */
+const MAX_BACKOFF_MS = 8000;
+
 // 마크다운 코드펜스를 걷어낸다. 모델이 순수 JSON만 달라고 해도 가끔 붙여 보낸다.
 function stripFences(rawText) {
     return (rawText || "").replace(/```json/g, "").replace(/```/g, "").trim();
@@ -105,6 +127,38 @@ function describeResponse(response) {
 }
 
 /**
+ * 다시 물으면 될 수도 있는 에러인지 판정한다. 재시도할 이유면 로그에 쓸 사유, 아니면 null.
+ *
+ * 예전엔 메시지에 "503"이 들어 있는지만 봤다. 유료 등급에선 그걸로 충분했는데
+ * 무료 등급으로 옮기자마자 걸러지지 않는 실패가 쏟아졌다 (2026-08-05):
+ *   - `fetch failed`  — 응답을 받기도 전에 연결이 끊긴 것. 상태 코드가 아예 없어 그냥 통과해 실패했다.
+ *   - 429             — 무료 등급은 분당 15회 제한이 있다. 잠깐 기다리면 되는 건데 즉시 실패했다.
+ * 반대로 400/401/403/404는 **절대 재시도하지 않는다.** 키가 틀렸거나 모델명이 틀렸거나
+ * 요청이 잘못된 것이라 몇 번을 물어도 같은 답이 오고, 사용자만 그만큼 늦게 실패를 본다.
+ * (3.x로 올릴 때 thinkingBudget이 INVALID_ARGUMENT로 죽던 게 바로 이 부류다)
+ */
+function retryReason(error) {
+    if (error instanceof SyntaxError) return "JSON 파싱 실패";
+
+    const msg = error?.message || "";
+    // SDK가 HTTP 에러에 status를 실어준다. 메시지 문자열을 훑는 것보다 이쪽이 정확하다.
+    const status = Number.isFinite(error?.status)
+        ? error.status
+        : Number((msg.match(/\[(\d{3})\s/) || [])[1]) || 0;
+
+    if (status === 429) return "429 호출 한도";
+    if (status >= 500) return `${status} 과부하`;
+    if (status >= 400) return null;
+
+    // 상태 코드가 없다는 건 응답을 받기 전에 끝났다는 뜻이다. 이건 대체로 다시 하면 된다.
+    if (/abort/i.test(msg)) return "응답 없음(제한 시간 초과)";
+    if (/fetch failed|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up/i.test(msg)) {
+        return "네트워크 오류";
+    }
+    return null;
+}
+
+/**
  * 생성 + JSON 파싱을 함께 재시도 (503 과부하 및 파싱 실패 모두 대응).
  *
  * @param {object} options
@@ -112,33 +166,64 @@ function describeResponse(response) {
  *   - salvageIfHas: 전부 다 실패했을 때, 잘린 응답에서 건져 쓸지 판단할 필수 키 목록.
  *     여기 적힌 키가 **하나라도 안 살아나면 건지지 않고 실패시킨다.**
  *     숫자가 반쯤 빠진 리포트를 멀쩡한 척 보여주는 것보다 실패가 낫다.
+ *   - attemptTimeoutMs: 한 번의 호출을 기다릴 상한
+ *   - totalBudgetMs: 대기까지 합쳐 여기서 쓸 수 있는 전체 시간.
+ *     **부르는 쪽의 함수 타임아웃보다 반드시 짧아야 한다.** 넘기면 응답을 조립할 시간이 없다.
  */
 async function generateAndParse(model, prompt, options = {}) {
-    const { maxRetries = 3, salvageIfHas = null } = options;
+    const {
+        // 6회인 이유: 어제 과부하가 38초 이어졌다 (11:27:38~11:28:16).
+        // 503은 2초쯤이면 튕겨 나오므로 시도 자체는 시간을 거의 안 먹고 대기가 창을 만든다.
+        // 1+2+4+8+8초 = 23초에 시도 시간을 더해 35초쯤 버틴다.
+        // 더 늘리지 않는 것은 무료 등급이 분당 15회 제한이라 마구 두드리면
+        // 과부하가 풀려도 이번엔 429로 막히기 때문이다.
+        maxRetries = 6,
+        salvageIfHas = null,
+        attemptTimeoutMs = ATTEMPT_TIMEOUT_MS,
+        totalBudgetMs = TOTAL_BUDGET_MS
+    } = options;
     // 재시도 때 온도만 바꿔 다시 보내려면 원래 설정을 그대로 들고 가야 한다.
     // 요청에 generationConfig를 실으면 모델에 걸어둔 값을 **합치지 않고 통째로 덮어쓴다.**
     const baseConfig = model.generationConfig || {};
+    const deadline = Date.now() + totalBudgetMs;
+
+    // 프롬프트는 문자열이거나 파트 배열이다. 사진을 함께 보내는 쪽(extractMeal)이 배열을 쓴다.
+    const parts = Array.isArray(prompt)
+        ? prompt.map((part) => (typeof part === "string" ? { text: part } : part))
+        : [{ text: prompt }];
 
     let lastError;
     let lastRaw = null;
+    // 온도는 **파싱이 깨졌을 때만** 올린다. 과부하나 네트워크 문제로 다시 묻는 것은
+    // 모델이 답을 만들지도 못한 경우라, 답의 내용을 바꿀 이유가 없다.
+    let parseRetries = 0;
 
     for (let i = 0; i < maxRetries; i++) {
+        const left = deadline - Date.now();
+        if (left <= 0) {
+            console.warn(`[gemini] 예산 ${totalBudgetMs}ms 소진 - ${i}번 시도하고 포기`);
+            break;
+        }
+
         let response = null;
         try {
-            const request = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
-            if (i > 0) {
-                const temperature = RETRY_TEMPERATURES[Math.min(i - 1, RETRY_TEMPERATURES.length - 1)];
-                request.generationConfig = { ...baseConfig, temperature };
+            const request = { contents: [{ role: "user", parts }] };
+            if (parseRetries > 0) {
+                const idx = Math.min(parseRetries - 1, RETRY_TEMPERATURES.length - 1);
+                request.generationConfig = { ...baseConfig, temperature: RETRY_TEMPERATURES[idx] };
             }
 
-            const result = await model.generateContent(request);
+            // 한 번의 호출에 상한을 건다. 이게 없으면 매달린 호출 하나가 예산을 통째로 먹고
+            // 재시도할 기회조차 남기지 않는다.
+            const result = await model.generateContent(request, {
+                timeout: Math.min(attemptTimeoutMs, left)
+            });
             response = result.response;
             lastRaw = response.text();
             return safeParseJson(lastRaw); // 파싱까지 성공해야 반환
         } catch (error) {
             lastError = error;
-            const msg = error.message || "";
-            const isOverload = msg.includes("503") || msg.includes("high demand");
+            const reason = retryReason(error);
             const isParseError = error instanceof SyntaxError;
 
             if (isParseError) {
@@ -146,20 +231,27 @@ async function generateAndParse(model, prompt, options = {}) {
                 const tail = (lastRaw || "").slice(-RAW_TAIL_CHARS);
                 console.warn(`[gemini] 파싱 실패 - ${describeResponse(response)} 길이=${(lastRaw || "").length}`);
                 console.warn(`[gemini] 원문 끝: ${tail}`);
+                parseRetries++;
             }
 
-            // 과부하(503) 또는 파싱 실패면 재시도, 그 외 에러는 즉시 종료
-            if (isOverload || isParseError) {
-                // 마지막 시도 뒤에는 기다리지 않는다. 다시 물어보지도 않을 거면서
-                // 4초를 더 세우면 사용자만 그만큼 늦게 실패를 본다.
-                if (i === maxRetries - 1) break;
+            // 다시 물어도 소용없는 에러(키·모델명·요청이 틀림)는 즉시 종료
+            if (!reason) throw error;
 
-                const delay = Math.pow(2, i) * 1000; // 1초, 2초, 4초 대기
-                console.warn(`재시도(${i + 1}/${maxRetries}) - 사유: ${isParseError ? "JSON 파싱 실패" : "503 과부하"} (${delay}ms 대기)`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-                continue;
+            // 마지막 시도 뒤에는 기다리지 않는다. 다시 물어보지도 않을 거면서
+            // 4초를 더 세우면 사용자만 그만큼 늦게 실패를 본다.
+            if (i === maxRetries - 1) break;
+
+            // 1·2·4·8초에서 절반~전부 사이로 흔든다. 같은 순간에 몰려 다시 나가면
+            // 과부하일 때 똑같이 또 튕긴다.
+            const base = Math.min(MAX_BACKOFF_MS, Math.pow(2, i) * 1000);
+            const delay = Math.round(base * (0.5 + Math.random() * 0.5));
+            if (Date.now() + delay >= deadline) {
+                console.warn(`[gemini] 예산이 ${delay}ms를 못 버팀 - ${i + 1}번 시도하고 포기 (사유: ${reason})`);
+                break;
             }
-            throw error;
+
+            console.warn(`재시도(${i + 1}/${maxRetries}) - 사유: ${reason} (${delay}ms 대기)`);
+            await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
 
@@ -174,7 +266,9 @@ async function generateAndParse(model, prompt, options = {}) {
         }
     }
 
-    throw lastError;
+    // 한 번도 못 물어본 채로 예산이 끝났으면 lastError가 없다. 그대로 던지면
+    // undefined가 올라가 호출한 쪽의 error.message에서 또 터진다.
+    throw lastError || new Error(`[gemini] 시간이 없어 한 번도 묻지 못함 (예산 ${totalBudgetMs}ms)`);
 }
 
-module.exports = { safeParseJson, salvageTruncatedJson, generateAndParse };
+module.exports = { safeParseJson, salvageTruncatedJson, generateAndParse, retryReason };

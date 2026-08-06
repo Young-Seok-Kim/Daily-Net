@@ -7,7 +7,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { safeParseJson, salvageTruncatedJson, generateAndParse } = require("../gemini");
+const { safeParseJson, salvageTruncatedJson, generateAndParse, retryReason } = require("../gemini");
 const { resolveLang, LABELS } = require("../labels");
 
 test("safeParseJson - 모델이 섞어 보내는 것들을 걷어낸다", async (t) => {
@@ -91,15 +91,22 @@ test("salvageTruncatedJson - 잘린 응답에서 온전한 데까지 건진다",
     });
 });
 
-// 실제 SDK 대신 정해둔 응답을 돌려주는 모델. 요청을 기록해 재시도 방식까지 확인한다.
+/**
+ * 실제 SDK 대신 정해둔 응답을 돌려주는 모델. 요청을 기록해 재시도 방식까지 확인한다.
+ * 배열 원소가 Error면 그 시도는 그 에러로 실패한다 (503·네트워크 오류 재현용).
+ */
 function fakeModel(texts) {
     const requests = [];
+    const requestOptions_ = [];
     return {
         requests,
+        options: requestOptions_,
         generationConfig: { temperature: 0.4, maxOutputTokens: 4096 },
-        async generateContent(request) {
+        async generateContent(request, requestOptions) {
             requests.push(request);
+            requestOptions_.push(requestOptions);
             const text = texts[Math.min(requests.length - 1, texts.length - 1)];
+            if (text instanceof Error) throw text;
             return {
                 response: {
                     text: () => text,
@@ -145,6 +152,107 @@ test("generateAndParse - 깨진 응답을 다루는 방식", async (t) => {
     await t.test("salvageIfHas를 안 주면 건지지 않는다", async () => {
         const model = fakeModel([CUT_IN_ARRAY]);
         await assert.rejects(generateAndParse(model, "p", { maxRetries: 1 }), SyntaxError);
+    });
+});
+
+// SDK가 실제로 던지는 모양. HTTP 에러에는 status가 실리고, 연결이 끊기면 status가 없다.
+function sdkError(message, status) {
+    const error = new Error(`[GoogleGenerativeAI Error]: Error fetching from https://x: ${message}`);
+    if (status) error.status = status;
+    return error;
+}
+
+test("retryReason - 다시 물어서 될 것과 안 될 것을 가른다", async (t) => {
+    await t.test("다시 하면 될 수도 있는 것", () => {
+        // 전부 2026-08-05에 실제로 겪은 실패다. status가 없는 네트워크 오류를 안 걸러
+        // 재시도 없이 그대로 실패했었다.
+        assert.ok(retryReason(sdkError("fetch failed")));
+        assert.ok(retryReason(sdkError("[503 Service Unavailable] high demand", 503)));
+        assert.ok(retryReason(sdkError("[429 Too Many Requests] quota", 429)));
+        assert.ok(retryReason(sdkError("[500 Internal Server Error]", 500)));
+        assert.ok(retryReason(new Error("Request aborted when fetching https://x")));
+        assert.ok(retryReason(new Error("read ECONNRESET")));
+        assert.ok(retryReason(new SyntaxError("Unexpected end of JSON input")));
+    });
+
+    await t.test("몇 번을 물어도 같은 답이 오는 것은 즉시 실패", () => {
+        // 3.x로 올릴 때 thinkingBudget이 INVALID_ARGUMENT로 죽었다. 이걸 재시도하면
+        // 결과는 똑같고 사용자만 그만큼 늦게 실패를 본다.
+        assert.equal(retryReason(sdkError("[400 Bad Request] INVALID_ARGUMENT", 400)), null);
+        assert.equal(retryReason(sdkError("[403 Forbidden] API key not valid", 403)), null);
+        assert.equal(retryReason(sdkError("[404 Not Found] model not found", 404)), null);
+    });
+
+    await t.test("status가 없어도 메시지의 코드를 읽는다", () => {
+        // 실제 로그에 남은 문자열 그대로. status를 안 실어주는 경로가 있어 둘 다 본다.
+        assert.ok(retryReason(new Error("[503 Service Unavailable] high demand")));
+        assert.equal(retryReason(new Error("[400 Bad Request] INVALID_ARGUMENT")), null);
+    });
+});
+
+test("generateAndParse - 호출 자체가 실패했을 때", async (t) => {
+    await t.test("네트워크 오류는 다시 묻는다", async () => {
+        const model = fakeModel([sdkError("fetch failed"), '{"ok":1}']);
+        assert.deepEqual(await generateAndParse(model, "p", { maxRetries: 2 }), { ok: 1 });
+        assert.equal(model.requests.length, 2);
+    });
+
+    await t.test("과부하(503)도 다시 묻는다", async () => {
+        const model = fakeModel([sdkError("[503] high demand", 503), '{"ok":1}']);
+        assert.deepEqual(await generateAndParse(model, "p", { maxRetries: 2 }), { ok: 1 });
+        assert.equal(model.requests.length, 2);
+    });
+
+    await t.test("다시 물어도 소용없는 에러는 한 번만 묻고 던진다", async () => {
+        const model = fakeModel([sdkError("[400] INVALID_ARGUMENT", 400)]);
+        await assert.rejects(generateAndParse(model, "p", { maxRetries: 3 }), /INVALID_ARGUMENT/);
+        assert.equal(model.requests.length, 1, "400을 재시도하면 안 된다");
+    });
+
+    await t.test("호출이 실패했을 때는 온도를 올리지 않는다", async () => {
+        // 온도를 바꾸는 건 "같은 답이 또 잘려 오는" 파싱 실패용이다.
+        // 모델이 답을 만들지도 못한 경우엔 바꿀 이유가 없다.
+        const model = fakeModel([sdkError("fetch failed"), '{"ok":1}']);
+        await generateAndParse(model, "p", { maxRetries: 2 });
+        assert.equal(model.requests[1].generationConfig, undefined);
+    });
+
+    await t.test("한 번의 호출에 제한 시간을 건다", async () => {
+        // 이게 없어서 매달린 호출 하나가 180초를 먹고 함수 타임아웃(120초)을 넘겼다.
+        const model = fakeModel(['{"ok":1}']);
+        await generateAndParse(model, "p", { attemptTimeoutMs: 25000 });
+        assert.equal(model.options[0].timeout, 25000);
+    });
+
+    await t.test("남은 예산보다 긴 제한 시간은 걸지 않는다", async () => {
+        const model = fakeModel(['{"ok":1}']);
+        await generateAndParse(model, "p", { attemptTimeoutMs: 25000, totalBudgetMs: 5000 });
+        assert.ok(model.options[0].timeout <= 5000);
+    });
+
+    await t.test("사진(파트 배열)도 같은 재시도를 탄다", async () => {
+        // extractMeal이 이 형태로 부른다. 문자열만 받으면 사진 경로는 재시도 없이 그냥 실패한다.
+        const image = { inlineData: { data: "base64", mimeType: "image/jpeg" } };
+        const model = fakeModel([sdkError("fetch failed"), '{"items":[]}']);
+        assert.deepEqual(
+            await generateAndParse(model, [image, "메뉴를 읽어라"], { maxRetries: 2 }),
+            { items: [] }
+        );
+        assert.equal(model.requests.length, 2);
+        // 파트 순서가 뒤집히면 모델이 사진을 지시로 읽는다. 문자열만 {text}로 감싼다.
+        assert.deepEqual(model.requests[0].contents[0].parts, [image, { text: "메뉴를 읽어라" }]);
+    });
+
+    await t.test("예산이 없으면 아예 묻지 않는다", async () => {
+        // 함수 타임아웃이 코앞인데 또 물어봐야 응답을 돌려줄 시간이 없다.
+        // 이때 던지는 것이 Error여야 한다. undefined를 던지면 호출한 쪽의
+        // error.message에서 또 터져 원인이 로그에서 사라진다.
+        const model = fakeModel(['{"ok":1}']);
+        await assert.rejects(
+            generateAndParse(model, "p", { maxRetries: 5, totalBudgetMs: 0 }),
+            (e) => e instanceof Error && /한 번도 묻지 못함/.test(e.message)
+        );
+        assert.equal(model.requests.length, 0);
     });
 });
 

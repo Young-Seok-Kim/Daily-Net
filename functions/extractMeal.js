@@ -4,7 +4,7 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { LABELS, resolveLang } = require("./labels");
-const { safeParseJson } = require("./gemini");
+const { generateAndParse } = require("./gemini");
 const { verifyUser, reservePhoto, refundPhoto } = require("./quota");
 
 /**
@@ -107,12 +107,20 @@ exports.extractMeal = onRequest({
             { "items": [{ "name": "메뉴명", "amount": "1인분", "kcal": 0 }] }
         `;
 
-        const result = await model.generateContent([
-            { inlineData: { data: image, mimeType: mimeType || "image/jpeg" } },
-            prompt
-        ]);
-
-        const data = safeParseJson(result.response.text());
+        // analyzeDiet과 같은 무료 등급 모델을 쓴다. 과부하와 끊긴 연결은 여기서도 그대로 온다.
+        //
+        // 예산이 analyzeDiet(80초)보다 짧은 이유는 이 함수의 타임아웃이 60초이기 때문이다.
+        // 재시도하다 60초를 넘기면 사용자는 아무것도 못 받는다.
+        // 건져 쓰기(salvageIfHas)는 하지 않는다 — 잘린 목록은 음식이 통째로 빠진 목록이고,
+        // 그건 사용자가 알아채기 어려운 채로 칼로리를 덜 세게 만든다.
+        const data = await generateAndParse(
+            model,
+            [
+                { inlineData: { data: image, mimeType: mimeType || "image/jpeg" } },
+                prompt
+            ],
+            { attemptTimeoutMs: 20000, totalBudgetMs: 40000 }
+        );
         const items = Array.isArray(data.items)
             ? data.items
                 .filter(m => m && m.name)
