@@ -40,7 +40,7 @@ const NAME_PARAM = process.env.FOOD_API_NAME_PARAM || "FOOD_NM_KR";
  * 라떼가 검은콩 라떼로 붙던 문제를 고쳤는데 캐시 때문에 그대로였다.
  * 규칙을 바꿀 때마다 이 값을 올릴 것.
  */
-const RULES_VERSION = "v3";
+const RULES_VERSION = "v4";
 
 /**
  * 한 번에 받아올 후보 수.
@@ -692,6 +692,16 @@ function pickVariant(rows, normalizedQuery, categoryHint) {
         });
         if (byBrand.length > 0) matched = byBrand;
     }
+
+    // **이 이름으로 시작하는 행이 DB에 하나뿐일 때만** 같은 계열로 인정한다.
+    //
+    // 세는 자리가 중요하다. 원래는 아래 candidates(포장·환산 근거까지 갖춘 행)를 셌는데,
+    // 그 필터가 나머지를 걷어내면서 **일반명사인데도 하나만 남는** 일이 생겼다.
+    // 두 번 다 그렇게 뚫렸다 (2026-08-05~06):
+    //   `치킨` → `치킨데리야끼`             (치킨너겟·치킨가스는 환산 근거가 없어 떨어져 나갔다)
+    //   `라떼` → `라떼_검은콩 라떼 핫(HOT)`   (일반 카페라떼 180이 224로 바뀌었다)
+    // 필터 앞에서 세면 "일반명사는 여러 개가 남는다"는 전제가 실제로 성립한다.
+    if (matched.length !== 1) return null;
 
     const candidates = matched
         // 포장 총량이 적힌 행만 본다. 같은 제품인데 어떤 행은 90g 한 봉지,

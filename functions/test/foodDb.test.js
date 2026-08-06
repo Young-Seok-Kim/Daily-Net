@@ -222,6 +222,31 @@ test("pickBest - 확실할 때만 고른다", async (t) => {
         assert.equal(best.variant, true);
     });
 
+    await t.test("계열이 여럿이면 포기한다 - 환산 근거로 걸러지기 **전에** 센다", () => {
+        // 실제로 뚫렸던 둘이다 (2026-08-05~06).
+        // 세는 자리가 candidates(포장·환산 근거를 갖춘 행) 뒤라서, 나머지가 필터에
+        // 걸려 떨어지면 일반명사인데도 하나만 남아 그대로 통과했다.
+        const chicken = [
+            {
+                FOOD_NM_KR: "치킨데리야끼", SERVING_SIZE: "100g",
+                AMT_NUM1: "208", Z10500: "300g", NUTRI_AMOUNT_SERVING: "200g"
+            },
+            // 아래 둘은 Z10500이 없어 candidates에서 떨어진다. 그래서 예전엔 안 세어졌다.
+            { FOOD_NM_KR: "치킨너겟", SERVING_SIZE: "100g", AMT_NUM1: "290" },
+            { FOOD_NM_KR: "치킨가스", SERVING_SIZE: "100g", AMT_NUM1: "250" }
+        ];
+        assert.equal(pickBest(chicken, "치킨"), null);
+
+        const latte = [
+            {
+                FOOD_NM_KR: "라떼_검은콩 라떼 핫(HOT)", SERVING_SIZE: "100mL",
+                AMT_NUM1: "62", Z10500: "355mL", NUTRI_AMOUNT_SERVING: "355mL"
+            },
+            { FOOD_NM_KR: "라떼_바닐라 라떼", SERVING_SIZE: "100mL", AMT_NUM1: "70" }
+        ];
+        assert.equal(pickBest(latte, "라떼"), null, "일반 카페라떼가 검은콩 라떼로 바뀌던 건");
+    });
+
     await t.test("계열이 여러 갈래면 포기한다", () => {
         // "자갈치"에는 농심 과자(90g)와 해도식품 어묵(1kg)이 같이 걸린다.
         // 과자를 노렸는데 어묵 1kg이 붙으면 큰일 난다.
