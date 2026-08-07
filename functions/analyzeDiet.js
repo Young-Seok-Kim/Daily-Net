@@ -7,6 +7,7 @@ const { LABELS, resolveLang } = require("./labels");
 const { generateAndParse } = require("./gemini");
 const { recommendedIntake } = require("./nutrition");
 const { mergeDuplicateItems } = require("./mergeItems");
+const { implausibleItems } = require("./kcalCheck");
 const {
     REQUIRE_AUTH,
     QUOTA_TIMEOUT_MS,
@@ -406,6 +407,15 @@ ${data.evaluation}
         );
         if (mergedMeals.length > 0) {
             console.log("[merge] 같은 메뉴를 합친 끼니:", mergedMeals.join(","));
+        }
+
+        // 100g당 열량이 상식 밖인 항목. 숫자는 그대로 두고 알리기만 한다.
+        // 이게 계속 찍히면 프롬프트를 손볼 때가 된 것이다.
+        for (const bad of implausibleItems(data)) {
+            console.warn(
+                `[kcal] ${bad.name} = ${bad.kcal}kcal / ${bad.grams}g ` +
+                `→ 100g당 ${bad.per100} (${bad.reason})`
+            );
         }
 
         // 칼로리가 어떻게 나왔는지 볼 수 있는 유일한 자리다. 숫자가 이상하면
