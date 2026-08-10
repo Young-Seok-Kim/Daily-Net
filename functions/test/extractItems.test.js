@@ -142,6 +142,12 @@ test("countOf - amount에서 개수와 단위를 뽑는다", async (t) => {
         assert.deepEqual(countOf("12봉지"), { count: 12, unit: "봉지" });
     });
 
+    await t.test("1회 제공량을 옮겨 적은 것도 개수로 센다", () => {
+        // 실제로 `해태 오예스 1회 30g`으로 나왔는데 "회"가 빠져 있어 개당 표기가 안 붙었다
+        assert.deepEqual(countOf("1회 30g"), { count: 1, unit: "회" });
+        assert.deepEqual(countOf("3 servings"), { count: 3, unit: "servings" });
+    });
+
     await t.test("무게·부피는 개수가 아니다", () => {
         assert.equal(countOf("82g"), null);
         assert.equal(countOf("200ml"), null);
@@ -186,6 +192,14 @@ test("toInputText - 입력창에 넣을 한 줄", async (t) => {
             label: { kcal: 171, basisAmount: 39 }, eatenAmount: 78
         }]);
         assert.equal(toInputText(items), "초코파이 2개 (개당 171kcal)");
+    });
+
+    await t.test("1회 제공량 표기도 개당으로 적는다", () => {
+        const items = normalizeExtracted([{
+            name: "해태 오예스", amount: "1회 30g",
+            label: { kcal: 150, basisAmount: 30 }, eatenAmount: 30
+        }]);
+        assert.equal(toInputText(items), "해태 오예스 1회 (개당 30g 150kcal)");
     });
 
     await t.test("언어별 낱말을 쓴다", () => {

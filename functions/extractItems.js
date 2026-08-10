@@ -102,8 +102,13 @@ function normalizeExtracted(rawItems) {
         });
 }
 
-/** 낱개로 세는 단위. amount 앞머리에서 개수를 뽑을 때 쓴다 */
-const COUNT_UNITS = "개|봉지|봉|캔|병|팩|조각|장|줄|마리|컵|잔|알|판|pcs?|pieces?";
+/**
+ * 낱개로 세는 단위. amount 앞머리에서 개수를 뽑을 때 쓴다.
+ *
+ * `회`는 성분표의 "1회 제공량"을 그대로 옮겨 적을 때 나온다 (`해태 오예스 1회 30g`).
+ * 빠뜨렸더니 그 항목만 개당 표기가 안 붙어, 사용자가 `3회`로 고쳐도 열량이 그대로였다.
+ */
+const COUNT_UNITS = "개|봉지|봉|캔|병|팩|조각|장|줄|마리|컵|잔|알|판|회|servings?|pcs?|pieces?";
 
 /** amount에 적힌 개수와 그 단위. 없으면 null */
 function countOf(amount) {
