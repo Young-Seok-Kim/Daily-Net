@@ -71,6 +71,32 @@ function amountMismatch(amount, eatenAmount) {
     return `amount는 ${stated}인데 먹은 양을 ${eaten}으로 잡음`;
 }
 
+/**
+ * 여러 개들이를 통째로 먹은 것으로 잡았을 때 그 사연을 돌려준다. 아니면 빈 문자열.
+ *
+ * `eatenAmount`가 `basisAmount`의 **정수배**면 그 신호다 — 오예스 6개입이
+ * `180 = 30 × 6`으로 나가 900kcal이 붙은 적이 있다.
+ *
+ * N개입은 1개로 잡는 것이 규칙이지만 프롬프트로만 걸려 있고, **지시는 지켜지는지
+ * 확인할 방법이 없다.** 값은 고치지 않는다 — 정말 다 먹었을 수도 있다.
+ * 규칙이 얼마나 지켜지는지 보려고 세는 것이다.
+ */
+function wholePackGuess(label, eatenAmount, amount) {
+    const basis = Number(label && label.basisAmount);
+    const eaten = Number(eatenAmount);
+    if (!basis || !eaten || basis <= 0) return "";
+
+    // amount에 개수를 적었으면 몇 개인지 **밝히고 센 것**이다. 그건 규칙을 어긴 게 아니다.
+    // 잡으려는 건 `180g`처럼 개수를 안 밝힌 채 봉지 전체가 들어온 경우다
+    if (countOf(amount)) return "";
+
+    const times = eaten / basis;
+    // 2배 이상이고 딱 떨어질 때만. 100g당 기준으로 250g을 먹은 것 같은 건 해당 없다
+    if (times < 2 || !Number.isInteger(times)) return "";
+
+    return `${basis} 기준의 ${times}배를 먹은 것으로 잡음 (N개입을 통째로 셌을 수 있음)`;
+}
+
 /** 모델 응답을 {name, amount, kcal, kcalFromLabel} 형태로 고정한다 */
 function normalizeExtracted(rawItems) {
     if (!Array.isArray(rawItems)) return [];
@@ -95,7 +121,9 @@ function normalizeExtracted(rawItems) {
                     ? `${Number(m.label.kcal)}/${Number(m.label.basisAmount)}×${Number(m.eatenAmount)}`
                     : "",
                 // 이름과 열량이 서로 안 맞는 줄. 값은 그대로 두고 알리기만 한다
-                mismatch: fromLabel > 0 ? amountMismatch(amount, m.eatenAmount) : "",
+                mismatch: fromLabel > 0
+                    ? (amountMismatch(amount, m.eatenAmount) || wholePackGuess(m.label, m.eatenAmount, amount))
+                    : "",
                 // 개당 중량을 낼 때 쓴다. 문자열을 파싱하는 것보다 이 숫자가 정확하다
                 eaten: fromLabel > 0 ? Number(m.eatenAmount) : 0
             };
@@ -167,4 +195,4 @@ function toInputText(items, perUnitWord = "개당") {
         .join(", ");
 }
 
-module.exports = { normalizeExtracted, toInputText, kcalFromLabel, amountMismatch, countOf };
+module.exports = { normalizeExtracted, toInputText, kcalFromLabel, amountMismatch, wholePackGuess, countOf };

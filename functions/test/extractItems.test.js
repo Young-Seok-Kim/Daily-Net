@@ -8,7 +8,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { normalizeExtracted, toInputText, kcalFromLabel, amountMismatch, countOf } = require("../extractItems");
+const { normalizeExtracted, toInputText, kcalFromLabel, amountMismatch, wholePackGuess, countOf } = require("../extractItems");
 
 test("normalizeExtracted - 모델이 어떻게 보내든 모양을 고정한다", async (t) => {
     await t.test("빠진 필드를 채운다", () => {
@@ -131,6 +131,33 @@ test("amountMismatch - 이름과 열량이 어긋난 줄을 집는다", async (t
         }]);
         assert.equal(item.kcal, 171);
         assert.ok(item.mismatch, "어긋난 것을 알려야 한다");
+    });
+});
+
+test("wholePackGuess - N개입을 통째로 센 것 같으면 알린다", async (t) => {
+    await t.test("실제로 나갔던 오예스 건을 잡는다", () => {
+        // 6개입 총 내용량 180g이 그대로 들어와 900kcal이 됐다. 180 = 30 × 6
+        assert.match(wholePackGuess({ basisAmount: 30 }, 180, "180g"), /6배/);
+    });
+
+    await t.test("개수를 밝히고 셌으면 안 잡는다", () => {
+        // "3개"라고 적었으면 규칙을 어긴 게 아니라 세어서 적은 것이다
+        assert.equal(wholePackGuess({ basisAmount: 39 }, 117, "3개 117g"), "");
+    });
+
+    await t.test("한 개만 먹은 것은 당연히 안 잡는다", () => {
+        assert.equal(wholePackGuess({ basisAmount: 39 }, 39, "1개 39g"), "");
+    });
+
+    await t.test("딱 떨어지지 않으면 안 잡는다", () => {
+        // 100g당 기준으로 250g을 먹은 것은 개수와 무관하다
+        assert.equal(wholePackGuess({ basisAmount: 100 }, 250, "250g"), "");
+        assert.equal(wholePackGuess({ basisAmount: 100 }, 80, "80g"), "");
+    });
+
+    await t.test("잴 근거가 없으면 안 잡는다", () => {
+        assert.equal(wholePackGuess(null, 180, "180g"), "");
+        assert.equal(wholePackGuess({ basisAmount: 0 }, 180, "180g"), "");
     });
 });
 
