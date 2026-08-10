@@ -6,6 +6,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { LABELS, resolveLang } = require("./labels");
 const { generateAndParse } = require("./gemini");
 const { verifyUser, reservePhoto, refundPhoto } = require("./quota");
+const { normalizeExtracted, toInputText } = require("./extractItems");
 
 /**
  * 음식 사진에서 메뉴를 읽어 입력창에 채울 텍스트로 바꿔준다.
@@ -99,12 +100,53 @@ exports.extractMeal = onRequest({
                - 이때는 그램(g)을 쓰지 마십시오. 눈대중한 무게는 사용자가 가늠하기 어렵습니다.
                  (포장에 인쇄된 중량을 옮겨 적는 위 3번과는 다릅니다)
                - 양을 도저히 가늠할 수 없으면 amount를 빈 문자열("")로 두십시오. 지어내지 마십시오.
-            5. 음식이 아니거나 식별할 수 없으면 빈 배열([])을 반환하십시오. 추측으로 지어내지 마십시오.
-            6. 메뉴명(name)과 양(amount) 모두 반드시 ${L.outputLanguage}로 작성하십시오.
+            5. **영양성분표가 보이면 숫자를 읽어 label과 eatenAmount에 담으십시오.**
+               인쇄된 값이 가장 정확합니다.
+               - ⚠️ **계산은 하지 마십시오. 읽은 숫자를 그대로 담기만 하십시오.**
+                 곱하고 나누는 것은 서버가 합니다. 당신이 셈까지 하면 틀릴 수 있습니다
+               - **label.kcal** — 성분표에 적힌 열량 숫자
+               - **label.basisAmount** — 그 열량이 **무엇 얼마당**인지, 숫자만
+                 ("100g당"이면 100, "1회 제공량(30g)당"이면 30, "총 내용량 80g당"이면 80)
+               - **eatenAmount** — 사용자가 먹은 양. **basisAmount와 같은 단위로** 적으십시오
+                 (기준이 g이면 g으로, ml이면 ml로. 단위가 같아야 서버가 맞게 계산합니다)
+               - ⚠️ **eatenAmount는 amount에 적은 양과 반드시 일치해야 합니다.**
+                 amount에 "468g"이라고 적어놓고 eatenAmount에 39를 담으면,
+                 사용자는 **468g이라 쓰여 있는데 39g치 열량**을 보게 됩니다. 그 자체로 모순입니다
+               - ⚠️ **여러 개가 든 포장(N개입)은 몇 개를 먹었는지 사진만으로 알 수 없습니다.**
+                 **표시가 없으면 1개만 먹은 것으로 잡고, amount에도 "1개"를 적으십시오.**
+                 - 예: "39g당 171kcal"인 초코파이 **12봉지들이 박스**가 보임
+                   → amount:"**1개 39g**", label:{kcal:171, basisAmount:39}, eatenAmount:39
+                 - ❌ amount에 "468g (39g x 12봉지)"라고 **포장 총량을 적으면 안 됩니다.**
+                   468g이라 써놓고 39g치 열량을 붙이면 그 줄은 그 자체로 앞뒤가 안 맞습니다.
+                   **실제로 그렇게 나갔습니다.** amount와 eatenAmount는 언제나 같은 양을 가리켜야 합니다
+                 - 12개들이 박스를 통째로 먹는 일은 드뭅니다. 사용자가 입력창에서
+                   "3개"로 고칠 수 있으니 **모르면 적게 잡는 쪽**을 고르십시오
+                 - 뜯긴 껍질이나 꺼내놓은 개수가 보이면 **그만큼 세십시오.**
+                   그때는 amount:"3개 117g", eatenAmount:117 처럼 개수를 곱해 적습니다
+                 - **봉지 하나짜리는 그 봉지 전체가 1개입니다.** (과자 82g 한 봉 → eatenAmount:82)
+                   여러 개가 든 포장에만 해당하는 규칙입니다
+               - 예: "100g당 500kcal" 봉지(80g)를 다 먹음
+                 → label:{kcal:500, basisAmount:100}, eatenAmount:80
+               - 예: "1회 제공량 30g당 150kcal"인 80g 봉지를 다 먹음
+                 → label:{kcal:150, basisAmount:30}, eatenAmount:80
+                 (**1회 제공량은 봉지 전체가 아닙니다.** basisAmount는 30이지 80이 아닙니다)
+               - 예: "100ml당 62kcal" 우유를 200ml 마심
+                 → label:{kcal:62, basisAmount:100}, eatenAmount:200
+               - **기준이 무엇인지 확실하지 않으면 label을 null로 두십시오.**
+                 기준을 잘못 잡은 값은 눈대중보다 나쁩니다. 몇 배씩 틀립니다
+               - 숫자가 흐리거나 일부만 보여도 null로 두십시오. 지어내면 안 됩니다
+               - 성분표가 없는 일반 조리 음식은 당연히 null이고, 그때는 4번대로 kcal에 눈대중값을 담습니다
+            6. 음식이 아니거나 식별할 수 없으면 빈 배열([])을 반환하십시오. 추측으로 지어내지 마십시오.
+            7. 메뉴명(name)과 양(amount) 모두 반드시 ${L.outputLanguage}로 작성하십시오.
                (브랜드명은 고유명사이므로 원래 표기 그대로 두십시오)
-            7. Markdown 없이 순수 JSON만 응답하십시오.
+            8. Markdown 없이 순수 JSON만 응답하십시오.
 
-            { "items": [{ "name": "메뉴명", "amount": "1인분", "kcal": 0 }] }
+            {
+              "items": [{
+                "name": "메뉴명", "amount": "1인분", "kcal": 0,
+                "label": { "kcal": 0, "basisAmount": 0 }, "eatenAmount": 0
+              }]
+            }
         `;
 
         // analyzeDiet과 같은 무료 등급 모델을 쓴다. 과부하와 끊긴 연결은 여기서도 그대로 온다.
@@ -121,16 +163,7 @@ exports.extractMeal = onRequest({
             ],
             { attemptTimeoutMs: 20000, totalBudgetMs: 40000 }
         );
-        const items = Array.isArray(data.items)
-            ? data.items
-                .filter(m => m && m.name)
-                .map(m => ({
-                    name: String(m.name),
-                    // 못 알아본 양은 빈 문자열로 통일한다. 없는 필드와 null을 나눠 다루지 않기 위함.
-                    amount: m.amount ? String(m.amount).trim() : "",
-                    kcal: Number(m.kcal) || 0
-                }))
-            : [];
+        const items = normalizeExtracted(data.items);
 
         // 음식을 못 알아봤으면 사용자가 얻은 게 없으므로 횟수를 돌려준다.
         // (시도 횟수는 그대로 남아 악용은 계속 막힌다)
@@ -143,12 +176,25 @@ exports.extractMeal = onRequest({
         // 브랜드와 용량을 읽으라고 지시해 뒀지만 **모델이 지키는지는 결과를 봐야 안다.**
         // 이걸 안 남기면 "사진으로 용량이 들어오나?"를 확인할 방법이 없다.
         // (analyzeDiet의 [meals]와 같은 이유다 — 무엇이 들어왔는지 알아야 무엇이 빠졌는지 안다)
+        // *는 영양성분표에서 읽은 값이라는 표시. 괄호 안은 그 근거(열량/기준×먹은양)다.
+        // 기준이 30인지 100인지 400인지 보여야 1회 제공량을 봉지 전체로 착각했는지 가릴 수 있다.
         console.log(
             "[extract]",
             items.length === 0
                 ? "인식 실패"
-                : items.map((m) => `${m.name}${m.amount ? " " + m.amount : ""} ${m.kcal}`).join(" / ")
+                : items
+                    .map((m) =>
+                        `${m.name}${m.amount ? " " + m.amount : ""} ${m.kcal}` +
+                        (m.kcalFromLabel ? `*(${m.basis})` : "")
+                    )
+                    .join(" / ")
         );
+
+        // 이름에 적은 양과 계산에 쓴 양이 어긋난 줄. 값은 그대로 두고 알리기만 한다.
+        // 프롬프트로도 막아뒀지만 지시는 지켜지는지 확인할 방법이 없어서 여기서 잰다.
+        for (const bad of items.filter((m) => m.mismatch)) {
+            console.warn(`[extract-warn] ${bad.name} ${bad.amount} → ${bad.kcal}kcal: ${bad.mismatch}`);
+        }
 
         // 입력창에 그대로 넣을 수 있는 형태로 합쳐서 준다.
         //
@@ -158,8 +204,11 @@ exports.extractMeal = onRequest({
         // "밥"만 있을 때보다 "밥 1공기"가 있을 때 칼로리 추정이 훨씬 정확해진다.
         //
         // 앱은 이 text만 보고 입력창을 채우므로 구버전에서도 그대로 적용된다.
+        //
+        // 영양성분표에서 읽은 열량은 **텍스트에 같이 적는다.** 그래야 analyzeDiet까지 살아서 간다.
+        // items[].kcal은 여기서 끝나고 분석에는 안 쓰이기 때문이다 — 읽어놓고 안 적으면 버려진다.
         res.status(200).json({
-            text: items.map(m => (m.amount ? `${m.name} ${m.amount}` : m.name)).join(", "),
+            text: toInputText(items, L.perUnit),
             items: items
         });
     } catch (error) {

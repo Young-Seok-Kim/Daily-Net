@@ -63,11 +63,27 @@ function gramsOf(rawName) {
 }
 
 /**
+ * 사용자가 적어 보낸 글에서 명시된 열량을 모두 뽑는다.
+ *
+ * 사진의 영양성분표에서 읽은 값은 `"씨리얼 초코 80g 400kcal"` 형태로 입력에 실려 온다.
+ * 인쇄된 값은 아래 범주 밴드보다 정확하므로 밴드로 트집 잡을 이유가 없다.
+ */
+function statedKcals(texts) {
+    const found = new Set();
+    for (const text of texts) {
+        const matches = String(text || "").matchAll(/(\d+(?:\.\d+)?)\s*kcal/gi);
+        for (const m of matches) found.add(Math.round(Number(m[1])));
+    }
+    return found;
+}
+
+/**
  * 상식 밖인 항목 목록. 없으면 빈 배열.
  *
+ * @param stated 입력에 열량이 명시됐던 값들 (statedKcals). 범주 밴드를 건너뛴다
  * @returns [{ meal, name, kcal, grams, per100, reason }]
  */
-function implausibleItems(data) {
+function implausibleItems(data, stated = new Set()) {
     const found = [];
 
     for (const meal of ["breakfast", "lunch", "dinner", "snack"]) {
@@ -88,6 +104,10 @@ function implausibleItems(data) {
                 continue;
             }
 
+            // 성분표에서 읽은 값은 밴드로 재지 않는다. 인쇄된 값이 내 어림 기준보다 정확하다.
+            // (위의 900 초과 검사는 그대로 건다 — 그건 잘못 읽었다는 뜻이지 제품 특성이 아니다)
+            if (stated.has(kcal)) continue;
+
             const name = hit.name.toLowerCase();
             const band = BANDS.find((b) => b.keys.some((k) => name.includes(k)));
             if (band && (per100 < band.min || per100 > band.max)) {
@@ -99,4 +119,4 @@ function implausibleItems(data) {
     return found;
 }
 
-module.exports = { implausibleItems, gramsOf };
+module.exports = { implausibleItems, gramsOf, statedKcals };

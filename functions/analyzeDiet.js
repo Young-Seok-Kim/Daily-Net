@@ -7,7 +7,7 @@ const { LABELS, resolveLang } = require("./labels");
 const { generateAndParse } = require("./gemini");
 const { recommendedIntake } = require("./nutrition");
 const { mergeDuplicateItems } = require("./mergeItems");
-const { implausibleItems } = require("./kcalCheck");
+const { implausibleItems, statedKcals } = require("./kcalCheck");
 const {
     REQUIRE_AUTH,
     QUOTA_TIMEOUT_MS,
@@ -141,6 +141,24 @@ const prompt = `
                    자기 기록에서 보게 됩니다. 어느 가게인지는 알 수 없고 짐작할 일도 아닙니다
                    - **금지하는 것은 가게·브랜드 이름뿐입니다.** 중량(g·ml)은 오히려 적어야 합니다.
                      아래 [중량 표기] 항목을 따르십시오
+               - ⚠️ **열량이 이미 적혀 있으면 그 숫자를 그대로 쓰십시오. 다시 계산하지 마십시오.**
+                 ("씨리얼 초코 80g 400kcal", "삼각김밥 190kcal"처럼 kcal이 함께 적힌 경우)
+                 - 이 숫자는 **사진 속 영양성분표에서 읽었거나 사용자가 직접 적은 것**입니다.
+                   둘 다 당신의 추정보다 정확합니다. 포장에 인쇄된 값을 이길 수는 없습니다
+                 - 값이 예상과 달라도 그대로 쓰십시오. "낮아 보인다"고 올리거나
+                   "높아 보인다"고 깎지 마십시오. **그 판단이 틀려서 생긴 문제를 고치는 중입니다**
+                 - 항목 이름에서 kcal 표기는 빼고 담으십시오. ("씨리얼 초코 80g", kcal은 kcal 칸에)
+                 - 탄단지(macros)는 적혀 있지 않으므로 그 열량에 맞게 추정하십시오
+               - ⚠️ **"개당"(each)이 붙어 있으면 그것은 한 개 값입니다. 개수를 곱하십시오.**
+                 **괄호 안의 중량도 한 개 값이라 똑같이 곱해야 합니다.**
+                 - 예: "초코파이 3개 (개당 39g 171kcal)" → **117g, 513kcal** (39g·171이 아닙니다)
+                 - 예: "초코파이 1개 (개당 39g 171kcal)" → 39g, 171kcal
+                 - 예: "코카콜라 2캔 (개당 500ml 105kcal)" → 1000ml, 210kcal
+                 - 이 표기는 사진 속 영양성분표에서 읽어 **한 개 기준으로 적어둔 것**입니다.
+                   사용자가 개수만 고쳐도 총합이 맞게 나오라고 이렇게 적습니다.
+                   **곱하지 않으면 몇 개를 먹었든 한 개 값만 계산됩니다**
+                 - 곱한 뒤의 값을 kcal 칸에 담고, 이름에는 곱한 중량을 적으십시오 ("초코파이 3개 117g")
+                 - "개당"이 없이 그냥 "400kcal"이라 적혀 있으면 그건 이미 총합이니 곱하지 마십시오
                - **양이 명시된 항목은 표준 성분표 값을 그대로 환산하십시오. 재추정하지 마십시오.**
                  ("우유 200ml", "닭가슴살 100g", "밥 1공기"처럼 양이 이미 정해진 것)
                  - 이런 항목은 **답이 하나뿐입니다.** 우유 200ml는 100ml당 약 62kcal이므로
@@ -428,7 +446,10 @@ ${data.evaluation}
 
         // 100g당 열량이 상식 밖인 항목. 숫자는 그대로 두고 알리기만 한다.
         // 이게 계속 찍히면 프롬프트를 손볼 때가 된 것이다.
-        for (const bad of implausibleItems(data)) {
+        //
+        // 입력에 kcal이 적혀 있던 값은 범주 밴드로 재지 않는다 (성분표에서 읽었거나 사용자가 적은 것).
+        const stated = statedKcals([breakfast, lunch, dinner, snack]);
+        for (const bad of implausibleItems(data, stated)) {
             console.warn(
                 `[kcal] ${bad.name} = ${bad.kcal}kcal / ${bad.grams}g ` +
                 `→ 100g당 ${bad.per100} (${bad.reason})`

@@ -20,6 +20,8 @@ const LABELS = {
         noExercise: "   • 기록된 운동이 없습니다",
         unknownExercise: "운동",
         unknownMenu: "알 수 없음",
+        // 사진에서 개수가 잡힌 항목은 "개당 171kcal"로 적는다. 사용자가 개수만 고치면 총합이 따라온다
+        perUnit: "개당",
         goalTitle: "🎯 다이어트 권장 목표 가이드",
         goalIntake: "• 하루 권장 섭취량",
         goalMacro: "• 추천 탄단지",
@@ -51,6 +53,7 @@ const LABELS = {
         noExercise: "   • No activity recorded",
         unknownExercise: "Activity",
         unknownMenu: "Unknown",
+        perUnit: "each",
         goalTitle: "🎯 Recommended Daily Targets",
         goalIntake: "• Recommended intake",
         goalMacro: "• Recommended macros",

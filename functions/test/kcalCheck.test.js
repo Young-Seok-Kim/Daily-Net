@@ -8,7 +8,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { implausibleItems, gramsOf } = require("../kcalCheck");
+const { implausibleItems, gramsOf, statedKcals } = require("../kcalCheck");
 
 const snack = (name, kcal) => ({ meals: { snack: [{ name, kcal }] } });
 
@@ -89,5 +89,48 @@ test("implausibleItems - 상식 밖인 것만 집는다", async (t) => {
     await t.test("어느 끼니에서 나왔는지 함께 준다", () => {
         const data = { meals: { lunch: [{ name: "쿠키 50g", kcal: 20 }] } };
         assert.equal(implausibleItems(data)[0].meal, "lunch");
+    });
+});
+
+test("statedKcals - 입력에 적힌 열량을 뽑는다", async (t) => {
+    await t.test("kcal이 붙은 숫자를 모은다", () => {
+        const got = statedKcals(["씨리얼 초코 80g 400kcal, 우유 200ml", "삼각김밥 190kcal"]);
+        assert.deepEqual([...got].sort((a, b) => a - b), [190, 400]);
+    });
+
+    await t.test("띄어쓰기와 대소문자를 가리지 않는다", () => {
+        assert.ok(statedKcals(["과자 400 KCAL"]).has(400));
+    });
+
+    await t.test("kcal이 없는 숫자는 안 잡는다", () => {
+        // 중량이나 개수를 열량으로 오인하면 멀쩡한 검사가 통째로 꺼진다
+        const got = statedKcals(["닭강정 500g 2개"]);
+        assert.equal(got.size, 0);
+    });
+
+    await t.test("빈 입력에도 죽지 않는다", () => {
+        assert.equal(statedKcals([null, undefined, ""]).size, 0);
+    });
+});
+
+test("implausibleItems - 성분표에서 읽은 값은 밴드로 재지 않는다", async (t) => {
+    // 인쇄된 값이 내 어림 기준보다 정확하다. 밴드로 트집 잡으면 로그만 시끄러워진다
+    const data = () => ({ meals: { snack: [{ name: "씨리얼 초코 80g", kcal: 80 }] } });
+
+    await t.test("적힌 값이 아니면 걸린다", () => {
+        // 100g당 100이라 과자 밴드(350~650)에 한참 못 미친다
+        assert.equal(implausibleItems(data()).length, 1);
+    });
+
+    await t.test("입력에 적혀 있던 값이면 건너뛴다", () => {
+        assert.deepEqual(implausibleItems(data(), statedKcals(["씨리얼 초코 80g 80kcal"])), []);
+    });
+
+    await t.test("적혀 있어도 순수 지방을 넘으면 걸린다", () => {
+        // 이건 제품 특성이 아니라 잘못 읽었다는 뜻이라 그대로 알린다
+        const wild = { meals: { snack: [{ name: "씨리얼 초코 80g", kcal: 4000 }] } };
+        const found = implausibleItems(wild, statedKcals(["씨리얼 초코 80g 4000kcal"]));
+        assert.equal(found.length, 1);
+        assert.match(found[0].reason, /순수 지방/);
     });
 });
