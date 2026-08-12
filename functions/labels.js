@@ -19,6 +19,8 @@ const LABELS = {
         totalBurned: "총",
         noExercise: "   • 기록된 운동이 없습니다",
         unknownExercise: "운동",
+        // 걸음 항목은 모델이 아니라 서버가 붙인다 (exerciseCalc.js 참고)
+        stepsItem: (steps) => `걸음 ${steps}보`,
         unknownMenu: "알 수 없음",
         // 사진에서 개수가 잡힌 항목은 "개당 171kcal"로 적는다. 사용자가 개수만 고치면 총합이 따라온다
         perUnit: "개당",
@@ -52,6 +54,7 @@ const LABELS = {
         totalBurned: "total",
         noExercise: "   • No activity recorded",
         unknownExercise: "Activity",
+        stepsItem: (steps) => `Walking ${steps} steps`,
         unknownMenu: "Unknown",
         perUnit: "each",
         goalTitle: "🎯 Recommended Daily Targets",
