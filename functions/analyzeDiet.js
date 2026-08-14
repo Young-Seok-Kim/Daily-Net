@@ -7,7 +7,7 @@ const { LABELS, resolveLang } = require("./labels");
 const { generateAndParse } = require("./gemini");
 const { recommendedIntake } = require("./nutrition");
 const { mergeDuplicateItems } = require("./mergeItems");
-const { divideSharedItems } = require("./shareItems");
+const { settleItemKcal } = require("./shareItems");
 const { implausibleItems, statedKcals } = require("./kcalCheck");
 const { implausibleExercises } = require("./exerciseCheck");
 const { buildExercises } = require("./exerciseCalc");
@@ -172,13 +172,17 @@ const prompt = `
                  - 이런 항목은 **답이 하나뿐입니다.** 100ml당 62kcal인 것을 200ml 먹었으면
                    약 124kcal이고, 이 값은 누가 언제 계산해도 같아야 합니다
                  - **개수로 적힌 양은 그 개수가 사용자가 정한 값입니다.**
-                   한 단위의 양을 정하고 개수를 곱하십시오.
-                   한 단위의 양은 **개수와 무관하게 같아야 합니다**
-                   - 실제로 같은 항목이 1마리일 때 1000g으로, 2마리로 고치자 총 700g으로
-                     나왔습니다. 개수를 늘렸는데 총량이 줄어든 것입니다.
-                     사용자가 개수를 고치면 총량과 열량은 **그 배수만큼 따라 움직여야 합니다**
+                   그 항목에 "units"(적힌 개수)와 "unitKcal"(**한 단위**의 열량)을 담으십시오.
+                   **곱셈은 서버가 합니다.** (전체 = unitKcal × units)
+                   - 곱셈을 맡겼더니 1마리를 2100으로 잡으면서 2마리 전체를 1500, 2400처럼
+                     **한 단위 값 근처의 총합**으로 내는 일이 계속 나왔습니다.
+                     그래서 운동 칼로리처럼 곱셈을 서버가 가져갔습니다.
+                     **당신이 할 일은 "한 단위가 몇 kcal인가" 판단뿐입니다**
+                   - 한 단위의 양과 열량은 **개수와 무관하게 같아야 합니다.**
+                     실제로 1마리를 1000g으로 잡아놓고 2마리를 700g으로 잡은 일이 있습니다.
+                     이름의 중량도 개수를 곱한 전체로 적으십시오
                    - 여럿이 나눠 먹었다고 함께 적혀 있으면 그 개수는 **전체가 먹은 양**입니다.
-                     전체를 그대로 계산해 담으십시오. 몫은 서버가 나눕니다 (아래 나눠 먹기 규칙)
+                     units·unitKcal은 그대로 담고, 몫은 서버가 나눕니다 (아래 나눠 먹기 규칙)
                  - ⚠️ **같은 입력을 다시 분석하면 같은 숫자가 나와야 합니다.**
                    실제로 양이 명시된 같은 항목이 105, 120, 125, 160으로 매번 다르게 나왔습니다.
                    사용자는 날짜별 추세를 보는데, 먹은 것이 같은데 숫자가 흔들리면
@@ -313,9 +317,10 @@ const prompt = `
                - [exercises] 리스트에는 사용자가 한 **운동을 항목별로 나누어** 각각의 "minutes"(분)와 "mets"를 담으세요.
                  **kcal은 담지 마십시오. 서버가 계산합니다.** 걸음 항목도 넣지 마십시오. 운동이 전혀 없으면 빈 배열([])로 두세요.
                - "stepsInExercise"에는 운동 중에 걸은 걸음 수를 담으세요. 해당 없으면 0입니다.
-               - [meals] 항목 중 **여럿이 나눠 먹은 것에만** "sharedBy"(나눠 먹은 사람 수)를,
+               - [meals] 항목 중 **개수로 적힌 것에만** "units"(개수)와 "unitKcal"(한 단위의 열량)을,
+                 **여럿이 나눠 먹은 것에만** "sharedBy"(나눠 먹은 사람 수)를,
                  똑같이 나누지 않았을 때만 "myShare"(사용자 몫의 비율, 0~1)를 함께 담으세요.
-                 혼자 먹은 항목에는 두 필드를 넣지 마세요. **몫 나눗셈은 서버가 합니다.**
+                 해당 없는 항목에는 이 필드들을 넣지 마세요. **곱셈과 몫 나눗셈은 서버가 합니다.**
                - Markdown 형식(\`\`\`json) 없이 오직 순수 JSON 문자열만 응답하십시오.
             6. **응답 언어 (필수)**: JSON 안의 모든 자연어 텍스트를 반드시 **${L.outputLanguage}**로 작성하십시오.
                - 대상: meals[].name, exercises[].name, descriptions의 모든 값, evaluation
@@ -325,7 +330,7 @@ const prompt = `
                 "calories": { "breakfast": 0, "lunch": 0, "dinner": 0, "snack": 0 },
                 "meals": {
                     "breakfast": [{ "name": "메뉴1", "kcal": 0 }, { "name": "나눠 먹은 메뉴", "kcal": 0, "sharedBy": 0, "myShare": 0 }],
-                    "lunch": [{ "name": "메뉴1", "kcal": 0 }, { "name": "메뉴2", "kcal": 0 }],
+                    "lunch": [{ "name": "메뉴1", "kcal": 0 }, { "name": "개수로 먹은 메뉴", "kcal": 0, "units": 0, "unitKcal": 0 }],
                     "dinner": [{ "name": "메뉴1", "kcal": 0 }, { "name": "메뉴2", "kcal": 0 }],
                     "snack": [{ "name": "메뉴1", "kcal": 0 }, { "name": "메뉴2", "kcal": 0 }]
                 },
@@ -364,8 +369,9 @@ const prompt = `
         const stated = statedKcals([breakfast, lunch, dinner, snack]);
         const implausible = implausibleItems(data, stated);
 
-        // 나눠 먹은 몫은 서버가 나눈다. 모델은 전체 열량과 사람 수만 담는다 (shareItems.js 참고)
-        const sharedLog = divideSharedItems(data);
+        // 개수 곱셈과 나눠 먹은 몫 나눗셈은 서버가 한다.
+        // 모델은 한 단위 열량·개수·사람 수만 담는다 (shareItems.js 참고)
+        const calcLog = settleItemKcal(data);
 
         // 모델이 "코카콜라 2개"를 같은 이름 두 줄로 쪼개 놓는 일이 잦다.
         // 합계는 맞지만 리포트에 같은 메뉴가 두 번 뜨므로 한 줄로 합친다.
@@ -552,8 +558,9 @@ ${data.evaluation}
             );
         }
 
-        // 어떤 항목을 몇으로 나눴는지. 몫이 이상하면 전체가 틀렸는지 나눗셈이 틀렸는지 가른다
-        if (sharedLog.length > 0) console.log("[share]", sharedLog.join(" / "));
+        // 어떤 항목을 어떻게 곱하고 나눴는지. 몫이 이상하면 한 단위 값이 틀렸는지
+        // 산수가 틀렸는지를 여기서 가른다
+        if (calcLog.length > 0) console.log("[calc]", calcLog.join(" / "));
 
         // 칼로리가 어떻게 나왔는지 볼 수 있는 유일한 자리다. 숫자가 이상하면
         // 항목이 빠진 것인지 양을 잘못 잡은 것인지를 여기서 가른다.
