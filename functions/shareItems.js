@@ -22,6 +22,34 @@
 
 const MEALS = ["breakfast", "lunch", "dinner", "snack"];
 
+/** 이름에 적힌 중량. kcalCheck의 WEIGHT와 같은 꼴 */
+const WEIGHT_RE = /(\d+(?:\.\d+)?)\s*(kg|g|ml|l)(?![a-z])/i;
+
+/**
+ * 이름에 적힌 개수. 낱개 단위(extractItems의 COUNT_UNITS)에
+ * 인분·공기처럼 끼니를 세는 단위를 더했다 — 몫으로 바꿀 때는 모두 양이다
+ */
+const COUNT_RE =
+    /(\d+(?:\.\d+)?)\s*(개|봉지|봉|캔|병|팩|조각|장|줄|마리|컵|잔|알|판|회|인분|공기|그릇|접시|쪽)/;
+
+/**
+ * 이름 속 수량을 사용자 몫으로 바꾼다. "치킨 2마리 1800g" ×1/4 → "치킨 0.5마리 450g"
+ *
+ * 사용자는 자기가 먹은 양을 보고 싶어 한다. 전체(2마리 1800g)를 그대로 두면
+ * "내가 먹은 건 0.5마리인데 왜 2마리냐"가 된다 — 실제로 그렇게 나왔다.
+ */
+function scaleName(name, fraction) {
+    return String(name || "")
+        .replace(WEIGHT_RE, (m, num, unit) => {
+            const v = Number(num) * fraction;
+            const isBig = unit.toLowerCase() === "kg" || unit.toLowerCase() === "l";
+            return `${isBig ? Math.round(v * 100) / 100 : Math.round(v)}${unit}`;
+        })
+        .replace(COUNT_RE, (m, num, unit) => {
+            return `${Math.round(Number(num) * fraction * 100) / 100}${unit}`;
+        });
+}
+
 /**
  * 항목 kcal을 서버 계산값으로 바꾼다. data를 직접 고친다.
  *
@@ -67,19 +95,25 @@ function settleItemKcal(data) {
             const steps = [];
 
             // 1) 개수 곱셈: 전체 = 한 단위 × 개수
+            // 값이 이미 맞아도 로그에는 남긴다 — 모델이 unitKcal을 전체÷개수로 거꾸로
+            // 만들어 맞춘 것인지, 정말 한 단위 값을 준 것인지 로그로 가려야 한다
             let total = claimed;
             if (units > 0 && unitKcal > 0) {
                 total = Math.round(units * unitKcal);
-                if (total !== claimed) steps.push(`${unitKcal} ×${units} = ${total}`);
+                steps.push(`${unitKcal} ×${units} = ${total}`);
+            } else if (units > 0 || unitKcal > 0) {
+                steps.push(`단위정보 불완전(units=${units}, unitKcal=${unitKcal})`);
             }
 
             // 2) 몫 나눗셈: 몫 = 전체 ÷ 사람 수 (비율이 있으면 그 비율)
+            // 이름 속 수량도 몫으로 바꾼다. 사용자는 자기가 먹은 양을 보고 싶어 한다
             let final = total;
             if (total > 0 && (sharedBy >= 2 || ratio > 0)) {
-                final = ratio > 0 ? Math.round(total * ratio) : Math.round(total / sharedBy);
+                const fraction = ratio > 0 ? ratio : 1 / sharedBy;
+                final = Math.round(total * fraction);
                 const tag = ratio > 0 ? `${Math.round(ratio * 100)}%` : `1/${sharedBy}`;
                 steps.push(`${tag} = ${final}`);
-                item.name = `${item.name || ""} (${tag})`.trim();
+                item.name = `${scaleName(item.name, fraction)} (${tag})`.trim();
             }
 
             if (steps.length > 0) logs.push(`${name}: ${claimed} → ${steps.join(" → ")}`);

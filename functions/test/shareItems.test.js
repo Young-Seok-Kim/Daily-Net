@@ -34,9 +34,26 @@ test("settleItemKcal - 곱하고 나눈다", async (t) => {
         const chicken = data.meals.dinner[0];
         // 2100 × 2 = 4200, ÷4 = 1050. 모델이 kcal 칸에 적은 2400은 버린다
         assert.equal(chicken.kcal, 1050);
-        assert.equal(chicken.name, "치킨 2마리 2000g (1/4)");
         assert.equal(logs.length, 1);
         assert.match(logs[0], /2400 → 2100 ×2 = 4200 → 1\/4 = 1050/);
+    });
+
+    await t.test("이름 속 수량도 사용자 몫으로 바꾼다", () => {
+        // "내가 먹은 건 0.5마리인데 2마리 1800g으로 나온다"고 해서 이름도 몫 기준이다
+        const data = chickenData();
+        settleItemKcal(data);
+
+        assert.equal(data.meals.dinner[0].name, "치킨 0.5마리 500g (1/4)");
+    });
+
+    await t.test("kg·L 단위는 소수점을 살려 몫으로 바꾼다", () => {
+        const data = {
+            meals: { dinner: [{ name: "수박 1.2kg", kcal: 360, sharedBy: 3 }] }
+        };
+        settleItemKcal(data);
+
+        assert.equal(data.meals.dinner[0].name, "수박 0.4kg (1/3)");
+        assert.equal(data.meals.dinner[0].kcal, 120);
     });
 
     await t.test("개수만 있고 나눠 먹지 않았으면 곱셈만 한다", () => {
@@ -56,7 +73,7 @@ test("settleItemKcal - 곱하고 나눈다", async (t) => {
         settleItemKcal(data);
 
         assert.equal(data.meals.dinner[0].kcal, 1050);
-        assert.equal(data.meals.dinner[0].name, "치킨 2마리 2000g (1/4)");
+        assert.equal(data.meals.dinner[0].name, "치킨 0.5마리 500g (1/4)");
     });
 
     await t.test("0.5개처럼 개수가 소수여도 곱한다", () => {
@@ -68,12 +85,25 @@ test("settleItemKcal - 곱하고 나눈다", async (t) => {
         assert.equal(data.meals.snack[0].kcal, 140);
     });
 
-    await t.test("계산이 이미 맞으면 로그도 없다", () => {
+    await t.test("계산이 이미 맞아도 로그는 남긴다", () => {
+        // unitKcal을 전체÷개수로 거꾸로 만들어 맞춘 것인지 로그로 가려야 한다
         const data = {
             meals: { dinner: [{ name: "치킨 2마리", kcal: 4200, units: 2, unitKcal: 2100 }] }
         };
-        assert.equal(settleItemKcal(data).length, 0);
+        const logs = settleItemKcal(data);
+        assert.equal(logs.length, 1);
+        assert.match(logs[0], /2100 ×2 = 4200/);
         assert.equal(data.meals.dinner[0].kcal, 4200);
+    });
+
+    await t.test("단위 정보가 반쪽이면 값은 안 바꾸고 로그만 남긴다", () => {
+        const data = {
+            meals: { dinner: [{ name: "치킨 2마리", kcal: 2100, units: 2 }] }
+        };
+        const logs = settleItemKcal(data);
+        assert.equal(logs.length, 1);
+        assert.match(logs[0], /단위정보 불완전/);
+        assert.equal(data.meals.dinner[0].kcal, 2100);
     });
 });
 
@@ -125,7 +155,7 @@ test("settleItemKcal - 똑같이 나누지 않은 몫", async (t) => {
         settleItemKcal(data);
 
         assert.equal(data.meals.dinner[0].kcal, 1080);
-        assert.equal(data.meals.dinner[0].name, "피자 1판 (60%)");
+        assert.equal(data.meals.dinner[0].name, "피자 0.6판 (60%)");
     });
 
     await t.test("비율이 (0, 1) 밖이면 버린다", () => {
