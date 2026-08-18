@@ -7,6 +7,7 @@ const { LABELS, resolveLang } = require("./labels");
 const { generateAndParse } = require("./gemini");
 const { recommendedIntake } = require("./nutrition");
 const { mergeDuplicateItems } = require("./mergeItems");
+const { numberedLines } = require("./splitInput");
 const { settleItemKcal } = require("./shareItems");
 const { implausibleItems, statedKcals } = require("./kcalCheck");
 const { implausibleExercises } = require("./exerciseCheck");
@@ -121,19 +122,44 @@ const genderText = isMale ? '남성' : '여성';
         const recProtein = recommended.protein;
         const recFat = recommended.fat;
 
+        // 항목 경계를 모델에게 맡기지 않는다. 콤마 해석을 서버가 끝내고
+        // 번호 붙은 줄로 넘긴다 — 통짜 문자열을 주면 경계 추측이 매번 흔들렸다 (splitInput.js 참고)
+        const IN = "              ";
+        const mealsBlock = [
+            ["아침", breakfast],
+            ["점심", lunch],
+            ["저녁", dinner],
+            ["간식", snack]
+        ].map(([label, text]) => `${IN}[${label}]\n${numberedLines(text, IN)}`).join("\n");
+        const exerciseBlock = numberedLines(exerciseInput, IN);
+
 const prompt = `
             당신은 15년 경력의 [베테랑 전문 다이어트 영양사]입니다.
             사용자의 식단과 운동 데이터를 분석하여, 정중하지만 냉철하게 영양 성적표를 작성하세요.
 
             [사용자 데이터]
             - 신체: ${height}cm, ${weight}kg, ${genderText} (만 ${age}세)
-            - 식사: 아침(${breakfast}), 점심(${lunch}), 저녁(${dinner}), 간식(${snack})
-            - 활동: ${exerciseInput}
+            - 식사 (번호 붙은 줄 하나가 사용자가 적은 항목 하나입니다):
+${mealsBlock}
+            - 활동 (같은 형식):
+${exerciseBlock}
             - 걸음 수: ${stepCount}보 (0이면 걸음 데이터 없음)
             - 비고: ${remark}
             - 목표 권장 칼로리: 하루 ${recommendedCalories} kcal 섭취 권장
 
             [분석 및 응답 지침] - **Lite 모델 최적화 버전**
+            0. **항목 경계 (서버가 이미 나눴습니다)**:
+               - 식사·활동의 번호 붙은 줄 하나가 사용자가 적은 항목 하나입니다.
+                 콤마 해석은 서버가 끝냈습니다. **줄을 합치거나 경계를 다시 긋지 마십시오.**
+               - 줄 안에 콤마가 남아 있으면 그것은 항목 구분이 아니라 내용의 일부입니다.
+                 (1,000ml 같은 자릿수 표기, 괄호 안의 부연 설명)
+               - 다만 **서술의 뜻은 줄을 넘을 수 있습니다.** 나눠 먹기처럼 여러 항목에
+                 걸리는 말이 한 줄에만 적혀 있어도, 뜻이 미치는 항목 모두에 반영하십시오.
+                 (예: "1. 피자 한 판 / 2. 치킨 한 마리 3명이서 나눠먹음" — 피자도 함께
+                 나눠 먹었다는 뜻이면 두 항목 모두에 sharedBy를 담습니다)
+               - 아래의 "여러 가지를 함께 먹었으면 나누어 계산" 규칙은 그대로입니다.
+                 한 줄이 여러 음식을 함께 먹었다는 뜻이면 그 줄은 여러 항목으로 나눕니다.
+                 금지하는 것은 **줄끼리 합치거나 경계를 옮기는 것**뿐입니다
             1. **칼로리 산출 로직 고정**:
                - 모든 음식은 식약처 표준 영양 성분 DB를 기준으로 합니다.
                - **브랜드·제품명이 적혀 있으면 그 제품이 공표한 값을 쓰십시오.**
