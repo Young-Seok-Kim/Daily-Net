@@ -142,8 +142,8 @@
     <string name="toast_reauth_required">For security, you need to re-authenticate. Please sign out, sign back in, and try again.</string>
     <string name="toast_withdraw_failed">Could not delete account: %1$s</string>
     <string name="toast_analysis_saved">Analysis complete and saved.</string>
-    <string name="toast_analysis_limit">You have used all 3 analyses for today.</string>
-    <string name="toast_analysis_done">Analysis complete! %1$d of 3 used today.</string>
+    <string name="toast_analysis_limit">You have used all %1$d analyses for today.</string>
+    <string name="toast_analysis_done">Analysis complete! %1$d of %2$d used today.</string>
     <string name="toast_analysis_failed">Analysis failed: %1$s</string>
     <string name="toast_data_check_failed">Could not load your data: %1$s</string>
     <string name="toast_error">Something went wrong: %1$s</string>

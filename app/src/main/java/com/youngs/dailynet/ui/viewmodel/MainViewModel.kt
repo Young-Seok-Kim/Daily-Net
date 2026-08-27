@@ -20,6 +20,7 @@ import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.local.entity.dao.DailyRecordDao
 import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
 import com.youngs.dailynet.data.model.DailyRecordModel
+import com.youngs.dailynet.data.model.AnalysisUsage
 import com.youngs.dailynet.data.network.AnalysisLimitException
 import com.youngs.dailynet.data.network.BillingManager.Companion.PRODUCT_ID_MONTHLY
 import com.youngs.dailynet.data.network.GeminiManager
@@ -861,13 +862,21 @@ class MainViewModel @Inject constructor(
                             ) {
                                 // 분석하지 않고 구독 창으로 빠지는 길. 표시를 꺼야 한다.
                                 _uiState.update { it.copy(analyzing = false) }
-                                toast(R.string.toast_analysis_limit)
+                                toast(R.string.toast_analysis_limit, DAILY_FREE_ANALYSIS_LIMIT)
                                 startSubscription(activity)
                                 return@launch
                             }
 
                             analyzeAndFinalize(
-                                onSuccess = { count -> toast(R.string.toast_analysis_done, count) },
+                                onSuccess = { usage ->
+                                    // 한도가 없는 기간에는 "3회 중 몇 회"가 말이 되지 않는다.
+                                    // 서버가 한도를 다시 켜면 이 문구도 저절로 돌아온다.
+                                    if (usage.unlimited) {
+                                        toast(R.string.toast_analysis_saved)
+                                    } else {
+                                        toast(R.string.toast_analysis_done, usage.count, usage.limit)
+                                    }
+                                },
                                 onFailure = { toast(R.string.toast_analysis_failed, it) }
                             )
                         }
@@ -880,8 +889,16 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 분석하고 저장까지 끝낸다.
+     *
+     * [onSuccess]에 횟수 하나가 아니라 사용량을 통째로 넘기는 이유는, 안내 문구가
+     * 서버 정책을 따라가야 하기 때문이다. 무료 개방 기간에는 하루 한도가 없어서
+     * "3회 중 몇 회"라고 말할 수가 없다. 앱에 3을 박아두면 서버만 바꿔서는
+     * 문구를 되돌릴 수 없고, 그때마다 스토어 배포가 필요해진다.
+     */
     fun analyzeAndFinalize(
-        onSuccess: ( newCount: Int ) -> Unit,
+        onSuccess: (usage: AnalysisUsage) -> Unit,
         onFailure: (String) -> Unit
     ) {
         viewModelScope.launch {
@@ -905,12 +922,16 @@ class MainViewModel @Inject constructor(
 
                 // 횟수는 서버가 트랜잭션으로 센 값을 그대로 따른다.
                 // 서버가 세지 못한 경우(구버전 경로)에만 예전처럼 앱이 직접 계산한다.
-                val newCount = outcome.usage?.count
-                    ?: if (latestProfile.lastAnalyzedDate == today) {
+                val usage = outcome.usage ?: AnalysisUsage(
+                    count = if (latestProfile.lastAnalyzedDate == today) {
                         latestProfile.todayAnalysisCount + 1
                     } else {
                         1
-                    }
+                    },
+                    limit = DAILY_FREE_ANALYSIS_LIMIT,
+                    unlimited = false
+                )
+                val newCount = usage.count
 
                 // 1. 로컬 DB 갱신 (마지막 분석일 + 횟수)
                 val refreshedProfile = userProfileDao.updateAndGetLatest(newCount, today)
@@ -935,14 +956,15 @@ class MainViewModel @Inject constructor(
                 DailyReminder.markRecorded(context, analyzedData.date)
                 // 홈 화면 위젯은 observeTodayRecordForWidget()이 Room 변경을 보고 알아서 갱신한다
 
-                onSuccess(newCount)
+                onSuccess(usage)
             } catch (e: AnalysisLimitException) {
                 // 서버가 한도 초과로 거절한 경우. 일반 실패와 안내가 달라야 한다.
                 _uiState.update { it.copy(analyzing = false) }
                 // 서버가 알려준 실제 횟수로 로컬을 맞춰, 다음 사전 확인이 틀리지 않게 한다
                 e.usage?.let { userProfileDao.updateAndGetLatest(it.count, today) }
-                toast(R.string.toast_analysis_limit)
-                onFailure(context.getString(R.string.toast_analysis_limit))
+                val limit = e.usage?.limit ?: DAILY_FREE_ANALYSIS_LIMIT
+                toast(R.string.toast_analysis_limit, limit)
+                onFailure(context.getString(R.string.toast_analysis_limit, limit))
             } catch (e: Exception) {
                 _uiState.update { it.copy(analyzing = false) }
 

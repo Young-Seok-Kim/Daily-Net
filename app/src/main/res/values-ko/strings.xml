@@ -140,8 +140,8 @@
     <string name="toast_reauth_required">보안을 위해 재인증이 필요합니다. 로그아웃 후 다시 로그인하여 시도해 주세요.</string>
     <string name="toast_withdraw_failed">회원탈퇴 실패: %1$s</string>
     <string name="toast_analysis_saved">분석 및 저장이 완료되었습니다.</string>
-    <string name="toast_analysis_limit">오늘 분석 횟수(3회)를 초과했습니다.</string>
-    <string name="toast_analysis_done">분석 완료! 오늘 %1$d/3회 분석했습니다.</string>
+    <string name="toast_analysis_limit">오늘 분석 횟수(%1$d회)를 초과했습니다.</string>
+    <string name="toast_analysis_done">분석 완료! 오늘 %1$d/%2$d회 분석했습니다.</string>
     <string name="toast_analysis_failed">분석 실패: %1$s</string>
     <string name="toast_data_check_failed">데이터 확인 실패: %1$s</string>
     <string name="toast_error">오류 발생: %1$s</string>
