@@ -41,6 +41,22 @@ const SUBSCRIBER_PHOTO_LIMIT = 30;
 const DAILY_PHOTO_ATTEMPT_LIMIT = 50;
 
 /**
+ * 전면 무료 개방 스위치.
+ *
+ * true면 구독 여부를 따지지 않고 모두에게 구독자와 같은 한도를 준다.
+ * 되돌리려면 이 값을 false로 바꾸고 firebase deploy --only functions 만 하면 된다.
+ * 앱은 손대지 않으므로 이미 설치된 버전까지 한 번에 되돌아간다.
+ *
+ * 무료로 열어도 상한을 아예 없애지는 않는다. Gemini 호출은 건당 비용이고,
+ * 계정 하나가 스크립트로 하루 수천 번을 부르면 요금이 그대로 청구된다.
+ * 여기 숫자는 사람이 하루에 닿을 일이 없는 높이라 "무제한"과 체감이 같다.
+ */
+const FREE_FOR_ALL = true;
+
+/** 무료 개방 기간의 하루 분석 상한. 유료 관문이 아니라 비용 사고 방지선이다. */
+const FREE_MODE_ANALYSIS_LIMIT = 30;
+
+/**
  * 인증 토큰이 없는 요청을 막을지 여부.
  *
  * b24 미만 앱은 토큰을 보내지 않으므로 지금은 false로 둔다. (막으면 구버전이 전부 실패한다)
@@ -146,10 +162,42 @@ async function reserveAnalysis(user) {
         // 따로 조회하면 Firestore를 두 번 왕복해 분석 한 번에 1초 가까이 더 걸렸다.
         const [snap, unlimitedSnap] = await Promise.all([
             tx.get(userRef),
-            readUnlimited(tx, db, user.email)
+            // 무료 개방 중에는 무제한 계정인지 볼 필요가 없다. 어차피 모두 통과한다.
+            FREE_FOR_ALL ? null : readUnlimited(tx, db, user.email)
         ]);
 
         const data = snap.exists ? snap.data() : {};
+
+        /*
+         * 무료 개방 기간.
+         *
+         * 사용량은 todayAnalysisCount가 아니라 freeMode* 필드에 따로 적고,
+         * 원래 필드는 0으로 눌러 둔다. 이미 설치된 앱은 서버 응답과 무관하게
+         * 이 필드가 3에 닿으면 스스로 결제창을 띄우기 때문이다.
+         * (MainViewModel.checkAndAnalyze의 사전 확인 → isOverDailyLimitOnServer)
+         *
+         * 덕분에 앱을 새로 내지 않아도 결제창이 사라지고,
+         * 스위치를 false로 되돌리면 그날부터 다시 하루 3회로 돌아간다.
+         */
+        if (FREE_FOR_ALL) {
+            const usedFree = data.freeModeAnalysisDate === today
+                ? Number(data.freeModeAnalysisCount) || 0
+                : 0;
+
+            if (usedFree >= FREE_MODE_ANALYSIS_LIMIT) {
+                return { allowed: false, count: usedFree, limit: FREE_MODE_ANALYSIS_LIMIT, unlimited: false };
+            }
+
+            tx.set(userRef, {
+                freeModeAnalysisCount: usedFree + 1,
+                freeModeAnalysisDate: today,
+                todayAnalysisCount: 0,
+                lastAnalyzedDate: today
+            }, { merge: true });
+
+            return { allowed: true, count: usedFree + 1, limit: FREE_MODE_ANALYSIS_LIMIT, unlimited: true };
+        }
+
         const subscribed = isSubscribedNow(data);
         const exempt = (unlimitedSnap && unlimitedSnap.exists) || subscribed;
 
@@ -197,10 +245,13 @@ async function reservePhoto(user) {
             // 횟수 자체는 계속 세어 콘솔에서 사용량을 볼 수 있게 둔다.
             if (!unlimited) {
                 if (attempts >= DAILY_PHOTO_ATTEMPT_LIMIT) {
-                    return { allowed: false, paid: subscribed };
+                    return { allowed: false, paid: FREE_FOR_ALL || subscribed };
                 }
-                const limit = subscribed ? SUBSCRIBER_PHOTO_LIMIT : FREE_PHOTO_LIMIT;
-                if (used >= limit) return { allowed: false, paid: subscribed };
+
+                // 무료 개방 중에는 구독 여부로 나누지 않는다.
+                // 시도 상한(DAILY_PHOTO_ATTEMPT_LIMIT)은 비용 사고 방지선이라 그대로 둔다.
+                const limit = (FREE_FOR_ALL || subscribed) ? SUBSCRIBER_PHOTO_LIMIT : FREE_PHOTO_LIMIT;
+                if (used >= limit) return { allowed: false, paid: FREE_FOR_ALL || subscribed };
             }
 
             tx.set(userRef, {
@@ -208,7 +259,9 @@ async function reservePhoto(user) {
                 todayPhotoAttempts: attempts + 1, // 환불 대상이 아님
                 lastPhotoDate: today
             }, { merge: true });
-            return { allowed: true, paid: unlimited || subscribed };
+            // paid는 한도 안내 문구를 고르는 값이다. 무료 개방 중에 구독을 권하면 안 되므로
+            // 모두를 paid로 보고 "오늘 횟수를 다 썼다"는 안내만 내보낸다.
+            return { allowed: true, paid: FREE_FOR_ALL || unlimited || subscribed };
         });
     } catch (error) {
         // 횟수를 못 세는 상황 때문에 기능 자체를 막지는 않는다
@@ -241,16 +294,22 @@ async function refundPhoto(uid) {
     }
 }
 
-/** 분석이 실패하면 차감했던 횟수를 되돌린다. 실패한 분석까지 세면 사용자만 손해다. */
+/**
+ * 분석이 실패하면 차감했던 횟수를 되돌린다. 실패한 분석까지 세면 사용자만 손해다.
+ *
+ * 무료 개방 중에는 차감한 쪽이 freeModeAnalysisCount이므로 그쪽을 되돌린다.
+ * 원래 필드를 건드리면 0으로 눌러둔 값이 흐트러져 구버전 앱에 결제창이 뜬다.
+ */
 async function refundAnalysis(uid) {
+    const field = FREE_FOR_ALL ? "freeModeAnalysisCount" : "todayAnalysisCount";
     try {
         const db = admin.firestore();
         const userRef = db.collection("users").doc(uid);
         await db.runTransaction(async (tx) => {
             const snap = await tx.get(userRef);
-            const used = Number(snap.data() && snap.data().todayAnalysisCount) || 0;
+            const used = Number(snap.data() && snap.data()[field]) || 0;
             if (used > 0) {
-                tx.set(userRef, { todayAnalysisCount: used - 1 }, { merge: true });
+                tx.set(userRef, { [field]: used - 1 }, { merge: true });
             }
         });
     } catch (error) {
@@ -260,6 +319,9 @@ async function refundAnalysis(uid) {
 
 module.exports = {
     REQUIRE_AUTH,
+    // 무료 개방 스위치와 그 상한. 테스트가 값을 고정해 두려고 함께 내보낸다.
+    FREE_FOR_ALL,
+    FREE_MODE_ANALYSIS_LIMIT,
     QUOTA_TIMEOUT_MS,
     withTimeout,
     seoulToday,
