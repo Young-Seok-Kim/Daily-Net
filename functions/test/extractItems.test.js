@@ -32,6 +32,13 @@ test("normalizeExtracted - 모델이 어떻게 보내든 모양을 고정한다"
         assert.equal(item.kcalFromLabel, false);
     });
 
+    await t.test("눈대중값도 상한을 넘으면 버린다", () => {
+        // 메뉴판 사진에서 가격 16,000원이 kcal로 들어온 적이 있다
+        const [item] = normalizeExtracted([{ name: "숙성삼겹(160g)", amount: "1개", kcal: 16000, label: null }]);
+        assert.equal(item.kcal, 0);
+        assert.equal(normalizeExtracted([{ name: "물", kcal: -5 }])[0].kcal, 0);
+    });
+
     await t.test("성분표 값이 눈대중값을 이긴다", () => {
         // 모델이 눈대중으로 90을 냈어도 인쇄된 값에서 낸 400이 우선이다
         const [item] = normalizeExtracted([

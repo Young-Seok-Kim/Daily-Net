@@ -105,7 +105,10 @@ function normalizeExtracted(rawItems) {
         .filter((m) => m && m.name)
         .map((m) => {
             const fromLabel = kcalFromLabel(m.label, m.eatenAmount);
-            const guessed = Number(m.kcal) || 0;
+            // 눈대중값도 성분표값과 같은 상한을 둔다. 메뉴판 사진에서 가격 16000원이
+            // 그대로 kcal로 들어온 적이 있다. 한 끼 항목 하나가 이 선을 넘을 일은 없다
+            const raw = Number(m.kcal) || 0;
+            const guessed = raw >= 0 && raw <= MAX_ITEM_KCAL ? raw : 0;
             const amount = m.amount ? String(m.amount).trim() : "";
 
             return {
