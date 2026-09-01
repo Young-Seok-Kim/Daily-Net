@@ -148,6 +148,7 @@
     <string name="toast_data_check_failed">Could not load your data: %1$s</string>
     <string name="toast_error">Something went wrong: %1$s</string>
     <string name="error_unknown">Unknown error</string>
+    <string name="error_profile_missing">Please enter your body information first.</string>
     <string name="error_server_analysis">Something went wrong while analyzing on the server.</string>
     <string name="toast_premium_activated">👑 Premium membership is now active!</string>
     <string name="toast_subscription_failed">Could not update subscription: %1$s</string>

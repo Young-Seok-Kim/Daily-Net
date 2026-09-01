@@ -409,10 +409,18 @@ class MainViewModel @Inject constructor(
                     )
                 ).await()
 
-                // 로컬은 나머지 필드(구독 상태 등)를 유지한 채 갈아끼운다
+                // 로컬은 나머지 필드(구독 상태 등)를 유지한 채 갈아끼운다.
+                // 로컬 행이 없으면(동기화가 한 번도 성공하지 못한 기기) 새로 만든다.
+                // 방금 서버에 쓴 값이 그대로 있으니 지금 만들어도 서버와 어긋나지 않는다.
                 val current = userProfileDao.getProfile()
                 userProfileDao.insertProfile(
-                    current.copy(
+                    current?.copy(
+                        height = height,
+                        initialWeight = initialWeight,
+                        isMale = isMale,
+                        birthDate = birthDate
+                    ) ?: UserProfileEntity(
+                        email = auth.currentUser?.email.orEmpty(),
                         height = height,
                         initialWeight = initialWeight,
                         isMale = isMale,
@@ -856,7 +864,10 @@ class MainViewModel @Inject constructor(
                             // 다른 기기에서 쓴 값이 아직 반영되기 전이거나)
                             // 그 상태로 막으면 남은 횟수가 있는데도 구독 창을 보게 되므로,
                             // 막기 직전에 서버 값을 한 번 확인한다.
-                            if (profile.lastAnalyzedDate == today &&
+                            // 로컬 프로필이 없으면(동기화 실패 등) 막지 않는다.
+                            // 진짜 초과라면 어차피 서버가 429로 거절한다.
+                            if (profile != null &&
+                                profile.lastAnalyzedDate == today &&
                                 profile.todayAnalysisCount >= DAILY_FREE_ANALYSIS_LIMIT &&
                                 isOverDailyLimitOnServer()
                             ) {
@@ -912,7 +923,16 @@ class MainViewModel @Inject constructor(
             _uiState.update { it.copy(analyzing = true) }
 
             try {
+                // 신체 정보 없이는 분석을 보낼 수가 없다. 키·체중이 0으로 나가면
+                // 기초대사량이 엉뚱하게 잡혀 그럴듯한 거짓 리포트가 저장된다.
+                // 그래서 그냥 멈추고 입력 화면을 다시 띄운다.
                 val latestProfile = userProfileDao.getProfile()
+                if (latestProfile == null) {
+                    _uiState.update { it.copy(analyzing = false) }
+                    toast(R.string.error_profile_missing)
+                    showProfileDialog = true
+                    return@launch
+                }
 
                 val outcome = repository.analyzeAndSave(
                     currentState.copy(isMale = _isMale.value),
