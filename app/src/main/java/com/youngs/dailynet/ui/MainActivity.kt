@@ -139,7 +139,9 @@ class MainActivity : ComponentActivity() {
 
                 // 앱을 켠 직후 한 번만 보여주는 스플래시.
                 // 화면 회전 등으로 액티비티가 다시 만들어질 때 또 나오지 않도록 saveable로 둔다.
-                var showSplash by rememberSaveable { mutableStateOf(true) }
+                // 위젯처럼 밖에서 특정 화면을 지정해 들어온 경우(pendingRoute가 있음)는
+                // 그 화면을 바로 열어야 하므로 스플래시를 건너뛴다.
+                var showSplash by rememberSaveable { mutableStateOf(pendingRoute == null) }
 
                 Box(modifier = Modifier.Companion.fillMaxSize()) {
                 Scaffold(modifier = Modifier.Companion.fillMaxSize()) { innerPadding ->
