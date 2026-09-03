@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -14,6 +15,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,9 +29,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -50,6 +54,25 @@ import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import com.youngs.dailynet.util.HealthStepReader
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import kotlin.math.abs
+
+/**
+ * "yyyy-MM-dd" 날짜를 [days]일만큼 옮긴다. 형식이 깨져 있으면 null.
+ * 상세 화면에서 좌우 스와이프로 전날·다음날을 열 때 쓴다.
+ */
+private fun shiftDate(date: String, days: Int): String? {
+    val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    val parsed = runCatching { fmt.parse(date) }.getOrNull() ?: return null
+    val cal = Calendar.getInstance().apply {
+        time = parsed
+        add(Calendar.DAY_OF_MONTH, days)
+    }
+    return fmt.format(cal.time)
+}
 
 /** 사진으로 메뉴를 채울 수 있는 항목. 운동·비고는 사진으로 알아낼 수 없어 제외한다. */
 private val MEAL_PHOTO_FIELDS = setOf("breakfast", "lunch", "dinner", "snack")
@@ -61,6 +84,12 @@ fun DailyRecordScreen(
     onBack: () -> Unit,
     onNavigateToWeightTrend: (String) -> Unit = {},
     isReadOnly: Boolean = false,
+    /**
+     * 좌우로 스와이프했을 때 열 날짜를 넘겨준다. 왼쪽으로 밀면 다음날, 오른쪽으로 밀면 전날.
+     * null이면 스와이프를 받지 않는다 (오늘의 정산 입력 화면처럼 날짜가 고정된 경우).
+     * 오늘보다 뒤의 날짜로는 넘어가지 않는다.
+     */
+    onSwipeDate: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val uiState by mainViewModel.uiState.collectAsState()
@@ -285,6 +314,41 @@ fun DailyRecordScreen(
         mainViewModel.onResultStreamed()
     }
 
+    // ── 좌우 스와이프로 전날·다음날 이동 ──
+    // 손가락을 따라 본문이 옆으로 밀리고, 폭의 1/4 넘게 밀면 그 방향의 날짜로 넘어간다.
+    // 넘어갈 때는 본문이 화면 밖으로 빠졌다가 반대쪽에서 새 날짜가 들어오는 것처럼 보이게 한다.
+    val swipeOffset = remember { Animatable(0f) }
+    var contentWidth by remember { mutableStateOf(0) }
+    val swipeEnabled = onSwipeDate != null && !uiState.analyzing && uiState.date.isNotEmpty()
+
+    fun finishSwipe() {
+        val width = contentWidth.toFloat()
+        val offset = swipeOffset.value
+        val threshold = width / 4f
+        // 왼쪽으로 밀면(offset < 0) 다음날, 오른쪽으로 밀면 전날
+        val step = when {
+            offset < -threshold -> 1
+            offset > threshold -> -1
+            else -> 0
+        }
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        val target = if (step == 0) null else shiftDate(uiState.date, step)
+        // 오늘 이후로는 기록이 없으므로 넘어가지 않고 제자리로 돌려놓는다
+        if (target == null || target > today || onSwipeDate == null) {
+            scope.launch { swipeOffset.animateTo(0f, tween(250)) }
+            return
+        }
+        scope.launch {
+            // 현재 본문을 민 방향으로 마저 내보낸다
+            swipeOffset.animateTo(-step * width, tween(180))
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onSwipeDate(target)
+            // 새 날짜 본문은 반대쪽에서 들어온다
+            swipeOffset.snapTo(step * width)
+            swipeOffset.animateTo(0f, tween(250))
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
 
         LaunchedEffect(mainViewModel.toastMessage) {
@@ -351,6 +415,24 @@ fun DailyRecordScreen(
                 modifier = modifier
                     .fillMaxSize()
                     .padding(padding)
+                    .onSizeChanged { contentWidth = it.width }
+                    // 가로 드래그만 받는다. 세로 스크롤은 아래 verticalScroll이 그대로 가져간다.
+                    .pointerInput(swipeEnabled) {
+                        if (!swipeEnabled) return@pointerInput
+                        detectHorizontalDragGestures(
+                            onDragEnd = { finishSwipe() },
+                            onDragCancel = { scope.launch { swipeOffset.animateTo(0f, tween(250)) } }
+                        ) { change, dragAmount ->
+                            change.consume()
+                            scope.launch { swipeOffset.snapTo(swipeOffset.value + dragAmount) }
+                        }
+                    }
+                    .graphicsLayer {
+                        translationX = swipeOffset.value
+                        // 멀리 밀수록 옅어져서 "넘어간다"는 느낌을 준다
+                        val w = contentWidth.toFloat().coerceAtLeast(1f)
+                        alpha = 1f - (abs(swipeOffset.value) / w) * 0.6f
+                    }
                     .verticalScroll(scrollState)
                     .padding(16.dp)
             ) {

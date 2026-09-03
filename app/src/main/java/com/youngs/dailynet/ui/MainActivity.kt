@@ -191,7 +191,13 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToWeightTrend = { date ->
                                         navigateTo(ScreenEntry("weight", date))
                                     },
-                                    isReadOnly = false
+                                    isReadOnly = false,
+                                    // 좌우 스와이프로 전날·다음날을 연다.
+                                    // 기록에 쌓지 않고 현재 칸만 바꿔서, 여러 날을 넘긴 뒤 뒤로가기를
+                                    // 눌러도 날짜를 하나씩 되짚지 않고 들어온 화면으로 바로 돌아간다.
+                                    onSwipeDate = { date ->
+                                        current = ScreenEntry("detail", date)
+                                    }
                                 )
                             }
 
