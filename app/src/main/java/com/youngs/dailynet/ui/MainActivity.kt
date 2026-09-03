@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -16,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
@@ -28,6 +30,7 @@ import com.youngs.dailynet.ui.view.MonthReportScreen
 import com.youngs.dailynet.ui.view.DailyRecordScreen
 import com.youngs.dailynet.ui.view.WeightTrendScreen
 import com.youngs.dailynet.ui.view.SettingsScreen
+import com.youngs.dailynet.ui.view.SplashScreen
 import com.youngs.dailynet.ui.view.WithdrawScreen
 import com.youngs.dailynet.ui.viewmodel.AuthViewModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
@@ -134,6 +137,11 @@ class MainActivity : ComponentActivity() {
                 }
 
 
+                // 앱을 켠 직후 한 번만 보여주는 스플래시.
+                // 화면 회전 등으로 액티비티가 다시 만들어질 때 또 나오지 않도록 saveable로 둔다.
+                var showSplash by rememberSaveable { mutableStateOf(true) }
+
+                Box(modifier = Modifier.Companion.fillMaxSize()) {
                 Scaffold(modifier = Modifier.Companion.fillMaxSize()) { innerPadding ->
                     if (user == null || current.screen == "login") {
                         LoginScreen(
@@ -255,8 +263,14 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // 화면 종류와 상관없이 항상 위에 덮이도록 Scaffold 바깥에 둔다
-                updateInfo?.let { info ->
+                if (showSplash) {
+                    SplashScreen(onFinished = { showSplash = false })
+                }
+                }
+
+                // 화면 종류와 상관없이 항상 위에 덮이도록 Scaffold 바깥에 둔다.
+                // 스플래시가 끝나기 전에는 띄우지 않는다 (애니메이션 위로 대화상자가 튀어나오지 않게).
+                updateInfo?.takeIf { !showSplash }?.let { info ->
                     AppUpdateDialog(
                         info = info,
                         onLater = { updateInfo = null },
