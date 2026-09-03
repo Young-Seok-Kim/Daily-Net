@@ -171,7 +171,12 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToWeightTrend = { date ->
                                         navigateTo(ScreenEntry("weight", date))
                                     },
-                                    isReadOnly = false
+                                    isReadOnly = false,
+                                    // 오늘 화면에서 오른쪽으로 밀면 어제가 상세 화면으로 열린다.
+                                    // (왼쪽은 오늘 이후라 화면 쪽에서 막힌다)
+                                    onSwipeDate = { date ->
+                                        current = ScreenEntry("detail", date)
+                                    }
                                 )
                             }
 
