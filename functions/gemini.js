@@ -43,6 +43,16 @@ const TOTAL_BUDGET_MS = 80000;
 /** 재시도 간격 상한. 이보다 더 기다려봐야 예산만 먹는다. */
 const MAX_BACKOFF_MS = 8000;
 
+/**
+ * 5xx가 이만큼 **연달아** 오면 예비 모델로 갈아탄다.
+ *
+ * 2026-09-04 저녁 실제로 겪었다 — 3.5-flash-lite가 "high demand" 503을 40초 내내 돌려줘
+ * 6번을 다 재시도하고도 실패했고, 사용자는 매번 40초를 기다린 뒤 실패를 봤다.
+ * 같은 모델을 계속 두드려서는 과부하가 풀리길 기다리는 것뿐이다. 다른 모델은 다른 큐라
+ * 두 번 연달아 튕겼으면 바로 옮기는 편이 낫다. 한 번은 잡음일 수 있어 두 번으로 잡았다.
+ */
+const FALLBACK_AFTER_OVERLOADS = 2;
+
 // 마크다운 코드펜스를 걷어낸다. 모델이 순수 JSON만 달라고 해도 가끔 붙여 보낸다.
 function stripFences(rawText) {
     return (rawText || "").replace(/```json/g, "").replace(/```/g, "").trim();
@@ -169,6 +179,8 @@ function retryReason(error) {
  *   - attemptTimeoutMs: 한 번의 호출을 기다릴 상한
  *   - totalBudgetMs: 대기까지 합쳐 여기서 쓸 수 있는 전체 시간.
  *     **부르는 쪽의 함수 타임아웃보다 반드시 짧아야 한다.** 넘기면 응답을 조립할 시간이 없다.
+ *   - fallbackModel: 5xx가 연달아 오면 남은 시도를 넘길 예비 모델. 없으면 끝까지 같은 모델로 간다.
+ *   - fallbackAfter: 몇 번 연달아 5xx여야 갈아타는지
  */
 async function generateAndParse(model, prompt, options = {}) {
     const {
@@ -180,11 +192,10 @@ async function generateAndParse(model, prompt, options = {}) {
         maxRetries = 6,
         salvageIfHas = null,
         attemptTimeoutMs = ATTEMPT_TIMEOUT_MS,
-        totalBudgetMs = TOTAL_BUDGET_MS
+        totalBudgetMs = TOTAL_BUDGET_MS,
+        fallbackModel = null,
+        fallbackAfter = FALLBACK_AFTER_OVERLOADS
     } = options;
-    // 재시도 때 온도만 바꿔 다시 보내려면 원래 설정을 그대로 들고 가야 한다.
-    // 요청에 generationConfig를 실으면 모델에 걸어둔 값을 **합치지 않고 통째로 덮어쓴다.**
-    const baseConfig = model.generationConfig || {};
     const deadline = Date.now() + totalBudgetMs;
 
     // 프롬프트는 문자열이거나 파트 배열이다. 사진을 함께 보내는 쪽(extractMeal)이 배열을 쓴다.
@@ -197,6 +208,10 @@ async function generateAndParse(model, prompt, options = {}) {
     // 온도는 **파싱이 깨졌을 때만** 올린다. 과부하나 네트워크 문제로 다시 묻는 것은
     // 모델이 답을 만들지도 못한 경우라, 답의 내용을 바꿀 이유가 없다.
     let parseRetries = 0;
+    // 5xx가 연달아 온 횟수. 모델이 답을 만들어 준 순간(파싱 실패 포함) 0으로 돌아간다.
+    // 제한 시간 초과는 세지도 지우지도 않는다 — 과부하 중에 섞여 오는 증상이지 회복 신호가 아니다.
+    let overloads = 0;
+    let current = model;
 
     for (let i = 0; i < maxRetries; i++) {
         const left = deadline - Date.now();
@@ -209,13 +224,16 @@ async function generateAndParse(model, prompt, options = {}) {
         try {
             const request = { contents: [{ role: "user", parts }] };
             if (parseRetries > 0) {
+                // 재시도 때 온도만 바꿔 다시 보내려면 원래 설정을 그대로 들고 가야 한다.
+                // 요청에 generationConfig를 실으면 모델에 걸어둔 값을 **합치지 않고 통째로 덮어쓴다.**
+                const baseConfig = current.generationConfig || {};
                 const idx = Math.min(parseRetries - 1, RETRY_TEMPERATURES.length - 1);
                 request.generationConfig = { ...baseConfig, temperature: RETRY_TEMPERATURES[idx] };
             }
 
             // 한 번의 호출에 상한을 건다. 이게 없으면 매달린 호출 하나가 예산을 통째로 먹고
             // 재시도할 기회조차 남기지 않는다.
-            const result = await model.generateContent(request, {
+            const result = await current.generateContent(request, {
                 timeout: Math.min(attemptTimeoutMs, left)
             });
             response = result.response;
@@ -232,6 +250,7 @@ async function generateAndParse(model, prompt, options = {}) {
                 console.warn(`[gemini] 파싱 실패 - ${describeResponse(response)} 길이=${(lastRaw || "").length}`);
                 console.warn(`[gemini] 원문 끝: ${tail}`);
                 parseRetries++;
+                overloads = 0;
             }
 
             // 다시 물어도 소용없는 에러(키·모델명·요청이 틀림)는 즉시 종료
@@ -240,6 +259,16 @@ async function generateAndParse(model, prompt, options = {}) {
             // 마지막 시도 뒤에는 기다리지 않는다. 다시 물어보지도 않을 거면서
             // 4초를 더 세우면 사용자만 그만큼 늦게 실패를 본다.
             if (i === maxRetries - 1) break;
+
+            // 5xx가 연달아 오면 예비 모델로 갈아탄다. 기다리지 않고 바로 묻는다 —
+            // 대기는 같은 모델의 과부하가 풀리길 기대하는 것인데, 모델을 바꿨으면 그 이유가 없다.
+            if (/과부하/.test(reason)) overloads++;
+            if (fallbackModel && current !== fallbackModel && overloads >= fallbackAfter) {
+                console.warn(`[gemini] ${reason} ${overloads}번 연속 - 예비 모델로 갈아탐 (${fallbackModel.model || "?"})`);
+                current = fallbackModel;
+                overloads = 0;
+                continue;
+            }
 
             // 1·2·4·8초에서 절반~전부 사이로 흔든다. 같은 순간에 몰려 다시 나가면
             // 과부하일 때 똑같이 또 튕긴다.

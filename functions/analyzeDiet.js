@@ -78,23 +78,25 @@ exports.analyzeDiet = onRequest({
         const stepCount = Number(steps) || 0;
 
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({
-            // 무료 등급 한도가 2.5-flash는 하루 20회뿐이라 3.5-flash-lite로 옮겼다 (하루 500회).
-            // 예전에 뺐던 lite는 2.5-flash-lite였고 이건 그보다 한 세대 위다.
-            // 칼로리 숫자가 흔들리면 "gemini-2.5-flash"로 되돌리고 재배포할 것.
-            model: "gemini-3.5-flash-lite",
-            generationConfig: {
-                responseMimeType: "application/json",
-                // 같은 입력을 다시 분석하면 다른 숫자가 나와서 0.4에서 내렸다.
-                // 0으로 두지 않은 것은 문장 해석에 약간의 폭이 필요해서다.
-                temperature: 0.1,
-                maxOutputTokens: 4096,
-                // ⚡ 속도 개선의 핵심: 기본 'thinking' 지연 제거 (프롬프트의 단계별 사고 지시로 보완)
-                // 3.x 계열은 thinkingBudget을 안 받는다(INVALID_ARGUMENT). thinkingLevel로 지정한다.
-                // minimal이면 thinking 토큰 0으로, 기존 thinkingBudget: 0과 같은 효과다.
-                thinkingConfig: { thinkingLevel: "minimal" }
-            }
-        });
+        const generationConfig = {
+            responseMimeType: "application/json",
+            // 같은 입력을 다시 분석하면 다른 숫자가 나와서 0.4에서 내렸다.
+            // 0으로 두지 않은 것은 문장 해석에 약간의 폭이 필요해서다.
+            temperature: 0.1,
+            maxOutputTokens: 4096,
+            // ⚡ 속도 개선의 핵심: 기본 'thinking' 지연 제거 (프롬프트의 단계별 사고 지시로 보완)
+            // 3.x 계열은 thinkingBudget을 안 받는다(INVALID_ARGUMENT). thinkingLevel로 지정한다.
+            // minimal이면 thinking 토큰 0으로, 기존 thinkingBudget: 0과 같은 효과다.
+            thinkingConfig: { thinkingLevel: "minimal" }
+        };
+        // 무료 등급 한도가 2.5-flash는 하루 20회뿐이라 3.5-flash-lite로 옮겼다 (하루 500회).
+        // 예전에 뺐던 lite는 2.5-flash-lite였고 이건 그보다 한 세대 위다.
+        // 칼로리 숫자가 흔들리면 "gemini-2.5-flash"로 되돌리고 재배포할 것.
+        const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite", generationConfig });
+        // lite가 503을 연달아 돌려줄 때만 쓰는 예비 모델.
+        // 2026-09-04 저녁 lite가 "high demand" 503을 40초 내내 돌려줘 6건이 통째로 실패했다.
+        // 무료 등급 한도가 lite보다 훨씬 작아서 평소엔 안 쓰고, 연속 503일 때만 남은 시도를 넘긴다.
+        const fallbackModel = genAI.getGenerativeModel({ model: "gemini-3.5-flash", generationConfig });
 
 // 상단에 성별 텍스트 변환 로직 추가 (genderText 대응)
 const genderText = isMale ? '남성' : '여성';
@@ -389,7 +391,8 @@ ${exerciseBlock}
         // (한줄평은 아래에서 기본값으로 떨어져 빈 칸으로 나간다)
         const tPrompt = Date.now();
         const data = await generateAndParse(model, prompt, {
-            salvageIfHas: ["calories", "meals", "macros"]
+            salvageIfHas: ["calories", "meals", "macros"],
+            fallbackModel
         });
         const tGemini = Date.now();
 

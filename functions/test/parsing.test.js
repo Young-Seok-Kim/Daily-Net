@@ -209,6 +209,39 @@ test("generateAndParse - 호출 자체가 실패했을 때", async (t) => {
         assert.equal(model.requests.length, 1, "400을 재시도하면 안 된다");
     });
 
+    await t.test("5xx가 연달아 오면 예비 모델로 갈아탄다", async () => {
+        // 2026-09-04 저녁, lite가 503을 40초 내내 돌려줘 6번을 다 재시도하고도 실패했다.
+        // 같은 모델을 계속 두드리는 대신 두 번 연달아 튕기면 다른 모델로 넘긴다.
+        const overloaded = sdkError("[503 Service Unavailable] high demand", 503);
+        const model = fakeModel([overloaded, overloaded, '{"from":"lite"}']);
+        const fallbackModel = fakeModel(['{"from":"flash"}']);
+        assert.deepEqual(
+            await generateAndParse(model, "p", { maxRetries: 6, fallbackModel }),
+            { from: "flash" }
+        );
+        assert.equal(model.requests.length, 2, "두 번 튕긴 뒤엔 원래 모델에 더 묻지 않는다");
+        assert.equal(fallbackModel.requests.length, 1);
+    });
+
+    await t.test("5xx가 한 번뿐이면 원래 모델로 계속 간다", async () => {
+        const model = fakeModel([sdkError("[503 Service Unavailable]", 503), '{"ok":1}']);
+        const fallbackModel = fakeModel(['{"from":"flash"}']);
+        assert.deepEqual(await generateAndParse(model, "p", { maxRetries: 6, fallbackModel }), { ok: 1 });
+        assert.equal(fallbackModel.requests.length, 0);
+    });
+
+    await t.test("예비 모델도 계속 튕기면 그대로 실패한다", async () => {
+        const overloaded = sdkError("[503 Service Unavailable]", 503);
+        const model = fakeModel([overloaded]);
+        const fallbackModel = fakeModel([overloaded]);
+        await assert.rejects(
+            generateAndParse(model, "p", { maxRetries: 4, fallbackModel, totalBudgetMs: 60000 }),
+            /503/
+        );
+        assert.equal(model.requests.length, 2);
+        assert.equal(fallbackModel.requests.length, 2, "남은 시도를 예비 모델이 이어받는다");
+    });
+
     await t.test("호출이 실패했을 때는 온도를 올리지 않는다", async () => {
         // 온도를 바꾸는 건 "같은 답이 또 잘려 오는" 파싱 실패용이다.
         // 모델이 답을 만들지도 못한 경우엔 바꿀 이유가 없다.

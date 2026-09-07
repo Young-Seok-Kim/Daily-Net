@@ -61,17 +61,17 @@ exports.extractMeal = onRequest({
         reserved = true;
 
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({
-            // 무료 등급 하루 한도 때문에 3.5-flash-lite (analyzeDiet.js 주석 참고)
-            model: "gemini-3.5-flash-lite",
-            generationConfig: {
-                responseMimeType: "application/json",
-                temperature: 0.2, // 메뉴 인식은 창의성이 필요 없다
-                maxOutputTokens: 1024,
-                // 3.x는 thinkingBudget 대신 thinkingLevel (analyzeDiet.js 주석 참고)
-                thinkingConfig: { thinkingLevel: "minimal" }
-            }
-        });
+        const generationConfig = {
+            responseMimeType: "application/json",
+            temperature: 0.2, // 메뉴 인식은 창의성이 필요 없다
+            maxOutputTokens: 1024,
+            // 3.x는 thinkingBudget 대신 thinkingLevel (analyzeDiet.js 주석 참고)
+            thinkingConfig: { thinkingLevel: "minimal" }
+        };
+        // 무료 등급 하루 한도 때문에 3.5-flash-lite (analyzeDiet.js 주석 참고)
+        const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite", generationConfig });
+        // lite가 503을 연달아 돌려줄 때만 쓰는 예비 모델 (analyzeDiet.js 주석 참고)
+        const fallbackModel = genAI.getGenerativeModel({ model: "gemini-3.5-flash", generationConfig });
 
         const prompt = `
             이 사진에 담긴 음식을 식별하십시오.
@@ -170,7 +170,7 @@ exports.extractMeal = onRequest({
                 { inlineData: { data: image, mimeType: mimeType || "image/jpeg" } },
                 prompt
             ],
-            { attemptTimeoutMs: 20000, totalBudgetMs: 40000 }
+            { attemptTimeoutMs: 20000, totalBudgetMs: 40000, fallbackModel }
         );
         const items = normalizeExtracted(data.items);
 
