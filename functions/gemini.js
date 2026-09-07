@@ -64,7 +64,8 @@ const FALLBACK_AFTER_OVERLOADS = 2;
  * (원복: `gcloud services api-keys update <uid> --api-target=service=generativelanguage.googleapis.com`)
  */
 function paidModel(modelName, generationConfig) {
-    const key = process.env.GEMINI_API_KEY_PAID;
+    // 파이프로 넣은 시크릿엔 줄바꿈이 따라올 수 있다. 키 끝에 붙으면 400 API key not valid로 죽는다.
+    const key = (process.env.GEMINI_API_KEY_PAID || "").trim();
     if (!key) return null;
     const { GoogleGenerativeAI } = require("@google/generative-ai");
     return new GoogleGenerativeAI(key).getGenerativeModel({ model: modelName, generationConfig });
