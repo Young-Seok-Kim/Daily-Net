@@ -4,7 +4,7 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { LABELS, resolveLang } = require("./labels");
-const { generateAndParse } = require("./gemini");
+const { generateAndParse, paidModel } = require("./gemini");
 const { recommendedIntake } = require("./nutrition");
 const { mergeDuplicateItems } = require("./mergeItems");
 const { numberedLines } = require("./splitInput");
@@ -24,7 +24,7 @@ const {
 exports.analyzeDiet = onRequest({
     region: "asia-northeast3",
     cors: true,
-    secrets: ["GEMINI_API_KEY"],
+    secrets: ["GEMINI_API_KEY", "GEMINI_API_KEY_PAID"],
     // [보안] 인증된 앱의 요청만 허용 (App Check 필수 활성화 필요)
     enforceAppCheck: true,
     timeoutSeconds: 120,
@@ -93,10 +93,14 @@ exports.analyzeDiet = onRequest({
         // 예전에 뺐던 lite는 2.5-flash-lite였고 이건 그보다 한 세대 위다.
         // 칼로리 숫자가 흔들리면 "gemini-2.5-flash"로 되돌리고 재배포할 것.
         const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite", generationConfig });
-        // lite가 503을 연달아 돌려줄 때만 쓰는 예비 모델.
+        // lite가 503을 연달아 돌려줄 때만 차례로 쓰는 예비 모델.
         // 2026-09-04 저녁 lite가 "high demand" 503을 40초 내내 돌려줘 6건이 통째로 실패했다.
-        // 무료 등급 한도가 lite보다 훨씬 작아서 평소엔 안 쓰고, 연속 503일 때만 남은 시도를 넘긴다.
-        const fallbackModel = genAI.getGenerativeModel({ model: "gemini-3.5-flash", generationConfig });
+        //   1. 무료 키의 3.5-flash — 한도가 lite보다 훨씬 작아 평소엔 안 쓴다
+        //   2. 유료 키의 3.5-flash-lite — 여기까지 온 건만 요금이 나간다 (월 몇백 원 수준)
+        const fallbackModels = [
+            genAI.getGenerativeModel({ model: "gemini-3.5-flash", generationConfig }),
+            paidModel("gemini-3.5-flash-lite", generationConfig)
+        ];
 
 // 상단에 성별 텍스트 변환 로직 추가 (genderText 대응)
 const genderText = isMale ? '남성' : '여성';
@@ -392,7 +396,7 @@ ${exerciseBlock}
         const tPrompt = Date.now();
         const data = await generateAndParse(model, prompt, {
             salvageIfHas: ["calories", "meals", "macros"],
-            fallbackModel
+            fallbackModels
         });
         const tGemini = Date.now();
 

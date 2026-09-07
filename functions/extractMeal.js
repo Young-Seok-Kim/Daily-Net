@@ -4,7 +4,7 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { LABELS, resolveLang } = require("./labels");
-const { generateAndParse } = require("./gemini");
+const { generateAndParse, paidModel } = require("./gemini");
 const { verifyUser, reservePhoto, refundPhoto } = require("./quota");
 const { normalizeExtracted, toInputText } = require("./extractItems");
 
@@ -22,7 +22,7 @@ const { normalizeExtracted, toInputText } = require("./extractItems");
 exports.extractMeal = onRequest({
     region: "asia-northeast3",
     cors: true,
-    secrets: ["GEMINI_API_KEY"],
+    secrets: ["GEMINI_API_KEY", "GEMINI_API_KEY_PAID"],
     enforceAppCheck: true,
     timeoutSeconds: 60,
 }, async (req, res) => {
@@ -70,8 +70,11 @@ exports.extractMeal = onRequest({
         };
         // 무료 등급 하루 한도 때문에 3.5-flash-lite (analyzeDiet.js 주석 참고)
         const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite", generationConfig });
-        // lite가 503을 연달아 돌려줄 때만 쓰는 예비 모델 (analyzeDiet.js 주석 참고)
-        const fallbackModel = genAI.getGenerativeModel({ model: "gemini-3.5-flash", generationConfig });
+        // lite가 503을 연달아 돌려줄 때만 차례로 쓰는 예비 모델 (analyzeDiet.js 주석 참고)
+        const fallbackModels = [
+            genAI.getGenerativeModel({ model: "gemini-3.5-flash", generationConfig }),
+            paidModel("gemini-3.5-flash-lite", generationConfig)
+        ];
 
         const prompt = `
             이 사진에 담긴 음식을 식별하십시오.
@@ -170,7 +173,7 @@ exports.extractMeal = onRequest({
                 { inlineData: { data: image, mimeType: mimeType || "image/jpeg" } },
                 prompt
             ],
-            { attemptTimeoutMs: 20000, totalBudgetMs: 40000, fallbackModel }
+            { attemptTimeoutMs: 20000, totalBudgetMs: 40000, fallbackModels }
         );
         const items = normalizeExtracted(data.items);
 

@@ -216,7 +216,7 @@ test("generateAndParse - 호출 자체가 실패했을 때", async (t) => {
         const model = fakeModel([overloaded, overloaded, '{"from":"lite"}']);
         const fallbackModel = fakeModel(['{"from":"flash"}']);
         assert.deepEqual(
-            await generateAndParse(model, "p", { maxRetries: 6, fallbackModel }),
+            await generateAndParse(model, "p", { maxRetries: 6, fallbackModels: [fallbackModel] }),
             { from: "flash" }
         );
         assert.equal(model.requests.length, 2, "두 번 튕긴 뒤엔 원래 모델에 더 묻지 않는다");
@@ -226,16 +226,56 @@ test("generateAndParse - 호출 자체가 실패했을 때", async (t) => {
     await t.test("5xx가 한 번뿐이면 원래 모델로 계속 간다", async () => {
         const model = fakeModel([sdkError("[503 Service Unavailable]", 503), '{"ok":1}']);
         const fallbackModel = fakeModel(['{"from":"flash"}']);
-        assert.deepEqual(await generateAndParse(model, "p", { maxRetries: 6, fallbackModel }), { ok: 1 });
+        assert.deepEqual(
+            await generateAndParse(model, "p", { maxRetries: 6, fallbackModels: [fallbackModel] }),
+            { ok: 1 }
+        );
         assert.equal(fallbackModel.requests.length, 0);
     });
 
-    await t.test("예비 모델도 계속 튕기면 그대로 실패한다", async () => {
+    await t.test("예비 모델도 튕기면 그 다음 예비(유료 키)로 넘어간다", async () => {
+        // 무료 lite → 무료 flash → 유료 lite 순. 유료는 여기까지 온 건만 탄다.
+        const overloaded = sdkError("[503 Service Unavailable]", 503);
+        const free = fakeModel([overloaded]);
+        const flash = fakeModel([overloaded]);
+        const paid = fakeModel(['{"from":"paid"}']);
+        assert.deepEqual(
+            await generateAndParse(free, "p", { maxRetries: 6, fallbackModels: [flash, paid], totalBudgetMs: 60000 }),
+            { from: "paid" }
+        );
+        assert.equal(free.requests.length, 2);
+        assert.equal(flash.requests.length, 2);
+        assert.equal(paid.requests.length, 1);
+    });
+
+    await t.test("429 한도도 갈아탈 사유다", async () => {
+        // 무료 등급 한도는 모델·키마다 따로라, 걸린 모델을 붙들고 기다릴 이유가 없다.
+        const limited = sdkError("[429 Too Many Requests] quota", 429);
+        const model = fakeModel([limited, limited]);
+        const fallbackModel = fakeModel(['{"ok":1}']);
+        assert.deepEqual(
+            await generateAndParse(model, "p", { maxRetries: 6, fallbackModels: [fallbackModel] }),
+            { ok: 1 }
+        );
+        assert.equal(fallbackModel.requests.length, 1);
+    });
+
+    await t.test("유료 키가 없어 null이 섞여도 건너뛴다", async () => {
+        const overloaded = sdkError("[503 Service Unavailable]", 503);
+        const model = fakeModel([overloaded]);
+        const fallbackModel = fakeModel(['{"ok":1}']);
+        assert.deepEqual(
+            await generateAndParse(model, "p", { maxRetries: 6, fallbackModels: [fallbackModel, null] }),
+            { ok: 1 }
+        );
+    });
+
+    await t.test("마지막 예비 모델도 계속 튕기면 그대로 실패한다", async () => {
         const overloaded = sdkError("[503 Service Unavailable]", 503);
         const model = fakeModel([overloaded]);
         const fallbackModel = fakeModel([overloaded]);
         await assert.rejects(
-            generateAndParse(model, "p", { maxRetries: 4, fallbackModel, totalBudgetMs: 60000 }),
+            generateAndParse(model, "p", { maxRetries: 4, fallbackModels: [fallbackModel], totalBudgetMs: 60000 }),
             /503/
         );
         assert.equal(model.requests.length, 2);

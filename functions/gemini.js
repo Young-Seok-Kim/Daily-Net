@@ -44,14 +44,31 @@ const TOTAL_BUDGET_MS = 80000;
 const MAX_BACKOFF_MS = 8000;
 
 /**
- * 5xx가 이만큼 **연달아** 오면 예비 모델로 갈아탄다.
+ * 5xx나 429가 이만큼 **연달아** 오면 다음 예비 모델로 갈아탄다.
  *
  * 2026-09-04 저녁 실제로 겪었다 — 3.5-flash-lite가 "high demand" 503을 40초 내내 돌려줘
  * 6번을 다 재시도하고도 실패했고, 사용자는 매번 40초를 기다린 뒤 실패를 봤다.
  * 같은 모델을 계속 두드려서는 과부하가 풀리길 기다리는 것뿐이다. 다른 모델은 다른 큐라
  * 두 번 연달아 튕겼으면 바로 옮기는 편이 낫다. 한 번은 잡음일 수 있어 두 번으로 잡았다.
+ *
+ * 429도 센다. 무료 등급 한도는 모델·키마다 따로라, 한도에 걸린 모델을 붙들고 기다리느니
+ * 한도가 남은 다음 모델(또는 유료 키)로 넘기는 편이 빠르다.
  */
 const FALLBACK_AFTER_OVERLOADS = 2;
+
+/**
+ * 유료 키로 만든 모델. 시크릿 GEMINI_API_KEY_PAID가 비어 있으면 null.
+ *
+ * 무료 키가 과부하·한도로 연달아 튕길 때 **마지막 예비**로만 쓴다. 여기까지 온 호출만 요금이 나가므로
+ * 한 달에 몇백 원 수준이다. 무료 키로 옮기며 API 제한으로 막아 뒀던 그 키를 되살려 넣는다.
+ * (원복: `gcloud services api-keys update <uid> --api-target=service=generativelanguage.googleapis.com`)
+ */
+function paidModel(modelName, generationConfig) {
+    const key = process.env.GEMINI_API_KEY_PAID;
+    if (!key) return null;
+    const { GoogleGenerativeAI } = require("@google/generative-ai");
+    return new GoogleGenerativeAI(key).getGenerativeModel({ model: modelName, generationConfig });
+}
 
 // 마크다운 코드펜스를 걷어낸다. 모델이 순수 JSON만 달라고 해도 가끔 붙여 보낸다.
 function stripFences(rawText) {
@@ -179,8 +196,9 @@ function retryReason(error) {
  *   - attemptTimeoutMs: 한 번의 호출을 기다릴 상한
  *   - totalBudgetMs: 대기까지 합쳐 여기서 쓸 수 있는 전체 시간.
  *     **부르는 쪽의 함수 타임아웃보다 반드시 짧아야 한다.** 넘기면 응답을 조립할 시간이 없다.
- *   - fallbackModel: 5xx가 연달아 오면 남은 시도를 넘길 예비 모델. 없으면 끝까지 같은 모델로 간다.
- *   - fallbackAfter: 몇 번 연달아 5xx여야 갈아타는지
+ *   - fallbackModels: 5xx·429가 연달아 오면 남은 시도를 넘길 예비 모델 목록. 앞에서부터
+ *     차례로 갈아타고, 다 쓰면 마지막 모델로 끝까지 간다. 없으면 끝까지 같은 모델로 간다.
+ *   - fallbackAfter: 몇 번 연달아 튕겨야 갈아타는지
  */
 async function generateAndParse(model, prompt, options = {}) {
     const {
@@ -193,9 +211,11 @@ async function generateAndParse(model, prompt, options = {}) {
         salvageIfHas = null,
         attemptTimeoutMs = ATTEMPT_TIMEOUT_MS,
         totalBudgetMs = TOTAL_BUDGET_MS,
-        fallbackModel = null,
+        fallbackModels = [],
         fallbackAfter = FALLBACK_AFTER_OVERLOADS
     } = options;
+    // null이 섞여 올 수 있다 (유료 키가 없으면 그 자리를 비운다). 걸러서 순서만 남긴다.
+    const chain = [model, ...fallbackModels.filter(Boolean)];
     const deadline = Date.now() + totalBudgetMs;
 
     // 프롬프트는 문자열이거나 파트 배열이다. 사진을 함께 보내는 쪽(extractMeal)이 배열을 쓴다.
@@ -208,10 +228,11 @@ async function generateAndParse(model, prompt, options = {}) {
     // 온도는 **파싱이 깨졌을 때만** 올린다. 과부하나 네트워크 문제로 다시 묻는 것은
     // 모델이 답을 만들지도 못한 경우라, 답의 내용을 바꿀 이유가 없다.
     let parseRetries = 0;
-    // 5xx가 연달아 온 횟수. 모델이 답을 만들어 준 순간(파싱 실패 포함) 0으로 돌아간다.
+    // 5xx·429가 연달아 온 횟수. 모델이 답을 만들어 준 순간(파싱 실패 포함) 0으로 돌아간다.
     // 제한 시간 초과는 세지도 지우지도 않는다 — 과부하 중에 섞여 오는 증상이지 회복 신호가 아니다.
     let overloads = 0;
-    let current = model;
+    let stage = 0;                 // chain에서 지금 묻고 있는 모델의 자리
+    let current = chain[stage];
 
     for (let i = 0; i < maxRetries; i++) {
         const left = deadline - Date.now();
@@ -260,12 +281,13 @@ async function generateAndParse(model, prompt, options = {}) {
             // 4초를 더 세우면 사용자만 그만큼 늦게 실패를 본다.
             if (i === maxRetries - 1) break;
 
-            // 5xx가 연달아 오면 예비 모델로 갈아탄다. 기다리지 않고 바로 묻는다 —
+            // 5xx·429가 연달아 오면 다음 예비 모델로 갈아탄다. 기다리지 않고 바로 묻는다 —
             // 대기는 같은 모델의 과부하가 풀리길 기대하는 것인데, 모델을 바꿨으면 그 이유가 없다.
-            if (/과부하/.test(reason)) overloads++;
-            if (fallbackModel && current !== fallbackModel && overloads >= fallbackAfter) {
-                console.warn(`[gemini] ${reason} ${overloads}번 연속 - 예비 모델로 갈아탐 (${fallbackModel.model || "?"})`);
-                current = fallbackModel;
+            if (/과부하|한도/.test(reason)) overloads++;
+            if (stage < chain.length - 1 && overloads >= fallbackAfter) {
+                stage++;
+                current = chain[stage];
+                console.warn(`[gemini] ${reason} ${overloads}번 연속 - 예비 모델 ${stage}단계로 갈아탐 (${current.model || "?"})`);
                 overloads = 0;
                 continue;
             }
@@ -300,4 +322,4 @@ async function generateAndParse(model, prompt, options = {}) {
     throw lastError || new Error(`[gemini] 시간이 없어 한 번도 묻지 못함 (예산 ${totalBudgetMs}ms)`);
 }
 
-module.exports = { safeParseJson, salvageTruncatedJson, generateAndParse, retryReason };
+module.exports = { safeParseJson, salvageTruncatedJson, generateAndParse, retryReason, paidModel };
