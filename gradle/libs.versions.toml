@@ -28,6 +28,7 @@ playBilling = "9.1.0"
 workManager = "2.10.0"
 crashlytics = "3.0.2"
 glance = "1.1.1"
+camerax = "1.4.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -91,6 +92,12 @@ androidx-work-runtime = { group = "androidx.work", name = "work-runtime-ktx", ve
 
 # 홈 화면 위젯. RemoteViews를 직접 다루지 않고 Compose와 같은 문법으로 쓸 수 있다.
 androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
+
+# 앱 안에서 직접 사진을 찍기 위한 CameraX. 시스템 카메라 앱을 띄우면 셔터음을 끌 수 없어서 쓴다.
+androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }
+androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
+androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
+androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

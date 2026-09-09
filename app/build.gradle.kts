@@ -140,6 +140,12 @@ dependencies {
 
     // 홈 화면 위젯 (오늘의 순칼로리)
     implementation(libs.androidx.glance.appwidget)
+
+    // 음식 사진 무음 촬영 (앱 내 카메라)
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
 }
 
 // 2. 파일 맨 하단에 이 블록을 정확하게 넣어주세요.

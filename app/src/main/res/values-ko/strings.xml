@@ -170,6 +170,12 @@
     <string name="photo_source_desc">새로 찍거나, 이미 찍어둔 사진을 고를 수 있어요.</string>
     <string name="photo_source_camera">카메라</string>
     <string name="photo_source_gallery">갤러리</string>
+    <string name="camera_permission_denied">사진을 찍으려면 카메라 권한이 필요해요. 갤러리에서 고르는 건 가능해요.</string>
+    <string name="camera_unavailable">카메라를 열지 못했어요.</string>
+    <string name="camera_capture_failed">사진을 찍지 못했어요. 다시 시도해 주세요.</string>
+    <string name="camera_shutter">촬영</string>
+    <string name="camera_close">카메라 닫기</string>
+    <string name="camera_hint">음식이 화면에 들어오게 맞추고 버튼을 누르세요.</string>
     <string name="photo_read_failed">사진을 읽지 못했어요</string>
     <string name="photo_no_food">음식을 알아보지 못했어요. 다시 찍어보세요.</string>
     <string name="photo_limit_free">무료 사진 인식은 하루 3회예요. 구독하면 하루 30회까지 쓸 수 있어요.</string>

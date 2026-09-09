@@ -172,6 +172,12 @@
     <string name="photo_source_desc">Take a new photo, or pick one you already have.</string>
     <string name="photo_source_camera">Camera</string>
     <string name="photo_source_gallery">Gallery</string>
+    <string name="camera_permission_denied">Camera permission is needed to take a photo. You can still pick one from the gallery.</string>
+    <string name="camera_unavailable">Could not open the camera.</string>
+    <string name="camera_capture_failed">Could not take the photo. Please try again.</string>
+    <string name="camera_shutter">Take photo</string>
+    <string name="camera_close">Close camera</string>
+    <string name="camera_hint">Fit the food in the frame and tap the button.</string>
     <string name="photo_read_failed">Could not read that photo</string>
     <string name="photo_no_food">No food was recognized. Try another photo.</string>
     <string name="photo_limit_free">Free photo scans are limited to 3 per day. Subscribe to get 30.</string>

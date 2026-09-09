@@ -15,6 +15,14 @@
     <!-- 정산 리마인더 알림 (안드로이드 13부터 런타임 권한 필요) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!--
+      음식 사진을 앱 안에서 직접 찍기 위한 권한.
+      시스템 카메라 앱은 셔터음을 끌 수 없어서 CameraX로 직접 촬영한다.
+      카메라 없는 기기에서도 설치는 되도록 required=false로 둔다 (갤러리 선택은 가능).
+    -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
     <!-- Health Connect 앱(안드로이드 13 이하) 존재 여부 확인용 -->
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
@@ -50,8 +58,8 @@
         </activity>
 
         <!--
-          카메라 앱에 임시 파일을 넘기기 위한 provider.
-          file:// URI를 직접 넘기면 안드로이드 7 이상에서 FileUriExposedException이 난다.
+          앱 내 카메라가 찍은 임시 사진을 content URI로 다루기 위한 provider.
+          갤러리에서 고른 사진과 같은 형태(URI)로 인식 로직에 넘길 수 있다.
         -->
         <provider
             android:name="androidx.core.content.FileProvider"

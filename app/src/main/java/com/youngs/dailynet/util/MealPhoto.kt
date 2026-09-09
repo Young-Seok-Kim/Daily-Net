@@ -10,7 +10,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 
 /**
- * 음식 사진을 카메라로 찍어 서버로 보낼 수 있는 형태로 만드는 유틸.
+ * 음식 사진을 앱 내 카메라로 찍어 서버로 보낼 수 있는 형태로 만드는 유틸.
  *
  * 사진은 **저장하지 않는다.** 서버가 메뉴를 텍스트로 바꿔주면 원본은 바로 지운다.
  * 사진을 Cloud Storage에 쌓으면 사용자 한 명당 연간 수백 MB가 되는데,
@@ -26,11 +26,16 @@ object MealPhoto {
     private const val JPEG_QUALITY = 80
     private const val DIR_NAME = "meal_photos"
 
-    /** 카메라 앱이 사진을 써 넣을 임시 파일의 URI */
-    fun createTempImageUri(context: Context): Uri {
+    /** 앱 내 카메라가 사진을 써 넣을 임시 파일 */
+    fun createTempImageFile(context: Context): File {
         val dir = File(context.cacheDir, DIR_NAME).apply { mkdirs() }
         // 파일명은 하나로 고정한다. 어차피 바로 지우므로 쌓일 일이 없다.
-        val file = File(dir, "capture.jpg")
+        return File(dir, "capture.jpg")
+    }
+
+    /** [createTempImageFile]로 만든 파일을 content URI로 바꾼다. 인식 로직은 URI만 받는다. */
+    fun createTempImageUri(context: Context): Uri {
+        val file = createTempImageFile(context)
         return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     }
 

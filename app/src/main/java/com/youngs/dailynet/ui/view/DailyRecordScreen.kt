@@ -1,5 +1,7 @@
 package com.youngs.dailynet.ui.view
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -48,6 +50,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.core.content.ContextCompat
 import com.youngs.dailynet.R
 import com.youngs.dailynet.util.MealPhoto
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
@@ -111,20 +114,37 @@ fun DailyRecordScreen(
     // ── 음식 사진으로 메뉴 채우기 ─────────────────────────────────────
     // 어느 항목에서 카메라를 열었는지 기억해 두고, 촬영이 끝나면 그 항목에 결과를 넣는다.
     val photoProcessingField by mainViewModel.photoProcessingField.collectAsState()
-    var pendingPhotoUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var pendingPhotoField by remember { mutableStateOf<String?>(null) }
 
-    // CAMERA 권한을 매니페스트에 선언하지 않았으므로 런타임 권한 요청이 필요 없다.
-    // (선언하면 그때부터 권한을 물어봐야 한다)
-    val cameraLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.TakePicture()
-    ) { success ->
-        val uri = pendingPhotoUri
+    // 앱 내 카메라를 열어 둘 항목. null이면 닫힌 상태.
+    // 시스템 카메라 앱을 인텐트로 띄우면 셔터음을 끌 수 없어서 CameraX로 직접 찍는다.
+    var cameraField by remember { mutableStateOf<String?>(null) }
+    val cameraDeniedMessage = stringResource(R.string.camera_permission_denied)
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
         val field = pendingPhotoField
-        if (success && uri != null && field != null) {
-            mainViewModel.extractMealFromPhoto(uri, field)
+        if (granted && field != null) {
+            cameraField = field
+        } else {
+            // 거부하면 갤러리 경로는 그대로 열려 있다고 알려준다
+            Toast.makeText(context, cameraDeniedMessage, Toast.LENGTH_LONG).show()
+            pendingPhotoField = null
         }
-        pendingPhotoField = null
+    }
+
+    cameraField?.let { field ->
+        MealCameraScreen(
+            onCaptured = {
+                cameraField = null
+                pendingPhotoField = null
+                mainViewModel.extractMealFromPhoto(MealPhoto.createTempImageUri(context), field)
+            },
+            onDismiss = {
+                cameraField = null
+                pendingPhotoField = null
+            }
+        )
     }
 
     // 갤러리 선택. 사진 선택 도구는 권한이 필요 없고, 고른 사진 한 장만 앱에 넘어온다.
@@ -150,9 +170,14 @@ fun DailyRecordScreen(
                 TextButton(onClick = {
                     photoSourceField = null
                     pendingPhotoField = field
-                    val uri = MealPhoto.createTempImageUri(context)
-                    pendingPhotoUri = uri
-                    cameraLauncher.launch(uri)
+                    val granted = ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.CAMERA
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (granted) {
+                        cameraField = field
+                    } else {
+                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    }
                 }) { Text(stringResource(R.string.photo_source_camera)) }
             },
             dismissButton = {
