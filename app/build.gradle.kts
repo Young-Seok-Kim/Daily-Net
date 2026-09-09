@@ -53,14 +53,21 @@ android {
             if (keystoreProps.getProperty("storeFile") != null) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            // Kotlin 2.2 + 현재 AGP의 R8 조합에서 R8이 Gson TypeToken의 제네릭 시그니처를
-            // 제거해 앱이 시작 시 죽는 문제가 있어 난독화를 비활성화한다.
-            // (추후 AGP 업그레이드 후 재활성화 가능)
-            isMinifyEnabled = false
+            // R8 축소·난독화. 예전에 Gson TypeToken의 제네릭 시그니처가 제거돼 앱이 죽어 꺼뒀는데,
+            // proguard-rules.pro에 TypeToken 보존 규칙을 넣어 해결했다.
+            // 켜야 플레이 콘솔에 매핑 파일이 올라가고(Crashlytics 플러그인이 자동 업로드) 관련 경고가 사라진다.
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // 네이티브(.so) 심볼 테이블이 있으면 AAB에 같이 넣는다.
+            // 지금 들어 있는 .so(CameraX·androidx.graphics)는 이미 심볼이 벗겨진 채 배포돼 실제로 넣을 게 없다.
+            // 그래서 플레이 콘솔의 "디버그 기호가 업로드되지 않았습니다" 경고는 남을 수 있다 (무시해도 되는 경고).
+            // 나중에 심볼을 가진 라이브러리가 들어오면 자동으로 포함되도록 설정만 켜둔다.
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
         }
     }
     compileOptions {

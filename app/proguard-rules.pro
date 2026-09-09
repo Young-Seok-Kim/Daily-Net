@@ -33,3 +33,17 @@
 
 # Kotlin 메타데이터 유지 (리플렉션 기반 직렬화 안정성)
 -keep class kotlin.Metadata { *; }
+
+# Gson TypeToken (Converters.kt의 object : TypeToken<List<String>>() {} 등)
+# R8 전체 모드는 참조되지 않는 클래스의 제네릭 시그니처를 지우는데, 그러면 Gson이
+# "TypeToken must be created with a type argument"를 던지며 앱이 죽는다.
+# allowobfuscation/allowshrinking을 붙여 이름은 바꾸되 시그니처는 남기게 한다 (Gson 공식 규칙).
+-keep,allowobfuscation,allowshrinking class com.google.gson.reflect.TypeToken
+-keep,allowobfuscation,allowshrinking class * extends com.google.gson.reflect.TypeToken
+
+# Gson이 리플렉션으로 만드는 클래스는 인자 없는 생성자와 필드가 남아 있어야 한다
+-keepclassmembers class com.youngs.dailynet.data.model.** { <init>(); }
+
+# Crashlytics 스택 트레이스에 줄 번호가 남도록. 매핑 파일은 Crashlytics 플러그인이 올린다.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
