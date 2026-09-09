@@ -137,11 +137,16 @@ class MainActivity : ComponentActivity() {
                 }
 
 
-                // 앱을 켠 직후 한 번만 보여주는 스플래시.
-                // 화면 회전 등으로 액티비티가 다시 만들어질 때 또 나오지 않도록 saveable로 둔다.
-                // 위젯처럼 밖에서 특정 화면을 지정해 들어온 경우(pendingRoute가 있음)는
-                // 그 화면을 바로 열어야 하므로 스플래시를 건너뛴다.
-                var showSplash by rememberSaveable { mutableStateOf(pendingRoute == null) }
+                // 스플래시는 프로세스가 새로 뜬 콜드 스타트에만 보여준다.
+                // 아무것도 기다리지 않는 순수 연출이라(로그인 상태·기록은 즉시 준비됨), 자주 나오면 성가시기만 하다.
+                //  - 뒤로가기로 나갔다가 바로 다시 켜는 경우: 프로세스가 살아 있으므로 건너뛴다 (splashShownInProcess)
+                //  - 화면 회전 등으로 액티비티만 다시 만들어지는 경우: saveable로 건너뛴다
+                //  - 위젯처럼 밖에서 특정 화면을 지정해 들어온 경우(pendingRoute가 있음): 그 화면을 바로 연다
+                var showSplash by rememberSaveable {
+                    val show = pendingRoute == null && !splashShownInProcess
+                    if (show) splashShownInProcess = true
+                    mutableStateOf(show)
+                }
 
                 Box(modifier = Modifier.Companion.fillMaxSize()) {
                 Scaffold(modifier = Modifier.Companion.fillMaxSize()) { innerPadding ->
@@ -295,6 +300,13 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
+        /**
+         * 이번 프로세스에서 스플래시를 이미 보여줬는지.
+         * 액티비티가 아니라 프로세스 기준이라, 앱을 뒤로가기로 닫았다가 곧바로 다시 열어도 또 나오지 않는다.
+         * 프로세스가 죽으면 같이 초기화되므로 진짜 콜드 스타트에는 다시 나온다.
+         */
+        private var splashShownInProcess = false
+
         /** 밖에서 열 화면을 지정할 때 쓰는 인텐트 키. 값은 [ScreenEntry.screen]과 같은 이름이다. */
         const val EXTRA_ROUTE = "com.youngs.dailynet.extra.ROUTE"
 
