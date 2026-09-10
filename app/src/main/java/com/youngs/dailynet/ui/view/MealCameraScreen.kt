@@ -4,14 +4,18 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.core.ZoomState
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -37,18 +42,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -59,7 +68,10 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.youngs.dailynet.R
 import com.youngs.dailynet.util.MealPhoto
+import kotlinx.coroutines.delay
 import java.io.File
+import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 
 /**
  * 음식 사진을 앱 안에서 직접 찍는 전체 화면 카메라.
@@ -94,6 +106,8 @@ fun MealCameraScreen(
     // 현재 줌 상태(배율·범위). 카메라가 알려주는 값을 그대로 받아 핀치와 슬라이더가 같은 값을 본다.
     var zoomState by remember { mutableStateOf<ZoomState?>(null) }
     var capturing by remember { mutableStateOf(false) }
+    // 마지막으로 탭해서 초점을 맞춘 화면 좌표. 초점 링을 그리는 동안만 값이 있다.
+    var focusPoint by remember { mutableStateOf<Offset?>(null) }
 
     val unavailableMessage = stringResource(R.string.camera_unavailable)
     val failedMessage = stringResource(R.string.camera_capture_failed)
@@ -153,6 +167,25 @@ fun MealCameraScreen(
         camera?.cameraControl?.setZoomRatio(ratio.coerceIn(z.minZoomRatio, z.maxZoomRatio))
     }
 
+    /**
+     * 탭한 자리에 초점과 노출을 맞춘다.
+     * 터치 레이어와 프리뷰 뷰가 같은 크기로 겹쳐 있어서 좌표를 그대로 프리뷰 좌표로 쓸 수 있다.
+     * 몇 초 뒤엔 자동으로 풀려 다시 연속 자동초점으로 돌아간다 (피사체가 바뀌어도 초점이 멈춰 있지 않도록).
+     */
+    fun focusAt(offset: Offset) {
+        val view = previewView ?: return
+        val control = camera?.cameraControl ?: return
+        val point = view.meteringPointFactory.createPoint(offset.x, offset.y)
+        val action = FocusMeteringAction.Builder(
+            point,
+            FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
+        )
+            .setAutoCancelDuration(3, TimeUnit.SECONDS)
+            .build()
+        runCatching { control.startFocusAndMetering(action) }
+        focusPoint = offset
+    }
+
     Dialog(
         onDismissRequest = { if (!capturing) onDismiss() },
         properties = DialogProperties(
@@ -177,10 +210,14 @@ fun MealCameraScreen(
                 }
             )
 
-            // 두 손가락 핀치로 줌. 프리뷰(안드로이드 뷰)에 직접 걸지 않고 투명한 층을 위에 덮어 받는다.
+            // 한 손가락 탭은 초점, 두 손가락 핀치는 줌.
+            // 프리뷰(안드로이드 뷰)에 직접 걸지 않고 투명한 층을 위에 덮어 받는다.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .pointerInput(camera) {
+                        detectTapGestures { focusAt(it) }
+                    }
                     .pointerInput(camera) {
                         detectTransformGestures { _, _, zoomChange, _ ->
                             val current = zoomState?.zoomRatio ?: return@detectTransformGestures
@@ -188,6 +225,13 @@ fun MealCameraScreen(
                         }
                     }
             )
+
+            // 탭한 자리에 잠깐 보이는 초점 링. 같은 자리를 다시 눌러도 새로 그리도록 좌표로 키를 건다.
+            focusPoint?.let { point ->
+                key(point) {
+                    FocusRing(center = point, onFinished = { focusPoint = null })
+                }
+            }
 
             // 닫기
             IconButton(
@@ -253,6 +297,40 @@ fun MealCameraScreen(
             }
         }
     }
+}
+
+/**
+ * 탭한 위치에 나타나는 흰 원. 살짝 줄어들며 자리를 잡은 뒤 잠시 있다가 사라진다.
+ * 초점이 실제로 맞았는지와는 무관한 시각 피드백이라 카메라 결과를 기다리지 않는다.
+ */
+@Composable
+private fun FocusRing(
+    center: Offset,
+    onFinished: () -> Unit
+) {
+    val scale = remember { Animatable(1.4f) }
+    val alpha = remember { Animatable(1f) }
+    LaunchedEffect(Unit) {
+        scale.animateTo(1f, tween(durationMillis = 200))
+        delay(700)
+        alpha.animateTo(0f, tween(durationMillis = 300))
+        onFinished()
+    }
+    val size = 72.dp
+    Box(
+        modifier = Modifier
+            .offset {
+                val half = size.roundToPx() / 2
+                IntOffset(center.x.roundToInt() - half, center.y.roundToInt() - half)
+            }
+            .size(size)
+            .graphicsLayer {
+                scaleX = scale.value
+                scaleY = scale.value
+                this.alpha = alpha.value
+            }
+            .border(2.dp, Color.White, CircleShape)
+    )
 }
 
 /**

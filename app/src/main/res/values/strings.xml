@@ -177,7 +177,7 @@
     <string name="camera_capture_failed">Could not take the photo. Please try again.</string>
     <string name="camera_shutter">Take photo</string>
     <string name="camera_close">Close camera</string>
-    <string name="camera_hint">Fit the food in the frame and tap the button.</string>
+    <string name="camera_hint">Tap the screen to focus, then press the button.</string>
     <string name="photo_read_failed">Could not read that photo</string>
     <string name="photo_no_food">No food was recognized. Try another photo.</string>
     <string name="photo_limit_free">Free photo scans are limited to 3 per day. Subscribe to get 30.</string>
