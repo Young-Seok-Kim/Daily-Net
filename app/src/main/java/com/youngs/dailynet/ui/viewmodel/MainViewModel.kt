@@ -29,6 +29,7 @@ import com.youngs.dailynet.data.repository.DailyRecordRepository
 import com.youngs.dailynet.util.CrashReporter
 import com.youngs.dailynet.util.DailyReminder
 import com.youngs.dailynet.util.MealPhoto
+import com.youngs.dailynet.util.WristDoctorLauncher
 import com.youngs.dailynet.ui.view.getWeekIdentifier
 import com.youngs.dailynet.widget.TodayWidget
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -844,7 +845,13 @@ class MainViewModel @Inject constructor(
                 // 0. Firestore에 등록된 무제한 사용자면 횟수 제한 없이 바로 분석
                 if (adminManager.isUnlimited(auth.currentUser?.email)) {
                     analyzeAndFinalize(
-                        onSuccess = { toast(R.string.toast_analysis_saved) },
+                        onSuccess = {
+                            toast(R.string.toast_analysis_saved)
+                            // 무제한 사용자만: 오늘 8천보 이상이면 손목닥터9988을 대신 열어준다.
+                            // onSuccess 시점에는 uiState가 방금 분석한 기록으로 바뀌어 있다.
+                            val saved = _uiState.value
+                            WristDoctorLauncher.launchIfEligible(context, saved.date, saved.steps)
+                        },
                         onFailure = {}
                     )
                     return@launch

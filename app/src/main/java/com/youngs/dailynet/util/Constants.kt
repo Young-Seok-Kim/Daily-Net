@@ -59,4 +59,7 @@ object Constants {
 
     /** 마지막으로 정산을 끝낸 날짜(yyyy-MM-dd). 그날은 리마인더를 띄우지 않는다. */
     const val KEY_LAST_RECORDED_DATE = "last_recorded_date"
+
+    /** 손목닥터9988을 마지막으로 띄운 날짜(yyyy-MM-dd). 하루 한 번만 띄우기 위해 쓴다. */
+    const val KEY_WRIST_DOCTOR_LAUNCH_DATE = "wrist_doctor_launch_date"
 }

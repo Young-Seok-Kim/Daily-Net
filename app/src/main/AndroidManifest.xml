@@ -29,9 +29,14 @@
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
-    <!-- Health Connect 앱(안드로이드 13 이하) 존재 여부 확인용 -->
     <queries>
+        <!-- Health Connect 앱(안드로이드 13 이하) 존재 여부 확인용 -->
         <package android:name="com.google.android.apps.healthdata" />
+        <!--
+          손목닥터9988 설치 여부 확인용 (WristDoctorLauncher.PACKAGE와 같아야 한다).
+          안드로이드 11부터는 여기 적지 않은 패키지는 getLaunchIntentForPackage가 null을 돌려준다.
+        -->
+        <package android:name="kr.go.seoul.healthcare" />
     </queries>
 
     <application
