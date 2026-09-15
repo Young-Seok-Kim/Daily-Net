@@ -22,7 +22,11 @@ const { normalizeExtracted, toInputText } = require("./extractItems");
 exports.extractMeal = onRequest({
     region: "asia-northeast3",
     cors: true,
-    secrets: ["GEMINI_API_KEY", "GEMINI_API_KEY_PAID"],
+    // 유료 키 폴백(gemini.js paidModel)은 시크릿 GEMINI_API_KEY_PAID가 있어야 산다.
+    // 2026-09-15 확인: 그 시크릿이 Secret Manager에 만들어진 적이 없어 배포가 검증 단계에서 막혔다.
+    // 되살리려면 시크릿을 만들고(`firebase functions:secrets:set GEMINI_API_KEY_PAID`)
+    // 아래 목록에 "GEMINI_API_KEY_PAID"를 다시 넣어 재배포한다. 코드 쪽은 키가 없으면 그냥 건너뛴다.
+    secrets: ["GEMINI_API_KEY"],
     enforceAppCheck: true,
     timeoutSeconds: 60,
 }, async (req, res) => {
