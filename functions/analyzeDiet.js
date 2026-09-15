@@ -9,6 +9,7 @@ const { recommendedIntake } = require("./nutrition");
 const { mergeDuplicateItems } = require("./mergeItems");
 const { numberedLines } = require("./splitInput");
 const { settleItemKcal } = require("./shareItems");
+const { mealCalories, mealMacros } = require("./dailyTotals");
 const { implausibleItems, statedKcals } = require("./kcalCheck");
 const { implausibleExercises } = require("./exerciseCheck");
 const { buildExercises } = require("./exerciseCalc");
@@ -357,6 +358,11 @@ ${exerciseBlock}
                  똑같이 나누지 않았을 때만 "myShare"(사용자 몫의 비율, 0~1)를 함께 담으세요.
                  해당 없는 항목에는 이 필드들을 넣지 마세요. **곱셈과 몫 나눗셈은 서버가 합니다.**
                - Markdown 형식(\`\`\`json) 없이 오직 순수 JSON 문자열만 응답하십시오.
+               - ⚠️ **숫자 칸은 JSON 숫자로만 채우십시오. 따옴표로 감싸거나 단위를 붙이지 마십시오.**
+                 (kcal·calories·macros·units·unitKcal·sharedBy·myShare·minutes·mets·stepsInExercise 전부)
+                 - 맞음: \`"kcal": 215\`, \`"carb": 20.5\` / 틀림: \`"kcal": "215"\`, \`"kcal": "215kcal"\`, \`"carb": "20g"\`
+                 - calories는 끼니별 객체입니다. 하루 총합 숫자 하나로 바꾸지 마십시오
+                 - 실제로 문자열로 온 값이 있어 분석이 통째로 실패하거나 섭취 합계가 0으로 나간 적이 있습니다
             6. **응답 언어 (필수)**: JSON 안의 모든 자연어 텍스트를 반드시 **${L.outputLanguage}**로 작성하십시오.
                - 대상: meals[].name, exercises[].name, descriptions의 모든 값, evaluation
                - 사용자가 다른 언어로 입력했더라도 결과는 ${L.outputLanguage}로 번역해서 담으십시오.
@@ -434,9 +440,11 @@ ${exerciseBlock}
         const n = (v) => Number(v) || 0;
         const f1 = (v) => n(v).toFixed(1);
 
-        const mealCalories = data.calories || { breakfast: 0, lunch: 0, dinner: 0, snack: 0, exercise: 0 };
-        const mealMacros = data.macros || { breakfast: {carb:0, protein:0, fat:0}, lunch: {carb:0, protein:0, fat:0}, dinner: {carb:0, protein:0, fat:0}, snack: {carb:0, protein:0, fat:0} };
-        const mealDescriptions = data.descriptions || { breakfast: "", lunch: "", dinner: "", snack: "" };
+        // 섭취 합계와 탄단지는 **서버가 항목에서 다시 센다.** 모델이 따로 적는 calories·macros는
+        // 숫자가 아닌 값(단위 붙은 문자열, 총합 숫자 하나)으로 올 때가 있어 믿을 수 없다.
+        // 실제로 같은 날 한 번은 toFixed에서 500이, 한 번은 섭취 0이 나갔다 (dailyTotals.js 참고)
+        const intake = mealCalories(data);
+        const macros = mealMacros(data);
 
         const buildMenuList = (mealArray) => {
             if (!Array.isArray(mealArray)) return L.noInfo;
@@ -448,29 +456,17 @@ ${exerciseBlock}
         const exercise = buildExercises(data, weightKg, stepCount, L.stepsItem);
         const exerciseCalories = exercise.total;
 
-        const totalIn = n(mealCalories.breakfast) + n(mealCalories.lunch) + n(mealCalories.dinner) + n(mealCalories.snack);
+        const totalIn = intake.total;
         const totalOut = bmr + exerciseCalories;
         const netCalories = totalIn - totalOut;
 
-        const bMacros = data.macros?.breakfast || { carb: 0, protein: 0, fat: 0 };
-                const lMacros = data.macros?.lunch || { carb: 0, protein: 0, fat: 0 };
-                const dMacros = data.macros?.dinner || { carb: 0, protein: 0, fat: 0 };
-                const sMacros = data.macros?.snack || { carb: 0, protein: 0, fat: 0 };
-
-                const totalCarb = (bMacros.carb || 0) + (lMacros.carb || 0) + (dMacros.carb || 0) + (sMacros.carb || 0);
-                const totalProtein = (bMacros.protein || 0) + (lMacros.protein || 0) + (dMacros.protein || 0) + (sMacros.protein || 0);
-                const totalFat = (bMacros.fat || 0) + (lMacros.fat || 0) + (dMacros.fat || 0) + (sMacros.fat || 0);
-// 🎯 식사 항목별 탄단지 변수 가독성 좋게 매핑
-        const bCarb = bMacros.carb || 0, bProg = bMacros.protein || 0, bFat = bMacros.fat || 0;
-        const lCarb = lMacros.carb || 0, lProg = lMacros.protein || 0, lFat = lMacros.fat || 0;
-        const dCarb = dMacros.carb || 0, dProg = dMacros.protein || 0, dFat = dMacros.fat || 0;
-        const sCarb = sMacros.carb || 0, sProg = sMacros.protein || 0, sFat = sMacros.fat || 0;
-
-        // 메뉴 리스트의 kcal을 모두 더하는 함수
-        const sumKcal = (mealArray) => {
-            if (!Array.isArray(mealArray)) return 0;
-            return mealArray.reduce((acc, m) => acc + (m.kcal || 0), 0);
-        };
+        const bMacros = macros.perMeal.breakfast;
+        const lMacros = macros.perMeal.lunch;
+        const dMacros = macros.perMeal.dinner;
+        const sMacros = macros.perMeal.snack;
+        const totalCarb = macros.total.carb;
+        const totalProtein = macros.total.protein;
+        const totalFat = macros.total.fat;
 
         // 🔥 운동별 소모 칼로리 목록 생성
         const exerciseItems = exercise.items;
@@ -487,19 +483,19 @@ ${exerciseBlock}
         const feedback = `
 ${L.reportTitle}
 
-${L.breakfast}: ${buildMenuList(data.meals?.breakfast)} (${L.total}: ${sumKcal(data.meals?.breakfast)}kcal)
+${L.breakfast}: ${buildMenuList(data.meals?.breakfast)} (${L.total}: ${intake.perMeal.breakfast}kcal)
 ${macroLine(bMacros)}
    💡 ${data.descriptions?.breakfast || ""}
 
-${L.lunch}: ${buildMenuList(data.meals?.lunch)} (${L.total}: ${sumKcal(data.meals?.lunch)}kcal)
+${L.lunch}: ${buildMenuList(data.meals?.lunch)} (${L.total}: ${intake.perMeal.lunch}kcal)
 ${macroLine(lMacros)}
    💡 ${data.descriptions?.lunch || ""}
 
-${L.dinner}: ${buildMenuList(data.meals?.dinner)} (${L.total}: ${sumKcal(data.meals?.dinner)}kcal)
+${L.dinner}: ${buildMenuList(data.meals?.dinner)} (${L.total}: ${intake.perMeal.dinner}kcal)
 ${macroLine(dMacros)}
    💡 ${data.descriptions?.dinner || ""}
 
-${L.snack}: ${buildMenuList(data.meals?.snack)} (${L.total}: ${sumKcal(data.meals?.snack)}kcal)
+${L.snack}: ${buildMenuList(data.meals?.snack)} (${L.total}: ${intake.perMeal.snack}kcal)
 ${macroLine(sMacros)}
    💡 ${data.descriptions?.snack || ""}
 
@@ -514,9 +510,9 @@ ${L.goalMacro}: ${L.carb} ${recCarb}g | ${L.protein} ${recProtein}g | ${L.fat} $
 ${L.myIntake}: ${totalIn} kcal (${totalIn > recommendedCalories ? L.over : L.under})
 
 ${L.macroTitle}
-${L.carbFull}: ${Number(totalCarb.toFixed(1))}g / ${recCarb}g
-${L.proteinFull}: ${Number(totalProtein.toFixed(1))}g / ${recProtein}g
-${L.fatFull}: ${Number(totalFat.toFixed(1))}g / ${recFat}g
+${L.carbFull}: ${totalCarb}g / ${recCarb}g
+${L.proteinFull}: ${totalProtein}g / ${recProtein}g
+${L.fatFull}: ${totalFat}g / ${recFat}g
 
 ---
 
@@ -546,17 +542,17 @@ ${data.evaluation}
                 fat: recFat
             },
             calories: {
-                breakfast: n(mealCalories.breakfast),
-                lunch: n(mealCalories.lunch),
-                dinner: n(mealCalories.dinner),
-                snack: n(mealCalories.snack),
+                breakfast: intake.perMeal.breakfast,
+                lunch: intake.perMeal.lunch,
+                dinner: intake.perMeal.dinner,
+                snack: intake.perMeal.snack,
                 exercise: exerciseCalories
             },
             // 하루 총 탄단지 (끼니별 합계)
             macros: {
-                carb: Number(totalCarb.toFixed(1)),
-                protein: Number(totalProtein.toFixed(1)),
-                fat: Number(totalFat.toFixed(1))
+                carb: totalCarb,
+                protein: totalProtein,
+                fat: totalFat
             },
             totals: {
                 intake: totalIn,
@@ -614,7 +610,15 @@ ${data.evaluation}
             })
             .filter(Boolean)
             .join(" | ");
-        if (mealLog) console.log("[meals]", mealLog);
+        // 섭취 합계를 같이 남긴다. 예전엔 합계가 로그에 없어서 섭취 0이 나가도
+        // 항목이 빠진 건지 합산이 깨진 건지 알 길이 없었다
+        if (mealLog) console.log("[meals]", mealLog, `| 섭취=${totalIn}`);
+
+        // 모델이 적은 끼니 합계와 항목 합이 다른 경우. 결산은 항목 합을 쓰므로 숫자는 맞지만,
+        // 계속 찍히면 모델이 calories 칸을 스키마대로 안 채우고 있다는 뜻이다
+        if (intake.mismatches.length > 0) {
+            console.warn("[intake] 모델 합계와 항목 합이 다름:", intake.mismatches.join(" / "));
+        }
 
         // 운동은 지금까지 로그가 없었다. 그래서 89.5kg 사용자의 MMA 1시간이 300kcal로
         // 나갔는데도, 사용자가 직접 이상하다고 말할 때까지 알 방법이 없었다.
