@@ -33,6 +33,39 @@ const COUNT_RE =
     /(\d+(?:\.\d+)?)\s*(개|봉지|봉|캔|병|팩|조각|장|줄|마리|컵|잔|알|판|회|인분|공기|그릇|접시|쪽)/;
 
 /**
+ * 이름에 적힌 개수 전부. "만두 1인분 (6개)"면 [1, 6]
+ *
+ * units 보정에 쓴다. 사용자가 "복숭아 1.5개"라고 적었는데 모델이 units를 1로 주면
+ * 서버 곱셈이 1.5개 값이 아니라 1개 값을 낸다 — 실제로 같은 입력이 3시간 간격으로
+ * 70×1.5=105와 120×1=120으로 갈렸다. 이름의 개수는 사용자가 적은 값이라 더 믿을 만하다
+ */
+function countsInName(name) {
+    const re = new RegExp(COUNT_RE.source, "g");
+    const out = [];
+    let m;
+    while ((m = re.exec(String(name || ""))) !== null) out.push(Number(m[1]));
+    return out;
+}
+
+/**
+ * 곱셈에 쓸 개수. 모델의 units와 이름에 적힌 개수가 어긋나면 이름 쪽을 쓴다.
+ *
+ * - 이름의 개수 중 하나라도 units와 같으면 모델을 믿는다.
+ *   "만두 1인분 (6개)"에 units=6이면 모델이 개당 열량을 준 것이니 6이 맞다
+ * - 이름에 개수가 **하나뿐**이고 units와 다르면 이름 쪽을 쓴다 (복숭아 1.5개, units=1)
+ * - 이름에 개수가 여럿인데 어느 것과도 안 맞으면 어느 단위인지 모르니 모델을 믿는다
+ *
+ * @returns {{ units: number, corrected: boolean }}
+ */
+function resolveUnits(name, units) {
+    const named = countsInName(name);
+    if (named.length === 0) return { units, corrected: false };
+    if (named.some((c) => Math.abs(c - units) < 0.001)) return { units, corrected: false };
+    if (named.length === 1 && named[0] > 0) return { units: named[0], corrected: true };
+    return { units, corrected: false };
+}
+
+/**
  * 이름 속 수량을 사용자 몫으로 바꾼다. "치킨 2마리 1800g" ×1/4 → "치킨 0.5마리 450g"
  *
  * 사용자는 자기가 먹은 양을 보고 싶어 한다. 전체(2마리 1800g)를 그대로 두면
@@ -54,6 +87,7 @@ function scaleName(name, fraction) {
  * 항목 kcal을 서버 계산값으로 바꾼다. data를 직접 고친다.
  *
  * - 개수 항목: kcal = unitKcal × units. 모델이 kcal 칸에 곱해 담은 값보다 이쪽을 믿는다
+ *   units가 이름에 적힌 개수와 어긋나면 이름 쪽을 쓴다 (resolveUnits 참고)
  * - 나눠 먹은 항목: 위의 전체를 몫으로 나누고 이름에 "(1/4)"나 "(60%)"를 붙인다
  *   — 번역이 필요 없어 언어 설정과 무관하다 (mergeItems의 ×2와 같은 이유)
  * - 끼니 calories: 값이 바뀐 끼니는 항목 합으로 다시 세운다. 어차피 합이어야 하는 값이다
@@ -97,12 +131,18 @@ function settleItemKcal(data) {
             // 1) 개수 곱셈: 전체 = 한 단위 × 개수
             // 값이 이미 맞아도 로그에는 남긴다 — 모델이 unitKcal을 전체÷개수로 거꾸로
             // 만들어 맞춘 것인지, 정말 한 단위 값을 준 것인지 로그로 가려야 한다
+            // 한 단위 열량이 있으면 개수는 이름에 적힌 것과 맞춰 본다 (resolveUnits 참고)
             let total = claimed;
-            if (units > 0 && unitKcal > 0) {
-                total = Math.round(units * unitKcal);
-                steps.push(`${unitKcal} ×${units} = ${total}`);
-            } else if (units > 0 || unitKcal > 0) {
-                steps.push(`단위정보 불완전(units=${units}, unitKcal=${unitKcal})`);
+            const resolved = unitKcal > 0 ? resolveUnits(name, units) : { units, corrected: false };
+            if (resolved.corrected) {
+                steps.push(`개수 ${units}→${resolved.units}(이름 기준)`);
+            }
+            const count = resolved.units;
+            if (count > 0 && unitKcal > 0) {
+                total = Math.round(count * unitKcal);
+                steps.push(`${unitKcal} ×${count} = ${total}`);
+            } else if (count > 0 || unitKcal > 0) {
+                steps.push(`단위정보 불완전(units=${count}, unitKcal=${unitKcal})`);
             }
 
             // 2) 몫 나눗셈: 몫 = 전체 ÷ 사람 수 (비율이 있으면 그 비율)
