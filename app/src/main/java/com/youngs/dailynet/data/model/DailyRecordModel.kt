@@ -53,7 +53,19 @@ data class DailyRecordModel(
     val fatGram: Float = 0f,
 
     /** 기초대사량 */
-    val bmr: Int = 0
+    val bmr: Int = 0,
+
+    // ── 항목별 분석 결과 (b33~) ──────────────────────────────────────
+    // 리포트 텍스트(analysisResult)는 사용자가 고칠 수 없다. 숫자를 하나 바꾸면 합계·결산이
+    // 같은 글 안에서 어긋난다. 그래서 서버가 준 구조를 통째로 남기고 화면은 이걸로 그린다.
+    // 사용자가 항목의 kcal을 고치면 이 안의 항목을 바꾸고 위의 집계 컬럼도 다시 센다.
+    //
+    // b33 이전 기록에는 없어 null이다. 그때는 예전처럼 analysisResult 텍스트를 보여준다.
+    // Room에는 JSON 문자열로 들어간다 (Converters 참고). Firestore에는 중첩 객체로 그대로.
+    val analysisDetail: AnalysisDetail? = null,
+
+    /** 사용자가 결과의 kcal을 하나라도 고쳤는지. 리포트에 "수정됨" 표시를 붙인다 */
+    val resultEdited: Boolean = false
 ) {
     /**
      * 영양 집계값이 있는 기록인지.

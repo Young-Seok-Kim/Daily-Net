@@ -26,6 +26,8 @@ import com.youngs.dailynet.data.network.BillingManager.Companion.PRODUCT_ID_MONT
 import com.youngs.dailynet.data.network.GeminiManager
 import com.youngs.dailynet.data.network.PhotoLimitException
 import com.youngs.dailynet.data.repository.DailyRecordRepository
+import com.youngs.dailynet.util.AnalysisEdit
+import com.youngs.dailynet.util.ReportSection
 import com.youngs.dailynet.util.CrashReporter
 import com.youngs.dailynet.util.DailyReminder
 import com.youngs.dailynet.util.MealPhoto
@@ -1002,6 +1004,30 @@ class MainViewModel @Inject constructor(
         }
     }
 
+
+    /**
+     * 리포트에서 사용자가 항목 하나의 kcal을 고쳤다.
+     *
+     * 서버에 다시 묻지 않는다. 항목 값을 바꾸고 끼니 합계·탄단지·결산을 기기에서 다시 센 뒤
+     * (AnalysisEdit 참고) 기록을 통째로 저장한다. 차트·위젯·목록이 읽는 집계 컬럼도 같이 바뀐다.
+     * 리포트 텍스트(analysisResult)는 손대지 않는다. 항목별 결과가 있는 기록은 화면이
+     * 텍스트 대신 그 구조를 그리므로, 텍스트는 구버전 앱이 볼 때만 쓰인다.
+     */
+    fun updateItemKcal(section: ReportSection, index: Int, kcal: Int) = viewModelScope.launch {
+        val current = _uiState.value
+        val detail = current.analysisDetail ?: return@launch
+        val updated = AnalysisEdit.applyToRecord(
+            current,
+            AnalysisEdit.withItemKcal(detail, section, index, kcal)
+        )
+        try {
+            repository.saveRecord(updated)
+            _uiState.value = updated
+            toast(R.string.toast_result_edited)
+        } catch (e: Exception) {
+            toast(R.string.toast_result_edit_failed, e.message.orEmpty())
+        }
+    }
 
     fun clearTodayDraft() {
         // 오늘의 정산을 새로 입력할때

@@ -318,6 +318,9 @@ fun DailyRecordScreen(
     val hasCalorieResult = uiState.finalized || uiState.analysisResult.isNotEmpty()
     val calorieColor = if (uiState.netCalories <= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
 
+    // 리포트에서 누른 항목. 있으면 kcal 수정 창이 뜬다
+    var editTarget by remember { mutableStateOf<ReportEditTarget?>(null) }
+
     // ── 분석 완료 연출 ──
     val scrollState = rememberScrollState()
     var resultCardY by remember { mutableStateOf(0) }
@@ -646,17 +649,41 @@ fun DailyRecordScreen(
                                     modifier = Modifier.padding(vertical = 12.dp),
                                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                                 )
-                                Text(
-                                    text = uiState.analysisResult,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    lineHeight = 22.sp
-                                )
+                                // 항목별 결과(b33~)가 있으면 구조로 그려서 항목을 눌러 kcal을 고칠 수 있게 한다.
+                                // 그 전에 분석한 기록은 텍스트뿐이라 예전처럼 그대로 보여준다.
+                                val detail = uiState.analysisDetail
+                                if (detail != null && detail.isRenderable) {
+                                    AnalysisReport(
+                                        detail = detail,
+                                        edited = uiState.resultEdited,
+                                        editable = !uiState.analyzing,
+                                        onEditItem = { editTarget = it }
+                                    )
+                                } else {
+                                    Text(
+                                        text = uiState.analysisResult,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        lineHeight = 22.sp
+                                    )
+                                }
                             }
                         }
                         Spacer(modifier = Modifier.height(32.dp))
                     }
                 }
             }
+        }
+
+        // 리포트 항목의 kcal 수정 창
+        editTarget?.let { target ->
+            EditKcalDialog(
+                target = target,
+                onConfirm = { kcal ->
+                    mainViewModel.updateItemKcal(target.section, target.index, kcal)
+                    editTarget = null
+                },
+                onDismiss = { editTarget = null }
+            )
         }
 
         // 분석 중에는 화면 전체를 덮는 오버레이로 진행 상황을 확실히 보여준다

@@ -26,7 +26,7 @@ import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
         DailyRecordModel::class,
         UserProfileEntity::class
     ],
-    version = 8, // 👈 daily_records에 분석 집계값 추가 (MIGRATION_7_8로 기존 데이터 유지)
+    version = 9, // 👈 daily_records에 항목별 분석 결과·수정 여부 추가 (MIGRATION_8_9로 기존 데이터 유지)
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -74,5 +74,18 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
         floatColumns.forEach {
             db.execSQL("ALTER TABLE daily_records ADD COLUMN $it REAL NOT NULL DEFAULT 0")
         }
+    }
+}
+
+/**
+ * daily_records에 항목별 분석 결과(JSON)와 사용자 수정 여부 컬럼 추가.
+ *
+ * 기존 행은 analysisDetail이 NULL이다. 예전 기록에는 이 구조가 없었고 텍스트만 있으니
+ * 화면이 텍스트로 물러난다. 사용자가 고칠 수 있는 건 b33 이후 분석한 기록부터다.
+ */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE daily_records ADD COLUMN analysisDetail TEXT")
+        db.execSQL("ALTER TABLE daily_records ADD COLUMN resultEdited INTEGER NOT NULL DEFAULT 0")
     }
 }

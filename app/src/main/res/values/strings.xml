@@ -242,4 +242,38 @@
     <string name="widget_kcal_short">kcal</string>
     <string name="widget_not_recorded">Log today</string>
     <string name="widget_not_recorded_hint">Not logged yet</string>
+
+    <!-- Analysis report (same wording as the server text; from b33 the app renders it from structured data) -->
+    <string name="report_breakfast">🍳 Breakfast</string>
+    <string name="report_lunch">🍳 Lunch</string>
+    <string name="report_dinner">🍳 Dinner</string>
+    <string name="report_snack">🍰 Snack</string>
+    <string name="report_total">total</string>
+    <string name="kcal_value">%1$d kcal</string>
+    <string name="report_no_info">No data</string>
+    <string name="report_macro_line">[C %1$sg | P %2$sg | F %3$sg]</string>
+    <string name="report_exercise_title">🔥 Calories Burned by Activity</string>
+    <string name="report_exercise_total">(total -%1$d kcal)</string>
+    <string name="report_no_exercise">No activity recorded</string>
+    <string name="report_goal_title">🎯 Recommended Daily Targets</string>
+    <string name="report_goal_intake">• Recommended intake: %1$d kcal</string>
+    <string name="report_goal_macro">• Recommended macros: C %1$dg | P %2$dg | F %3$dg</string>
+    <string name="report_my_intake">• Your intake today: %1$d kcal (%2$s)</string>
+    <string name="report_over">⚠️ Over target</string>
+    <string name="report_under">✅ Within target</string>
+    <string name="report_macro_title">📊 Your Macros Today</string>
+    <string name="report_carb_full">• Carbs: %1$sg / %2$dg</string>
+    <string name="report_protein_full">• Protein: %1$sg / %2$dg</string>
+    <string name="report_fat_full">• Fat: %1$sg / %2$dg</string>
+    <string name="report_in">🍎 IN: +%1$d kcal</string>
+    <string name="report_out">🏃 OUT: -%1$d kcal (includes BMR %2$d)</string>
+    <string name="report_net">📉 Net: %1$d kcal</string>
+    <string name="report_eval_title">💡 Expert Summary</string>
+    <string name="report_edited_badge">✏️ Edited</string>
+    <string name="report_edit_hint">Tap an item to correct its calories</string>
+    <string name="report_ai_kcal">AI estimate %1$d kcal</string>
+    <string name="edit_kcal_title">Edit calories</string>
+    <string name="edit_kcal_label">kcal</string>
+    <string name="toast_result_edited">Recalculated with your value.</string>
+    <string name="toast_result_edit_failed">Could not save the change: %1$s</string>
 </resources>

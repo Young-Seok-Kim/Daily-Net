@@ -594,6 +594,25 @@ ${data.evaluation}
                 burned: totalOut,
                 net: netCalories
             },
+            // 끼니별 탄단지와 AI가 쓴 글(끼니 한줄평·총평)도 함께 내려보낸다.
+            // b33부터 앱이 리포트를 텍스트가 아니라 이 구조에서 그린다 — 사용자가 항목의
+            // kcal을 고칠 수 있게 하려면 그래야 한다. 텍스트는 고치면 숫자가 어긋나니 못 쓴다.
+            // 고칠 때 끼니 탄단지는 kcal 비율대로 앱이 다시 잡는다. 그래서 끼니별로 준다
+            mealMacros: {
+                breakfast: bMacros,
+                lunch: lMacros,
+                dinner: dMacros,
+                snack: sMacros,
+                // 앱이 "이 필드가 온 응답인지"를 가르는 표시. 값이 전부 0인 날과 구분한다
+                present: true
+            },
+            descriptions: {
+                breakfast: String(data.descriptions?.breakfast || ""),
+                lunch: String(data.descriptions?.lunch || ""),
+                dinner: String(data.descriptions?.dinner || ""),
+                snack: String(data.descriptions?.snack || "")
+            },
+            evaluation: String(evaluation),
             meals: {
                 breakfast: normalizeItems(data.meals?.breakfast, L.unknownMenu),
                 lunch: normalizeItems(data.meals?.lunch, L.unknownMenu),

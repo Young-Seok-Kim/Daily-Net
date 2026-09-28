@@ -12,6 +12,7 @@ import com.youngs.dailynet.data.model.AnalysisUsage
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.R
 import com.youngs.dailynet.data.network.GeminiManager
+import com.youngs.dailynet.util.AnalysisEdit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -177,13 +178,27 @@ class DailyRecordRepository @Inject constructor(
             proteinGram = detail?.macros?.protein ?: 0f,
             fatGram = detail?.macros?.fat ?: 0f,
 
-            bmr = detail?.bmr ?: 0
+            bmr = detail?.bmr ?: 0,
+
+            // 항목별 결과는 통째로 남긴다. 사용자가 나중에 kcal을 고칠 수 있게 하려면
+            // 각 항목의 AI 값을 지금 새겨둬야 한다 (AnalysisEdit.stampAiKcal 참고).
+            // 다시 분석했으면 사용자가 예전에 고친 건 없어진다 — 새 결과가 기준이다
+            analysisDetail = detail?.let { AnalysisEdit.stampAiKcal(it) },
+            resultEdited = false
         )
 
-        userDailyRecordCollection.document(finalizedModel.date).set(finalizedModel).await()
-        dailyRecordDao.insertOrUpdate(finalizedModel)
+        saveRecord(finalizedModel)
 
         return AnalysisOutcome(record = finalizedModel, usage = analysisResponse.usage)
+    }
+
+    /**
+     * 기록을 Firestore와 Room에 그대로 저장한다.
+     * 분석 결과 저장과, 사용자가 리포트의 kcal을 고쳤을 때 둘 다 여기로 온다.
+     */
+    suspend fun saveRecord(record: DailyRecordModel) {
+        userDailyRecordCollection.document(record.date).set(record).await()
+        dailyRecordDao.insertOrUpdate(record)
     }
 
     suspend fun getDailyRecordByDate(date: String): DailyRecordModel? {

@@ -240,4 +240,38 @@
     <string name="widget_kcal_short">kcal</string>
     <string name="widget_not_recorded">정산하기</string>
     <string name="widget_not_recorded_hint">아직 정산 전이에요</string>
+
+    <!-- 분석 리포트 (서버 텍스트와 같은 문구. b33부터 앱이 구조에서 직접 그린다) -->
+    <string name="report_breakfast">🍳 아침</string>
+    <string name="report_lunch">🍳 점심</string>
+    <string name="report_dinner">🍳 저녁</string>
+    <string name="report_snack">🍰 간식</string>
+    <string name="report_total">합계</string>
+    <string name="kcal_value">%1$d kcal</string>
+    <string name="report_no_info">정보 없음</string>
+    <string name="report_macro_line">[탄 %1$sg | 단 %2$sg | 지 %3$sg]</string>
+    <string name="report_exercise_title">🔥 운동별 소모 칼로리</string>
+    <string name="report_exercise_total">(총 -%1$d kcal)</string>
+    <string name="report_no_exercise">기록된 운동이 없습니다</string>
+    <string name="report_goal_title">🎯 다이어트 권장 목표 가이드</string>
+    <string name="report_goal_intake">• 하루 권장 섭취량: %1$d kcal</string>
+    <string name="report_goal_macro">• 추천 탄단지: 탄 %1$dg | 단 %2$dg | 지 %3$dg</string>
+    <string name="report_my_intake">• 나의 오늘 섭취량: %1$d kcal (%2$s)</string>
+    <string name="report_over">⚠️ 권장 초과</string>
+    <string name="report_under">✅ 권장 이내</string>
+    <string name="report_macro_title">📊 나의 오늘 실제 탄단지 총합</string>
+    <string name="report_carb_full">• 탄수화물: %1$sg / %2$dg</string>
+    <string name="report_protein_full">• 단백질: %1$sg / %2$dg</string>
+    <string name="report_fat_full">• 지방: %1$sg / %2$dg</string>
+    <string name="report_in">🍎 인입 (IN): +%1$d kcal</string>
+    <string name="report_out">🏃 배출 (OUT): -%1$d kcal (기초대사 %2$d 포함)</string>
+    <string name="report_net">📉 최종 결산: %1$d kcal</string>
+    <string name="report_eval_title">💡 전문가 총평</string>
+    <string name="report_edited_badge">✏️ 수정됨</string>
+    <string name="report_edit_hint">항목을 누르면 칼로리를 고칠 수 있어요</string>
+    <string name="report_ai_kcal">AI 추정 %1$d kcal</string>
+    <string name="edit_kcal_title">칼로리 수정</string>
+    <string name="edit_kcal_label">kcal</string>
+    <string name="toast_result_edited">고친 값으로 다시 계산했어요.</string>
+    <string name="toast_result_edit_failed">수정 저장 실패: %1$s</string>
 </resources>
