@@ -33,6 +33,21 @@ const RETRY_TEMPERATURES = [0.7, 1.0];
 const ATTEMPT_TIMEOUT_MS = 25000;
 
 /**
+ * **첫 번째** 호출만 이만큼 기다린다. 두 번째부터는 ATTEMPT_TIMEOUT_MS를 쓴다.
+ *
+ * 평소 답은 2~4초에 온다 (9월 123건: 중앙값 2.6초, 95%가 3.5초 안). 그런데 가끔 한 호출이
+ * 아무 말 없이 매달리고, 그러면 25초를 통째로 기다린 뒤에야 다시 묻는다.
+ * 2026-09-28 04:34 실제로 그랬다 — 무응답 25초 + 재시도 4초 = 사용자는 31초를 기다렸다.
+ * 다시 물었을 때는 4초 만에 왔으니, 매달린 호출은 빨리 끊는 게 낫다.
+ *
+ * 그렇다고 상한을 전부 줄이면 안 된다. 16초 걸려서 **정상으로** 온 답도 한 번 있었다
+ * (2026-09-21 14:24). 항목이 많은 날은 만드는 데 오래 걸릴 수 있다. 첫 시도만 짧게 끊고,
+ * 재시도에서는 넉넉히 기다려 그런 답도 받는다.
+ * 12초인 이유: 정상 응답 중 제일 길었던 7.4초에 여유를 두고, 25초의 절반 아래로.
+ */
+const FIRST_ATTEMPT_TIMEOUT_MS = 12000;
+
+/**
  * 대기 시간까지 포함해 모델에 쓸 수 있는 전체 시간.
  *
  * 함수 타임아웃이 120초인데 뒤에 식약처 조회(최대 6초)와 응답 조립이 남는다.
@@ -195,6 +210,8 @@ function retryReason(error) {
  *     여기 적힌 키가 **하나라도 안 살아나면 건지지 않고 실패시킨다.**
  *     숫자가 반쯤 빠진 리포트를 멀쩡한 척 보여주는 것보다 실패가 낫다.
  *   - attemptTimeoutMs: 한 번의 호출을 기다릴 상한
+ *   - firstAttemptTimeoutMs: 첫 번째 호출만 따로 거는 상한. 안 주면 attemptTimeoutMs와 같다.
+ *     매달린 첫 호출을 빨리 끊으려는 용도다 (FIRST_ATTEMPT_TIMEOUT_MS 주석 참고)
  *   - totalBudgetMs: 대기까지 합쳐 여기서 쓸 수 있는 전체 시간.
  *     **부르는 쪽의 함수 타임아웃보다 반드시 짧아야 한다.** 넘기면 응답을 조립할 시간이 없다.
  *   - fallbackModels: 5xx·429가 연달아 오면 남은 시도를 넘길 예비 모델 목록. 앞에서부터
@@ -211,6 +228,7 @@ async function generateAndParse(model, prompt, options = {}) {
         maxRetries = 6,
         salvageIfHas = null,
         attemptTimeoutMs = ATTEMPT_TIMEOUT_MS,
+        firstAttemptTimeoutMs = attemptTimeoutMs,
         totalBudgetMs = TOTAL_BUDGET_MS,
         fallbackModels = [],
         fallbackAfter = FALLBACK_AFTER_OVERLOADS
@@ -255,8 +273,9 @@ async function generateAndParse(model, prompt, options = {}) {
 
             // 한 번의 호출에 상한을 건다. 이게 없으면 매달린 호출 하나가 예산을 통째로 먹고
             // 재시도할 기회조차 남기지 않는다.
+            const cap = i === 0 ? firstAttemptTimeoutMs : attemptTimeoutMs;
             const result = await current.generateContent(request, {
-                timeout: Math.min(attemptTimeoutMs, left)
+                timeout: Math.min(cap, left)
             });
             response = result.response;
             lastRaw = response.text();
@@ -323,4 +342,4 @@ async function generateAndParse(model, prompt, options = {}) {
     throw lastError || new Error(`[gemini] 시간이 없어 한 번도 묻지 못함 (예산 ${totalBudgetMs}ms)`);
 }
 
-module.exports = { safeParseJson, salvageTruncatedJson, generateAndParse, retryReason, paidModel };
+module.exports = { safeParseJson, salvageTruncatedJson, generateAndParse, retryReason, paidModel, FIRST_ATTEMPT_TIMEOUT_MS };

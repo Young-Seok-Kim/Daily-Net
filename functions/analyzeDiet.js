@@ -4,7 +4,7 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { LABELS, resolveLang } = require("./labels");
-const { generateAndParse, paidModel } = require("./gemini");
+const { generateAndParse, paidModel, FIRST_ATTEMPT_TIMEOUT_MS } = require("./gemini");
 const { recommendedIntake } = require("./nutrition");
 const { mergeDuplicateItems } = require("./mergeItems");
 const { numberedLines } = require("./splitInput");
@@ -434,6 +434,9 @@ ${remarkBlock}
         const tPrompt = Date.now();
         const data = await generateAndParse(model, prompt, {
             salvageIfHas: ["calories", "meals", "macros"],
+            // 첫 호출이 매달리면 12초에 끊고 다시 묻는다. 25초 기다리다 재시도하면
+            // 사용자가 30초를 본다 (gemini.js의 FIRST_ATTEMPT_TIMEOUT_MS 주석 참고)
+            firstAttemptTimeoutMs: FIRST_ATTEMPT_TIMEOUT_MS,
             fallbackModels
         });
         const tGemini = Date.now();

@@ -297,6 +297,17 @@ test("generateAndParse - 호출 자체가 실패했을 때", async (t) => {
         assert.equal(model.options[0].timeout, 25000);
     });
 
+    await t.test("첫 호출만 짧게 끊고 재시도부터는 원래 상한을 쓴다", async () => {
+        // 매달린 첫 호출을 25초 기다리면 사용자가 30초를 본다. 첫 시도만 빨리 끊는다.
+        // 다만 16초 걸려 정상으로 온 답도 있었으니 재시도에서는 넉넉히 기다린다.
+        const model = fakeModel([sdkError("fetch failed"), '{"ok":1}']);
+        await generateAndParse(model, "p", {
+            maxRetries: 2, attemptTimeoutMs: 25000, firstAttemptTimeoutMs: 12000
+        });
+        assert.equal(model.options[0].timeout, 12000);
+        assert.equal(model.options[1].timeout, 25000);
+    });
+
     await t.test("남은 예산보다 긴 제한 시간은 걸지 않는다", async () => {
         const model = fakeModel(['{"ok":1}']);
         await generateAndParse(model, "p", { attemptTimeoutMs: 25000, totalBudgetMs: 5000 });
