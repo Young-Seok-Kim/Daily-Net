@@ -38,6 +38,27 @@ def read_listing(folder: Path) -> dict:
     return body
 
 
+def upload_screenshots(s: AuthorizedSession, edit_id: str, lang: str, shots: list) -> int:
+    """
+    screenshots/*.png 를 파일명 순서대로 휴대전화 스크린샷으로 올린다. 기존 것은 전부 지우고 다시 올린다.
+    (Play 는 순서를 바꾸는 API 가 없어서, 순서를 보장하려면 지우고 차례로 올리는 수밖에 없다)
+    바뀐 것이 있으면 1 을 돌려준다.
+    """
+    if len(shots) > 8:
+        sys.exit(f"::error::{lang} 스크린샷이 {len(shots)}장이다. Play 는 8장까지만 받는다")
+    r = s.delete(f"{BASE}/{edit_id}/listings/{lang}/phoneScreenshots")
+    if r.status_code not in (200, 204):
+        sys.exit(f"::error::{lang} 기존 스크린샷 삭제 실패 {r.status_code}: {r.text[:300]}")
+    upload = (f"https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/{PACKAGE}"
+              f"/edits/{edit_id}/listings/{lang}/phoneScreenshots?uploadType=media")
+    for path in shots:
+        r = s.post(upload, data=path.read_bytes(), headers={"Content-Type": "image/png"})
+        if r.status_code != 200:
+            sys.exit(f"::error::{path.name} 업로드 실패 {r.status_code}: {r.text[:300]}")
+        print(f"  올림: {path.name} ({path.stat().st_size // 1024}KB)")
+    return 1
+
+
 def main() -> None:
     if len(sys.argv) < 3:
         sys.exit(__doc__)
@@ -73,16 +94,21 @@ def main() -> None:
             same = all(before.get(k) == v for k, v in body.items())
             print(f"[{lang}] 제목 {len(body['title'])}자 / 간단한 설명 {len(body['shortDescription'])}자 / "
                   f"자세한 설명 {len(body['fullDescription'])}자 {'(변경 없음)' if same else '(변경됨)'}")
-            if check_only or same:
+            shots = sorted((folder / "screenshots").glob("*.png")) if (folder / "screenshots").is_dir() else []
+            print(f"[{lang}] 휴대전화 스크린샷 {len(shots)}장")
+            if check_only:
                 continue
-            body["language"] = lang
-            r = s.put(f"{BASE}/{edit_id}/listings/{lang}", json=body)
-            if r.status_code != 200:
-                if r.status_code == 403:
-                    print("::error::등록정보 쓰기 권한이 없다. Play Console → 사용자 및 권한에서 "
-                          "이 서비스 계정에 '스토어 등록정보 관리' 권한을 추가해야 한다")
-                sys.exit(f"::error::{lang} 등록정보 쓰기 실패 {r.status_code}: {r.text[:300]}")
-            changed += 1
+            if not same:
+                body["language"] = lang
+                r = s.put(f"{BASE}/{edit_id}/listings/{lang}", json=body)
+                if r.status_code != 200:
+                    if r.status_code == 403:
+                        print("::error::등록정보 쓰기 권한이 없다. Play Console → 사용자 및 권한에서 "
+                              "이 서비스 계정에 '스토어 등록정보 관리' 권한을 추가해야 한다")
+                    sys.exit(f"::error::{lang} 등록정보 쓰기 실패 {r.status_code}: {r.text[:300]}")
+                changed += 1
+            if shots:
+                changed += upload_screenshots(s, edit_id, lang, shots)
 
         if check_only:
             print("확인만 했다. 바꾸지 않았다.")
