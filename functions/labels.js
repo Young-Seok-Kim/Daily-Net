@@ -39,8 +39,7 @@ const LABELS = {
         evalTitle: "💡 전문가 총평",
         error: "분석 중 오류가 발생했습니다.",
         limitReached: "오늘 분석 횟수를 모두 사용했습니다.",
-        photoLimitReached: "오늘 사진 인식 횟수를 모두 사용했습니다.",
-        photoLimitFree: "무료 사진 인식은 하루 3회입니다. 구독하면 더 쓸 수 있어요.",
+        photoLimitReached: "오늘 사진 인식을 너무 많이 사용했습니다. 내일 다시 시도해 주세요.",
         authRequired: "로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요."
     },
     en: {
@@ -72,8 +71,7 @@ const LABELS = {
         evalTitle: "💡 Expert Summary",
         error: "An error occurred during analysis.",
         limitReached: "You have used all of today's analyses.",
-        photoLimitReached: "You have used all of today's photo scans.",
-        photoLimitFree: "Free photo scans are limited to 3 per day. Subscribe for more.",
+        photoLimitReached: "Too many photo scans today. Please try again tomorrow.",
         authRequired: "We could not verify your sign-in. Please sign in again."
     }
 };

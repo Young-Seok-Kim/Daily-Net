@@ -169,7 +169,7 @@
     <string name="steps_load_failed">Could not load your steps</string>
     <string name="steps_reloaded">Steps reloaded (%1$d)</string>
     <string name="photo_source_title">Add a food photo</string>
-    <string name="photo_source_desc">Take a new photo, or pick one you already have.</string>
+    <string name="photo_source_desc">Take a new photo, or pick ones you already have. From the gallery you can select up to 5 photos of the same meal.</string>
     <string name="photo_source_camera">Camera</string>
     <string name="photo_source_gallery">Gallery</string>
     <string name="camera_permission_denied">Camera permission is needed to take a photo. You can still pick one from the gallery.</string>
@@ -180,8 +180,7 @@
     <string name="camera_hint">Tap the screen to focus, then press the button.</string>
     <string name="photo_read_failed">Could not read that photo</string>
     <string name="photo_no_food">No food was recognized. Try another photo.</string>
-    <string name="photo_limit_free">Free photo scans are limited to 3 per day. Subscribe to get 30.</string>
-    <string name="photo_limit_reached">You have used all of today\'s photo scans.</string>
+    <string name="photo_limit_reached">Too many photo scans today. Please try again tomorrow.</string>
     <string name="photo_filled">Menu filled in from the photo. Edit it if anything is off.</string>
     <string name="analyze_today">Analyze today</string>
     <string name="analyze_again">Analyze again</string>

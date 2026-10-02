@@ -9,6 +9,13 @@ const { verifyUser, reservePhoto, refundPhoto } = require("./quota");
 const { normalizeExtracted, toInputText } = require("./extractItems");
 
 /**
+ * 한 요청에 받는 사진 장수 상한. 앱의 갤러리 선택(PickMultipleVisualMedia maxItems)과 같은 값이다.
+ * 앱이 768px·JPEG 80%로 줄여 보내므로 5장이어도 요청 본문은 1MB 안팎이다.
+ * 더 받아봐야 한 끼에 그만큼 찍는 일이 없고, 토큰과 응답 시간만 는다.
+ */
+const MAX_IMAGES = 5;
+
+/**
  * 음식 사진에서 메뉴를 읽어 입력창에 채울 텍스트로 바꿔준다.
  *
  * 분석(analyzeDiet)과 분리한 이유:
@@ -40,7 +47,15 @@ exports.extractMeal = onRequest({
     try {
         const { image, mimeType } = req.body;
 
-        if (!image) {
+        // b34부터 갤러리에서 여러 장을 골라 한 요청에 보낸다 (images). 같은 끼니를 접시별로
+        // 따로 찍어둔 경우라, 장마다 따로 묻는 것보다 한 번에 보고 한 끼로 묶어 읽는 편이
+        // 중복(같은 반찬이 두 장에 보임)도 피하고 Gemini 호출도 한 번으로 끝난다.
+        // 구버전 앱은 image 하나만 보내므로 그것도 그대로 받는다.
+        const images = (Array.isArray(req.body.images) ? req.body.images : [image])
+            .filter((img) => typeof img === "string" && img.length > 0)
+            .slice(0, MAX_IMAGES);
+
+        if (images.length === 0) {
             return res.status(400).json({ text: "", items: [], error: "image required" });
         }
 
@@ -51,16 +66,12 @@ exports.extractMeal = onRequest({
             return res.status(401).json({ text: "", items: [], error: L.authRequired });
         }
 
-        // 분석 횟수와는 별개로 사진 인식에도 하루 상한이 있다 (무료 3회 / 구독 30회).
-        const photo = await reservePhoto(user);
+        // 사진 인식에는 횟수 제한이 없다. 다만 계정 탈취·스크립트로 하루 수백 장을 보내는
+        // 비용 사고만 막는 시도 상한(quota.js DAILY_PHOTO_ATTEMPT_LIMIT)이 있고, 장수만큼 센다.
+        const photo = await reservePhoto(user, images.length);
         if (!photo.allowed) {
-            return res.status(429).json({
-                text: "",
-                items: [],
-                // 무료 사용자에게는 "구독하면 더 쓸 수 있다"를, 구독자에게는 그냥 한도 안내를 보낸다
-                error: photo.paid ? L.photoLimitReached : L.photoLimitFree,
-                paid: photo.paid
-            });
+            console.warn(`[extract] 시도 상한 ${photo.attempts}/${photo.limit} uid=${user.uid}`);
+            return res.status(429).json({ text: "", items: [], error: L.photoLimitReached });
         }
         reserved = true;
 
@@ -80,8 +91,13 @@ exports.extractMeal = onRequest({
             paidModel("gemini-3.5-flash-lite", generationConfig)
         ];
 
+        const multi = images.length > 1;
         const prompt = `
-            이 사진에 담긴 음식을 식별하십시오.
+            ${multi
+                ? `이 ${images.length}장의 사진에 담긴 음식을 식별하십시오.
+            사진들은 **모두 같은 한 끼**를 찍은 것입니다. 접시나 각도를 달리해 찍었을 뿐이므로,
+            **같은 음식이 여러 장에 겹쳐 보여도 한 번만 세십시오.** 장마다 따로 적으면 열량이 몇 배로 부풀어 오릅니다.`
+                : "이 사진에 담긴 음식을 식별하십시오."}
 
             [지침]
             1. 보이는 메뉴를 각각 항목으로 나누십시오. 반찬처럼 여러 개가 함께 있으면 묶어도 됩니다.
@@ -174,7 +190,7 @@ exports.extractMeal = onRequest({
         const data = await generateAndParse(
             model,
             [
-                { inlineData: { data: image, mimeType: mimeType || "image/jpeg" } },
+                ...images.map((img) => ({ inlineData: { data: img, mimeType: mimeType || "image/jpeg" } })),
                 prompt
             ],
             { attemptTimeoutMs: 20000, totalBudgetMs: 40000, fallbackModels }
@@ -196,6 +212,7 @@ exports.extractMeal = onRequest({
         // 기준이 30인지 100인지 400인지 보여야 1회 제공량을 봉지 전체로 착각했는지 가릴 수 있다.
         console.log(
             "[extract]",
+            multi ? `(${images.length}장)` : "",
             items.length === 0
                 ? "인식 실패"
                 : items

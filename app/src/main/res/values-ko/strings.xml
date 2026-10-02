@@ -167,7 +167,7 @@
     <string name="steps_load_failed">걸음 수를 불러오지 못했어요</string>
     <string name="steps_reloaded">걸음 수를 새로 불러왔어요 (%1$d보)</string>
     <string name="photo_source_title">음식 사진 넣기</string>
-    <string name="photo_source_desc">새로 찍거나, 이미 찍어둔 사진을 고를 수 있어요.</string>
+    <string name="photo_source_desc">새로 찍거나, 이미 찍어둔 사진을 고를 수 있어요. 갤러리에서는 한 끼 사진을 여러 장(최대 5장) 골라도 돼요.</string>
     <string name="photo_source_camera">카메라</string>
     <string name="photo_source_gallery">갤러리</string>
     <string name="camera_permission_denied">사진을 찍으려면 카메라 권한이 필요해요. 갤러리에서 고르는 건 가능해요.</string>
@@ -178,8 +178,7 @@
     <string name="camera_hint">화면을 눌러 초점을 맞추고 버튼을 누르세요.</string>
     <string name="photo_read_failed">사진을 읽지 못했어요</string>
     <string name="photo_no_food">음식을 알아보지 못했어요. 다시 찍어보세요.</string>
-    <string name="photo_limit_free">무료 사진 인식은 하루 3회예요. 구독하면 하루 30회까지 쓸 수 있어요.</string>
-    <string name="photo_limit_reached">오늘 사진 인식 횟수를 모두 사용했어요.</string>
+    <string name="photo_limit_reached">오늘 사진 인식을 너무 많이 사용했어요. 내일 다시 시도해 주세요.</string>
     <string name="photo_filled">사진에서 메뉴를 채웠어요. 틀린 게 있으면 고쳐주세요.</string>
     <string name="analyze_today">오늘의 정산 분석하기</string>
     <string name="analyze_again">다시 분석하기</string>

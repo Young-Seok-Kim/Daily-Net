@@ -91,10 +91,15 @@ class GeminiManager @Inject constructor(
     /**
      * 음식 사진에서 메뉴명을 읽어온다. 실패하면 null.
      *
+     * 여러 장을 넘기면 한 요청에 모두 실어 보낸다. 같은 끼니를 접시별로 찍은 사진이라
+     * 한 번에 봐야 겹치는 음식을 두 번 세지 않는다.
+     *
      * 분석과 달리 하루 횟수를 소모하지 않는다. 입력을 돕는 단계일 뿐이라
-     * 여러 번 다시 찍어도 부담이 없어야 하기 때문이다.
+     * 여러 번 다시 찍어도 부담이 없어야 하기 때문이다. 서버에는 계정 탈취 같은
+     * 비용 사고를 막는 높은 시도 상한만 있고, 그때 429가 온다.
      */
-    suspend fun extractMealFromPhoto(base64Image: String): String? {
+    suspend fun extractMealFromPhoto(base64Images: List<String>): String? {
+        require(base64Images.isNotEmpty()) { "사진이 없다" }
         return withContext(Dispatchers.IO) {
             try {
                 val token = runCatching {
@@ -105,7 +110,8 @@ class GeminiManager @Inject constructor(
                     url = Constants.EXTRACT_MEAL_URL,
                     authorization = token?.let { "Bearer $it" },
                     request = MealPhotoRequest(
-                        image = base64Image,
+                        image = base64Images.first(),
+                        images = base64Images,
                         language = Locale.getDefault().toLanguageTag()
                     )
                 )

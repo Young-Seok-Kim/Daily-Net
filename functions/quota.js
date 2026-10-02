@@ -14,31 +14,20 @@ if (admin.apps.length === 0) {
 const DAILY_ANALYSIS_LIMIT = 3;
 
 /**
- * 하루 사진 인식 횟수.
+ * 하루 사진 인식 "시도" 상한. 사진 장수로 세며, 성공 여부와 무관하고 환불하지 않는다.
  *
- * 무료 사용자도 쓸 수 있게 열어둔 이유는, 사진 인식이 곧 "입력 부담을 없애는" 기능이라서다.
- * 아예 막으면 무료 사용자는 계속 손으로 타이핑하다 지쳐 나가고, 그러면 구독할 사람도 안 생긴다.
- * 하루 3회면 한두 끼는 사진으로 처리하면서 차이를 몸으로 느끼게 된다.
+ * 사진 인식은 **횟수 제한 없이** 쓰게 둔다. 사진은 입력을 돕는 단계라 몇 번이고 다시 찍을 수 있어야
+ * 하고, 응답이 짧아 분석보다 훨씬 싸다. 예전의 무료 3회 / 구독 30회 상한은 유료 관문이었는데
+ * 전면 무료 개방 뒤로는 의미가 없어 없앴다.
  *
- * 구독자에게도 상한을 두는 건 무제한 개방이 아니라 비용 사고를 막기 위해서다.
- * 두 숫자 모두 서버 상수라 앱 배포 없이 조정할 수 있다.
+ * 그래도 상한을 아예 없애지는 않는다. Gemini 호출은 건당 비용이고, 계정 하나가 탈취되거나
+ * 스크립트로 하루 수천 장을 보내면 요금이 그대로 청구된다. 여기 숫자는 사람이 하루에 닿을 일이
+ * 없는 높이라 "무제한"과 체감이 같고, 비용 사고만 막는다.
+ *
+ * 한 요청에 여러 장을 보내면 장수만큼 센다. 토큰 비용이 장수에 비례하기 때문이다.
+ * (5장 × 60요청 = 300장이면 하루 300장에 닿는다. 그래도 사람이 닿기엔 멀다)
  */
-const FREE_PHOTO_LIMIT = 3;
-const SUBSCRIBER_PHOTO_LIMIT = 30;
-
-/**
- * 하루 사진 인식 "시도" 상한. 성공 여부와 무관하게 세며 환불하지 않는다.
- *
- * 결과를 못 낸 요청은 횟수를 돌려주는데(refundPhoto), 그것만 있으면
- * 음식이 아닌 사진을 계속 보내는 식으로 Gemini 호출을 무한정 끌어낼 수 있다.
- * 정상 사용자는 닿을 일이 없는 높이로 두고 비용 사고만 막는다.
- *
- * 반드시 SUBSCRIBER_PHOTO_LIMIT보다 넉넉히 커야 한다.
- * 예전에는 둘 다 30이라, 시도 횟수가 항상 성공 횟수보다 크거나 같은 탓에
- * 구독자는 성공 30회에 닿기 전에 시도 30회에서 먼저 막혔다.
- * 인식에 몇 번 실패하면 환불을 받아도 그만큼 손해라 환불이 사실상 동작하지 않았다.
- */
-const DAILY_PHOTO_ATTEMPT_LIMIT = 50;
+const DAILY_PHOTO_ATTEMPT_LIMIT = 300;
 
 /**
  * 전면 무료 개방 스위치.
@@ -215,16 +204,21 @@ async function reserveAnalysis(user) {
 }
 
 /**
- * 사진 인식 횟수를 세고 상한을 넘었는지 알려준다. 넘지 않았으면 1 올리고 true.
+ * 사진 인식 시도를 세고 비용 사고 방지선(DAILY_PHOTO_ATTEMPT_LIMIT)을 넘었는지 알려준다.
+ * 넘지 않았으면 장수만큼 올리고 allowed: true.
  *
- * 분석(하루 3회)과 따로 세는 이유는 성격이 다르기 때문이다. 사진은 입력을 돕는 단계라
+ * 성공 횟수(todayPhotoCount)는 상한에 쓰지 않고 콘솔에서 사용량을 보기 위해서만 센다.
+ * 분석(reserveAnalysis)과 따로 세는 이유는 성격이 다르기 때문이다. 사진은 입력을 돕는 단계라
  * 여러 번 다시 찍을 수 있어야 하고, 응답도 짧아 분석보다 훨씬 싸다.
- * 그래서 한도는 넉넉하게 두되, 무제한으로 열어두지는 않는다.
+ *
+ * @param {{uid: string, email: string}} user
+ * @param {number} count 이번 요청의 사진 장수
  */
-async function reservePhoto(user) {
+async function reservePhoto(user, count = 1) {
     const db = admin.firestore();
     const userRef = db.collection("users").doc(user.uid);
     const today = seoulToday();
+    const n = Math.max(1, Number(count) || 1);
 
     try {
         return await db.runTransaction(async (tx) => {
@@ -236,47 +230,37 @@ async function reservePhoto(user) {
 
             const data = snap.exists ? snap.data() : {};
             const unlimited = !!(unlimitedSnap && unlimitedSnap.exists);
-            const subscribed = isSubscribedNow(data);
             const sameDay = data.lastPhotoDate === today;
             const used = sameDay ? Number(data.todayPhotoCount) || 0 : 0;
             const attempts = sameDay ? Number(data.todayPhotoAttempts) || 0 : 0;
 
             // 무제한 계정(운영자 등)은 분석과 마찬가지로 상한을 적용하지 않는다.
             // 횟수 자체는 계속 세어 콘솔에서 사용량을 볼 수 있게 둔다.
-            if (!unlimited) {
-                if (attempts >= DAILY_PHOTO_ATTEMPT_LIMIT) {
-                    return { allowed: false, paid: FREE_FOR_ALL || subscribed };
-                }
-
-                // 무료 개방 중에는 구독 여부로 나누지 않는다.
-                // 시도 상한(DAILY_PHOTO_ATTEMPT_LIMIT)은 비용 사고 방지선이라 그대로 둔다.
-                const limit = (FREE_FOR_ALL || subscribed) ? SUBSCRIBER_PHOTO_LIMIT : FREE_PHOTO_LIMIT;
-                if (used >= limit) return { allowed: false, paid: FREE_FOR_ALL || subscribed };
+            if (!unlimited && attempts + n > DAILY_PHOTO_ATTEMPT_LIMIT) {
+                return { allowed: false, attempts, limit: DAILY_PHOTO_ATTEMPT_LIMIT };
             }
 
             tx.set(userRef, {
                 todayPhotoCount: used + 1,
-                todayPhotoAttempts: attempts + 1, // 환불 대상이 아님
+                todayPhotoAttempts: attempts + n, // 환불 대상이 아님
                 lastPhotoDate: today
             }, { merge: true });
-            // paid는 한도 안내 문구를 고르는 값이다. 무료 개방 중에 구독을 권하면 안 되므로
-            // 모두를 paid로 보고 "오늘 횟수를 다 썼다"는 안내만 내보낸다.
-            return { allowed: true, paid: FREE_FOR_ALL || unlimited || subscribed };
+            return { allowed: true, attempts: attempts + n, limit: DAILY_PHOTO_ATTEMPT_LIMIT };
         });
     } catch (error) {
         // 횟수를 못 세는 상황 때문에 기능 자체를 막지는 않는다
         console.warn("사진 횟수 확인 실패:", error.message);
-        return { allowed: true, paid: false };
+        return { allowed: true, attempts: 0, limit: DAILY_PHOTO_ATTEMPT_LIMIT };
     }
 }
 
 /**
- * 사진 인식이 쓸 만한 결과를 못 냈을 때 차감분을 되돌린다.
+ * 사진 인식이 쓸 만한 결과를 못 냈을 때 성공 횟수(todayPhotoCount)를 되돌린다.
  *
- * 서버 오류는 물론이고 "음식을 못 알아봤다"도 환불 대상이다. 사용자가 얻은 게 없는데
- * 무료 3회 중 하나가 날아가면, 사진 몇 장 잘못 찍는 것만으로 그날 기능을 못 쓰게 된다.
+ * 성공 횟수는 이제 상한에 쓰이지 않지만, 콘솔에서 "쓸 만한 결과를 낸 횟수"로 읽히려면
+ * 서버 오류나 "음식을 못 알아봤다"는 빼야 맞다.
  *
- * 시도 횟수(todayPhotoAttempts)는 그대로 두어 악용은 계속 막는다.
+ * 시도 횟수(todayPhotoAttempts)는 그대로 두어 비용 사고 방지선은 계속 작동한다.
  */
 async function refundPhoto(uid) {
     try {
@@ -322,6 +306,7 @@ module.exports = {
     // 무료 개방 스위치와 그 상한. 테스트가 값을 고정해 두려고 함께 내보낸다.
     FREE_FOR_ALL,
     FREE_MODE_ANALYSIS_LIMIT,
+    DAILY_PHOTO_ATTEMPT_LIMIT,
     QUOTA_TIMEOUT_MS,
     withTimeout,
     seoulToday,

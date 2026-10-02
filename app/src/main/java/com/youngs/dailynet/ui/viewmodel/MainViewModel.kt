@@ -123,14 +123,21 @@ class MainViewModel @Inject constructor(
      *
      * 사진은 서버에도 기기에도 남기지 않는다. 텍스트로 바꾼 뒤 임시 파일을 지운다.
      */
-    fun extractMealFromPhoto(uri: Uri, fieldName: String) {
+    /**
+     * 사진에서 메뉴를 읽어 [fieldName] 입력창에 채운다.
+     *
+     * 카메라는 한 장, 갤러리는 여러 장이 들어올 수 있다. 여러 장은 같은 끼니로 보고
+     * 한 요청에 묶어 보낸다. 읽지 못한 사진은 빼고 나머지로 진행하되, 전부 못 읽었으면 알린다.
+     */
+    fun extractMealFromPhoto(uris: List<Uri>, fieldName: String) {
+        if (uris.isEmpty()) return
         viewModelScope.launch {
             _photoProcessingField.value = fieldName
             try {
                 val encoded = withContext(Dispatchers.IO) {
-                    MealPhoto.encodeToBase64(context, uri)
+                    uris.mapNotNull { MealPhoto.encodeToBase64(context, it) }
                 }
-                if (encoded == null) {
+                if (encoded.isEmpty()) {
                     toast(R.string.photo_read_failed)
                     return@launch
                 }
@@ -138,13 +145,9 @@ class MainViewModel @Inject constructor(
                 val extracted = try {
                     geminiManager.extractMealFromPhoto(encoded)
                 } catch (e: PhotoLimitException) {
+                    // 비용 사고 방지선(하루 수백 장)에 닿은 경우. 정상 사용에서는 닿을 일이 없지만
                     // 다시 찍어도 안 되는 상황이므로 "못 알아봤다"와 다르게 안내한다.
-                    // 무료 사용자에게는 여기가 이탈 지점이 아니라 구독을 권할 자리다.
-                    val subscribed = userProfileDao.getProfile()?.isSubscribed == true
-                    toast(
-                        if (subscribed) R.string.photo_limit_reached
-                        else R.string.photo_limit_free
-                    )
+                    toast(R.string.photo_limit_reached)
                     return@launch
                 }
 

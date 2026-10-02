@@ -80,6 +80,12 @@ private fun shiftDate(date: String, days: Int): String? {
 /** 사진으로 메뉴를 채울 수 있는 항목. 운동·비고는 사진으로 알아낼 수 없어 제외한다. */
 private val MEAL_PHOTO_FIELDS = setOf("breakfast", "lunch", "dinner", "snack")
 
+/**
+ * 갤러리에서 한 번에 고를 수 있는 사진 장수. 서버 `extractMeal.js`의 MAX_IMAGES와 같아야 한다.
+ * 한 끼를 그 이상 찍는 일은 없고, 장수가 늘수록 요청 본문과 응답 시간만 는다.
+ */
+private const val MAX_GALLERY_PHOTOS = 5
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DailyRecordScreen(
@@ -138,7 +144,7 @@ fun DailyRecordScreen(
             onCaptured = {
                 cameraField = null
                 pendingPhotoField = null
-                mainViewModel.extractMealFromPhoto(MealPhoto.createTempImageUri(context), field)
+                mainViewModel.extractMealFromPhoto(listOf(MealPhoto.createTempImageUri(context)), field)
             },
             onDismiss = {
                 cameraField = null
@@ -147,13 +153,15 @@ fun DailyRecordScreen(
         )
     }
 
-    // 갤러리 선택. 사진 선택 도구는 권한이 필요 없고, 고른 사진 한 장만 앱에 넘어온다.
+    // 갤러리 선택. 사진 선택 도구는 권한이 필요 없고, 고른 사진만 앱에 넘어온다.
+    // 한 끼를 접시별로 여러 장 찍어두는 경우가 많아 여러 장을 한 번에 고를 수 있게 한다.
+    // 고른 사진은 한 요청에 묶여 가므로 서버 호출은 한 번이다 (상한은 서버 MAX_IMAGES와 같다).
     val galleryLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
+        ActivityResultContracts.PickMultipleVisualMedia(maxItems = MAX_GALLERY_PHOTOS)
+    ) { uris ->
         val field = pendingPhotoField
-        if (uri != null && field != null) {
-            mainViewModel.extractMealFromPhoto(uri, field)
+        if (uris.isNotEmpty() && field != null) {
+            mainViewModel.extractMealFromPhoto(uris, field)
         }
         pendingPhotoField = null
     }
