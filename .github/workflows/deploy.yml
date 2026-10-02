@@ -208,7 +208,7 @@ jobs:
           releaseFiles: app/build/outputs/bundle/release/DailyNet_v${{ steps.meta.outputs.name }}_b${{ steps.meta.outputs.code }}-release.aab
           # R8 매핑. Play Console 의 비정상 종료 스택이 난독화된 채로 보이지 않게 한다.
           mappingFile: app/build/outputs/mapping/release/mapping.txt
-          track: production
+          tracks: production
           status: completed
           whatsNewDirectory: ${{ runner.temp }}/whatsnew
           releaseName: v${{ steps.meta.outputs.name }} (b${{ steps.meta.outputs.code }})
