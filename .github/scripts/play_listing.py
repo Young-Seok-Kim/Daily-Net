@@ -38,24 +38,25 @@ def read_listing(folder: Path) -> dict:
     return body
 
 
-def upload_screenshots(s: AuthorizedSession, edit_id: str, lang: str, shots: list) -> int:
+def upload_screenshots(s: AuthorizedSession, edit_id: str, lang: str, shots: list, image_type: str) -> int:
     """
-    screenshots/*.png 를 파일명 순서대로 휴대전화 스크린샷으로 올린다. 기존 것은 전부 지우고 다시 올린다.
+    *.png 를 파일명 순서대로 image_type(phoneScreenshots / sevenInchScreenshots / tenInchScreenshots) 칸에 올린다.
+    기존 것은 전부 지우고 다시 올린다.
     (Play 는 순서를 바꾸는 API 가 없어서, 순서를 보장하려면 지우고 차례로 올리는 수밖에 없다)
     바뀐 것이 있으면 1 을 돌려준다.
     """
     if len(shots) > 8:
         sys.exit(f"::error::{lang} 스크린샷이 {len(shots)}장이다. Play 는 8장까지만 받는다")
-    r = s.delete(f"{BASE}/{edit_id}/listings/{lang}/phoneScreenshots")
+    r = s.delete(f"{BASE}/{edit_id}/listings/{lang}/{image_type}")
     if r.status_code not in (200, 204):
-        sys.exit(f"::error::{lang} 기존 스크린샷 삭제 실패 {r.status_code}: {r.text[:300]}")
+        sys.exit(f"::error::{lang} {image_type} 기존 스크린샷 삭제 실패 {r.status_code}: {r.text[:300]}")
     upload = (f"https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/{PACKAGE}"
-              f"/edits/{edit_id}/listings/{lang}/phoneScreenshots?uploadType=media")
+              f"/edits/{edit_id}/listings/{lang}/{image_type}?uploadType=media")
     for path in shots:
         r = s.post(upload, data=path.read_bytes(), headers={"Content-Type": "image/png"})
         if r.status_code != 200:
             sys.exit(f"::error::{path.name} 업로드 실패 {r.status_code}: {r.text[:300]}")
-        print(f"  올림: {path.name} ({path.stat().st_size // 1024}KB)")
+        print(f"  올림 [{image_type}]: {path.name} ({path.stat().st_size // 1024}KB)")
     return 1
 
 
@@ -95,7 +96,8 @@ def main() -> None:
             print(f"[{lang}] 제목 {len(body['title'])}자 / 간단한 설명 {len(body['shortDescription'])}자 / "
                   f"자세한 설명 {len(body['fullDescription'])}자 {'(변경 없음)' if same else '(변경됨)'}")
             shots = sorted((folder / "screenshots").glob("*.png")) if (folder / "screenshots").is_dir() else []
-            print(f"[{lang}] 휴대전화 스크린샷 {len(shots)}장")
+            tablet = sorted((folder / "screenshots-tablet").glob("*.png")) if (folder / "screenshots-tablet").is_dir() else []
+            print(f"[{lang}] 휴대전화 스크린샷 {len(shots)}장 / 태블릿 {len(tablet)}장")
             if check_only:
                 continue
             if not same:
@@ -108,7 +110,11 @@ def main() -> None:
                     sys.exit(f"::error::{lang} 등록정보 쓰기 실패 {r.status_code}: {r.text[:300]}")
                 changed += 1
             if shots:
-                changed += upload_screenshots(s, edit_id, lang, shots)
+                changed += upload_screenshots(s, edit_id, lang, shots, "phoneScreenshots")
+            if tablet:
+                # 7인치·10인치 칸에 같은 이미지를 올린다. 따로 만들 만큼 레이아웃이 다르지 않다.
+                changed += upload_screenshots(s, edit_id, lang, tablet, "sevenInchScreenshots")
+                changed += upload_screenshots(s, edit_id, lang, tablet, "tenInchScreenshots")
 
         if check_only:
             print("확인만 했다. 바꾸지 않았다.")
