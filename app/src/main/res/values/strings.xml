@@ -97,6 +97,8 @@
     <string name="month_report_best">Best day</string>
     <string name="month_report_worst">Biggest surplus</string>
     <string name="month_report_exercise_days">Days with exercise</string>
+    <string name="cd_prev_month">Previous month</string>
+    <string name="cd_next_month">Next month</string>
     <string name="month_report_empty">No records for this month.</string>
     <string name="macro_carb">C</string>
     <string name="macro_protein">P</string>

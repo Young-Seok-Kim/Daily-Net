@@ -96,6 +96,8 @@
     <string name="month_report_worst">가장 많이 먹은 날</string>
     <string name="month_report_exercise_days">운동한 날</string>
     <string name="month_report_empty">이 달에는 정산 기록이 없습니다.</string>
+    <string name="cd_prev_month">이전 달</string>
+    <string name="cd_next_month">다음 달</string>
     <string name="macro_carb">탄</string>
     <string name="macro_protein">단</string>
     <string name="macro_fat">지</string>

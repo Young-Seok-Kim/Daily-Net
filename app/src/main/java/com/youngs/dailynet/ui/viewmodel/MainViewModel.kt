@@ -234,12 +234,16 @@ class MainViewModel @Inject constructor(
     // (돌아올 때마다 다시 맞추면 사용자가 옮겨둔 위치가 날아간다)
     var weightChartFocusedDate: String? = null
 
-    // 월 정산 화면의 세로 스크롤 위치. 거기서 어떤 날을 눌러 상세로 갔다 돌아와도
-    // 보던 자리가 그대로 남도록 화면 밖(ViewModel)에 둔다.
-    val monthReportScrollState = ScrollState(0)
+    // 월 정산 화면의 달별 세로 스크롤 위치. 거기서 어떤 날을 눌러 상세로 갔다 돌아와도,
+    // 옆 달로 넘겼다 돌아와도 보던 자리가 그대로 남도록 화면 밖(ViewModel)에 둔다.
+    // 목록에서 다른 달을 새로 열면 비운다.
+    val monthReportScrollStates = mutableMapOf<String, ScrollState>()
 
-    // 그 스크롤이 어느 달의 것인지. 다른 달을 열면 맨 위에서 시작해야 한다.
-    var monthReportScrolledMonth: String? = null
+    // 월 정산 화면을 목록에서 어느 달로 열었는지. 같은 달로 다시 그려지면 "상세에서 돌아옴"으로 본다.
+    var monthReportEntryMonth: String? = null
+
+    // 좌우로 넘겨 지금 보고 있는 달. 상세에서 돌아올 때 이 달로 돌아간다.
+    var monthReportShownMonth: String? = null
 
     // 목록에서 펼쳐둔 주차·달.
     //

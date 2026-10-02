@@ -4,11 +4,16 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.youngs.dailynet.R
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
+import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.Locale
 
@@ -57,7 +63,11 @@ private val AXIS_LABEL_WIDTH = 38.dp
  * - 패널: 스크롤하다 흘깃 보는 핵심 숫자 몇 개
  * - 이 화면: 목록 사이에 낀 패널이 구조적으로 담을 수 없는 것 (그래프, 주차 비교, 하이라이트)
  *
- * @param yearMonth "yyyy-MM"
+ * 좌우로 넘기면(또는 상단 화살표) 이전·다음 달로 간다. 목록으로 돌아가 다른 달 구분선을
+ * 찾아 들어오는 것보다 지난달과 견주기가 훨씬 빠르다. 넘길 수 있는 범위는
+ * [monthRangeOf] 참고. 기록이 없는 달은 비어 있다고만 보여준다.
+ *
+ * @param yearMonth 처음 열 달. "yyyy-MM"
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +78,155 @@ fun MonthReportScreen(
     onNavigateToDetail: (String) -> Unit
 ) {
     val allRecords by mainViewModel.allDailyRecord.collectAsState()
+
+    // 넘길 수 있는 달 목록 (오름차순). 기록이 바뀌어 달이 늘면 아래 key()로 페이저를 다시 만든다.
+    val months = remember(allRecords, yearMonth) { monthRangeOf(allRecords, yearMonth) }
+
+    // 목록에서 새로 들어온 것인지, 상세에 갔다 돌아온 것인지.
+    //
+    // 돌아온 것이면 들어올 때의 달이 아니라 **넘겨서 보던 달**과 그 스크롤 위치를 되살려야 한다.
+    // 9월에서 열어 8월로 넘긴 뒤 어떤 날을 눌러 상세에 갔다 오면 8월이 그대로 있어야지,
+    // 9월로 튕기면 다시 넘겨야 한다.
+    // 새로 들어온 것이면(다른 달 구분선에서 열었으면) 그 달을 맨 위부터 보여준다.
+    val freshEntry = mainViewModel.monthReportEntryMonth != yearMonth
+    if (freshEntry) {
+        mainViewModel.monthReportEntryMonth = yearMonth
+        mainViewModel.monthReportShownMonth = yearMonth
+        mainViewModel.monthReportScrollStates.clear()
+    }
+    val shownMonth = mainViewModel.monthReportShownMonth ?: yearMonth
+
+    BackHandler(enabled = true) { onBack() }
+
+    // 달 목록이 바뀌면(기록 로딩·새 달 생김) 페이지 번호가 다른 달을 가리키게 되므로
+    // 페이저를 통째로 다시 만들어 보던 달의 새 번호에서 시작한다.
+    // 드문 일이라 다시 만드는 비용은 신경 쓰지 않는다. 스크롤 위치는 ViewModel에 있어 살아남는다.
+    key(months) {
+        val pagerState = rememberPagerState(
+            initialPage = months.indexOf(shownMonth).coerceAtLeast(0)
+        ) { months.size }
+        val scope = rememberCoroutineScope()
+
+        // 넘기기가 끝나 멈춘 달을 기억해 둔다. 제목도 이 값이 아니라 currentPage를 따라
+        // 손가락을 따라 바뀌게 둔다 (멈추기 전에 제목이 바뀌어야 어디로 가는지 보인다).
+        LaunchedEffect(pagerState) {
+            snapshotFlow { pagerState.settledPage }.collect { page ->
+                months.getOrNull(page)?.let { mainViewModel.monthReportShownMonth = it }
+            }
+        }
+
+        val currentMonth = months.getOrNull(pagerState.currentPage) ?: shownMonth
+        val canGoPrev = pagerState.currentPage > 0
+        val canGoNext = pagerState.currentPage < months.lastIndex
+
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(monthTitleOf(currentMonth)) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.cd_back)
+                            )
+                        }
+                    },
+                    actions = {
+                        // 손가락으로 넘길 수 있다는 걸 모르는 사용자를 위한 버튼.
+                        // 끝 달에서는 흐리게 두어 더 없다는 걸 알린다.
+                        IconButton(
+                            enabled = canGoPrev,
+                            onClick = {
+                                scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
+                            }
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                                contentDescription = stringResource(R.string.cd_prev_month)
+                            )
+                        }
+                        IconButton(
+                            enabled = canGoNext,
+                            onClick = {
+                                scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+                            }
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = stringResource(R.string.cd_next_month)
+                            )
+                        }
+                    }
+                )
+            }
+        ) { padding ->
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                // 옆 달을 미리 그려 두면 넘길 때 빈 화면이 잠깐 비치는 일이 없다
+                beyondViewportPageCount = 1
+            ) { page ->
+                val month = months[page]
+                MonthReportPage(
+                    mainViewModel = mainViewModel,
+                    yearMonth = month,
+                    allRecords = allRecords,
+                    // 달마다 스크롤 위치를 따로 둔다. 옆 달로 갔다 돌아와도 보던 자리가 남는다.
+                    scrollState = mainViewModel.monthReportScrollStates.getOrPut(month) { ScrollState(0) },
+                    onNavigateToDetail = onNavigateToDetail
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 좌우로 넘길 수 있는 달의 범위. "yyyy-MM" 오름차순, 빈 달도 빠뜨리지 않고 이어진다.
+ *
+ * 가장 오래된 기록이 있는 달부터 이번 달까지다. 이번 달까지 두는 이유는 기록이 한 건도 없는
+ * 달 초에도 "이번 달"로 넘어가 비어 있음을 볼 수 있게 하기 위해서다. 미래 달은 볼 게 없어 뺀다.
+ * [yearMonth]는 어느 쪽이든 범위에 꼭 들어가야 한다. 안 그러면 처음 연 달이 페이저에 없다.
+ */
+internal fun monthRangeOf(records: List<DailyRecordModel>, yearMonth: String): List<String> {
+    val recordMonths = records.map { it.date.take(7) }.filter { it.length == 7 }
+    val thisMonth = Calendar.getInstance().let {
+        String.format(Locale.US, "%04d-%02d", it.get(Calendar.YEAR), it.get(Calendar.MONTH) + 1)
+    }
+    val first = (recordMonths + yearMonth).min()
+    val last = (recordMonths + yearMonth + thisMonth).max()
+
+    val result = mutableListOf<String>()
+    var cursor = first
+    while (cursor <= last && result.size < 600) { // 50년 상한. 날짜가 깨져도 무한히 돌지 않게
+        result += cursor
+        cursor = nextMonth(cursor)
+    }
+    return result
+}
+
+/** "yyyy-MM"의 다음 달 */
+private fun nextMonth(yearMonth: String): String {
+    val year = yearMonth.substring(0, 4).toInt()
+    val month = yearMonth.substring(5, 7).toInt()
+    return if (month == 12) String.format(Locale.US, "%04d-01", year + 1)
+    else String.format(Locale.US, "%04d-%02d", year, month + 1)
+}
+
+/**
+ * 한 달 분량의 본문. 페이저의 한 페이지다.
+ *
+ * 선택한 날(selectedDate)은 페이지 안에 둔다. 옆 달로 넘어가면 그 달의 선택은 의미가 없다.
+ */
+@Composable
+private fun MonthReportPage(
+    mainViewModel: MainViewModel,
+    yearMonth: String,
+    allRecords: List<DailyRecordModel>,
+    scrollState: ScrollState,
+    onNavigateToDetail: (String) -> Unit
+) {
     val userProfile by mainViewModel.userProfile.collectAsState()
 
     // date가 고정폭이라 앞 7글자가 곧 그 달이다. (최신순 DESC 유지)
@@ -86,81 +245,47 @@ fun MonthReportScreen(
     // 몸무게 추이 화면과 같은 방식이라 사용자에게도 낯설지 않다.
     var selectedDate by remember { mutableStateOf<String?>(null) }
 
-    // 스크롤 위치는 ViewModel에 둔다. 여기서 어떤 날을 눌러 상세로 갔다 돌아와도
-    // 보던 자리가 그대로 남도록.
-    val scrollState = mainViewModel.monthReportScrollState
-
-    // 다른 달을 열었을 때만 맨 위로 되돌린다.
-    // 매번 되돌리면 상세에 갔다 올 때마다 보던 자리가 날아간다.
-    LaunchedEffect(yearMonth) {
-        if (mainViewModel.monthReportScrolledMonth != yearMonth) {
-            scrollState.scrollTo(0)
-            mainViewModel.monthReportScrolledMonth = yearMonth
+    if (records.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = stringResource(R.string.month_report_empty),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
+        return
     }
 
-    BackHandler(enabled = true) { onBack() }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Spacer(modifier = Modifier.height(4.dp))
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(monthTitleOf(yearMonth)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.cd_back)
-                        )
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        if (records.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = stringResource(R.string.month_report_empty),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        MonthHeadlineCard(summary)
+
+        DailyNetChartCard(
+            yearMonth = yearMonth,
+            records = records,
+            selectedDate = selectedDate,
+            onDayClick = { date ->
+                if (selectedDate == date) onNavigateToDetail(date) else selectedDate = date
             }
-            return@Scaffold
-        }
+        )
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(scrollState)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Spacer(modifier = Modifier.height(4.dp))
+        WeeklyCompareCard(records)
 
-            MonthHeadlineCard(summary)
+        MonthWeightCard(records)
 
-            DailyNetChartCard(
-                yearMonth = yearMonth,
-                records = records,
-                selectedDate = selectedDate,
-                onDayClick = { date ->
-                    if (selectedDate == date) onNavigateToDetail(date) else selectedDate = date
-                }
-            )
+        HighlightCard(records = records, summary = summary, onOpenDay = onNavigateToDetail)
 
-            WeeklyCompareCard(records)
-
-            MonthWeightCard(records)
-
-            HighlightCard(records = records, summary = summary, onOpenDay = onNavigateToDetail)
-
-            Spacer(modifier = Modifier.height(24.dp))
-        }
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
