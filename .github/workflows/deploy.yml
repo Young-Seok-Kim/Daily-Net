@@ -4,6 +4,8 @@
 #         → 서버 테스트 통과 후 firebase deploy --only functions,hosting
 #   앱:   app/build.gradle.kts 의 versionCode 가 오른 커밋에서만
 #         → 유닛 테스트 → bundleRelease → Play Console 프로덕션 트랙 업로드
+#   등록정보: store-listing/ 이 바뀐 커밋에서만
+#         → Play Console 스토어 등록정보(앱 이름·간단한 설명·자세한 설명) 갱신
 #
 # 조건을 거는 이유:
 # - 앱만 고친 커밋에서 함수를 매번 다시 올리면 3분씩 낭비되고 콜드스타트만 생긴다.
@@ -34,6 +36,7 @@ jobs:
     outputs:
       server: ${{ steps.detect.outputs.server }}
       app: ${{ steps.detect.outputs.app }}
+      listing: ${{ steps.detect.outputs.listing }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,7 +51,8 @@ jobs:
              || ! git cat-file -e "$BEFORE" 2>/dev/null; then
             echo "server=true" >> "$GITHUB_OUTPUT"
             echo "app=true" >> "$GITHUB_OUTPUT"
-            echo "이전 커밋을 알 수 없어 서버·앱 모두 배포 대상으로 둔다"
+            echo "listing=true" >> "$GITHUB_OUTPUT"
+            echo "이전 커밋을 알 수 없어 서버·앱·등록정보 모두 배포 대상으로 둔다"
             exit 0
           fi
 
@@ -64,7 +68,14 @@ jobs:
             echo "app=false" >> "$GITHUB_OUTPUT"
           fi
 
+          if git diff --quiet "$BEFORE" HEAD -- store-listing; then
+            echo "listing=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "listing=true" >> "$GITHUB_OUTPUT"
+          fi
+
           echo "서버: $(git diff --quiet "$BEFORE" HEAD -- functions hosting firebase.json firestore.rules && echo 변경없음 || echo 변경됨)"
+          echo "등록정보: $(git diff --quiet "$BEFORE" HEAD -- store-listing && echo 변경없음 || echo 변경됨)"
           echo "앱 versionCode: $(git diff "$BEFORE" HEAD -- app/build.gradle.kts | grep -E '^[-+]\s*versionCode' || echo 변경없음)"
 
   firebase:
@@ -222,3 +233,27 @@ jobs:
           path: app/build/outputs/bundle/release/*.aab
           retention-days: 30
           if-no-files-found: ignore
+
+  listing:
+    name: 스토어 등록정보 (Play)
+    needs: changes
+    if: needs.changes.outputs.listing == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install --quiet google-auth requests
+
+      # store-listing/ko-KR/ 의 세 파일이 Play Console 의 앱 이름·간단한 설명·자세한 설명이 된다.
+      # 서비스 계정에 "스토어 등록정보 관리" 권한이 필요하다 (출시 관리만으로는 403).
+      - name: 등록정보 올리기
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          [ -n "$PLAY_SERVICE_ACCOUNT_JSON" ] || { echo "::error::PLAY_SERVICE_ACCOUNT_JSON 시크릿이 없다"; exit 1; }
+          printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/play.json"
+          python .github/scripts/play_listing.py "$RUNNER_TEMP/play.json" store-listing

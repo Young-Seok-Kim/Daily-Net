@@ -1,25 +1,29 @@
 # DailyNet 스토어 검색 개선
 
-작성일: 2026-09-28
+작성일: 2026-09-28 · 갱신: 2026-10-02
 
 ## 적용 상태
 
-- 한국어 스토어 문안 작성 완료. Play Console에는 아직 저장하거나 제출하지 않음.
-- hosting의 검색 메타데이터, canonical, SoftwareApplication 구조화 데이터, robots.txt, sitemap.xml 수정 완료. 온라인 배포는 아직 하지 않음.
-- 연결 가능한 브라우저가 없어 콘솔 통계, 현재 한국어 등록 문안, 운영 서버 설정은 확인하지 못함.
-- 공개 페이지 조회 결과는 영어 번역 및 검색 도구 수집본일 수 있어 현재 한국어 원문과 차이가 있을 수 있음.
+- 2026-10-02: "다이어트" 검색을 겨냥해 문안을 다시 썼다. 앱 이름에 다이어트를 넣고(가장 큰 가중치),
+  간단한 설명 첫 단어로 두고, 자세한 설명에서 자연스럽게 8번 쓴다. 칼로리·식단은 그대로 핵심 키워드.
+- **이 폴더가 곧 Play Console 등록정보다.** `store-listing/` 이 바뀐 커밋이 main 에 들어가면
+  `deploy.yml` 의 listing 잡이 `.github/scripts/play_listing.py` 로 API 에 올린다. 콘솔에서 손으로 넣지 않는다.
+  서비스 계정에 "스토어 등록정보 관리" 권한이 있어야 하고, 없으면 그 잡이 403 으로 실패하며 안내를 남긴다.
+- hosting의 검색 메타데이터, canonical, SoftwareApplication 구조화 데이터, robots.txt, sitemap.xml 은 배포됨.
 
 ## Play Console 입력
 
-대상 패키지: com.youngs.dailynet
+대상 패키지: com.youngs.dailynet. 언어 폴더명(`ko-KR`)이 Play 언어 코드다. 영어를 추가하려면 `en-US/` 에 같은 세 파일을 둔다.
 
-기본 스토어 등록정보의 한국어 항목에 아래 파일 내용을 입력:
+- 앱 이름: ko-KR/title.txt (30자)
+- 간단한 설명: ko-KR/short-description.txt (80자)
+- 자세한 설명: ko-KR/full-description.txt (4,000자)
 
-- 앱 이름: ko-KR/title.txt
-- 간단한 설명: ko-KR/short-description.txt
-- 자세한 설명: ko-KR/full-description.txt
+길이 제한은 스크립트가 올리기 전에 검사한다.
 
-앱 이름 30자, 간단한 설명 80자, 자세한 설명 4,000자 제한을 검증한다.
+Play 검색 순위에서 문안이 할 수 있는 몫은 "검색어와 관련 있다"는 신호까지다. 그 뒤는 설치 수·평점·리뷰·유지율이
+결정하므로, 문안을 바꾼 뒤에도 "다이어트"처럼 경쟁이 큰 단어에서 바로 상위에 뜨지는 않는다.
+키워드를 반복해 채우는 것은 메타데이터 정책 위반이라 하지 않는다.
 카테고리는 공개 페이지의 건강/운동(Health & Fitness)을 유지한다.
 태그는 콘솔의 실제 선택지 중 식단·영양·체중 관리 기능과 일치하는 항목만 선택한다. 검색량 검증 없이 특정 태그의 효과를 단정하지 않는다.
 웹사이트 항목은 https://dailynet.web.app/ 가 정상 서비스되는지 확인한 뒤 등록한다.
