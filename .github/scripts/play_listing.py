@@ -93,6 +93,11 @@ def main() -> None:
 
         r = s.post(f"{BASE}/{edit_id}:commit")
         if r.status_code != 200:
+            if r.status_code == 403:
+                # 2026-10-02 실제로 겪었다: 쓰기(PUT)는 통과하고 커밋에서 PERMISSION_DENIED.
+                # 권한 검사는 커밋 시점에 한다. "출시 관리"만으로는 등록정보를 바꾸지 못한다.
+                print("::error::등록정보 커밋 권한이 없다. Play Console → 사용자 및 권한 → 이 서비스 계정 → "
+                      "앱 권한에서 '스토어 등록정보 관리'(Manage store presence)를 켜야 한다")
             sys.exit(f"::error::커밋 실패 {r.status_code}: {r.text[:500]}")
         print(f"등록정보 {changed}개 언어 반영 완료. Google 검토 후 스토어에 보인다.")
         edit_id = None  # 커밋됐으니 지우지 않는다
