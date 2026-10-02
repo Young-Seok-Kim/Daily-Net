@@ -5,6 +5,7 @@
 #
 #   FIREBASE_SERVICE_ACCOUNT  → firebase functions:list (배포 권한이 있는지)
 #   PLAY_SERVICE_ACCOUNT_JSON → Play 에 편집 세션을 열었다 바로 지운다 (출시 관리 권한이 있는지)
+#                                스토어 등록정보도 읽어 본다 (store-listing/ 과 비교, 바꾸지는 않음)
 #   KEYSTORE_*                → keytool 로 키스토어를 열어 별칭을 찾는다 (비밀번호·별칭이 맞는지)
 #   GOOGLE_SERVICES_JSON      → 디코드해 패키지명을 확인한다
 #   GOOGLE_WEB_CLIENT_ID      → 비어 있지 않은지
@@ -42,6 +43,8 @@ jobs:
     name: Play 서비스 계정
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -80,6 +83,9 @@ jobs:
           s.delete(f"{base}/{edit_id}")
           print("Play 권한 OK")
           PY
+
+      - name: 스토어 등록정보 읽기 (비교만)
+        run: python .github/scripts/play_listing.py "$RUNNER_TEMP/play.json" store-listing --check
 
   signing:
     name: 서명 키 · 앱 설정 파일
