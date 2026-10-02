@@ -4,7 +4,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, main_qa]
   pull_request:
 
 # 같은 브랜치에 연달아 push하면 앞의 실행은 취소한다 (러너 낭비 방지)

@@ -291,6 +291,37 @@ firebase deploy --only functions:analyzeDiet
 
 배포 직후 첫 요청은 콜드 스타트라 평소보다 오래 걸립니다. 응답 속도를 측정할 때는 1분쯤 뒤에 재시도하십시오.
 
+### 4. 자동 배포 (GitHub Actions)
+
+브랜치 두 개로 돌아갑니다. **작업은 `main_qa`, 배포는 `main`** 입니다. main에 직접 커밋하지 않습니다.
+
+```
+main_qa 에 push ──▶ ci.yml  테스트
+                └─▶ auto-pr.yml  main 으로 가는 PR 생성 (이미 있으면 갱신)
+                                      │
+                               PR 머지 (= 배포 결정)
+                                      ▼
+main 에 push ─────▶ deploy.yml
+                      ├─ functions/ hosting/ 이 바뀌었으면 → 서버 테스트 → firebase deploy
+                      └─ versionCode 가 올랐으면 → 유닛 테스트 → bundleRelease → Play 프로덕션 업로드
+```
+
+| 워크플로 | 트리거 | 하는 일 |
+|---|---|---|
+| `ci.yml` | main · main_qa push, PR | 서버·앱 유닛 테스트 |
+| `auto-pr.yml` | main_qa push | main_qa → main PR 생성·갱신. 본문은 main에 없는 커밋 목록 |
+| `deploy.yml` | main push | 바뀐 쪽만 배포. 서버는 `--only functions,hosting`, 앱은 Play 프로덕션 트랙 |
+
+앱 배포 조건이 **versionCode 변경**인 이유: 같은 versionCode를 Play에 두 번 올리면 거부되고,
+버전을 안 올린 커밋이 스토어로 가면 안 되기 때문입니다. 출시 노트는 `CHANGELOG.md` 맨 위 항목의
+`### 스토어 문구` 블록을 그대로 씁니다 (500자 넘으면 실패).
+
+필요한 저장소 시크릿은 `deploy.yml` 머리 주석에 있습니다. 서명 키(`KEYSTORE_BASE64`)가 GitHub에
+올라가 있으므로 저장소 접근 권한은 최소로 유지하십시오.
+
+> 서버 변경은 main에 들어가는 **즉시 구버전 앱까지 전부**에 적용됩니다.
+> 반쯤 된 서버 변경을 main_qa에서 main으로 머지하면 안 됩니다. 아래 하위 호환 규칙 참고.
+
 ---
 
 ## 🔒 하위 호환 규칙 (서버를 고치기 전에 반드시 읽을 것)
