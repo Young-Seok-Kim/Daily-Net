@@ -15,29 +15,44 @@ class FavoriteRankTest {
         text: String,
         lunch: Int = 0,
         dinner: Int = 0,
-        pinned: Boolean = false,
+        pinned: String = "",
         hidden: Boolean = false,
         lastUsedAt: Long = 0L
     ) = FavoriteItemEntity(
         kind = KIND_MEAL, text = text,
         useCount = lunch + dinner, lunchCount = lunch, dinnerCount = dinner,
-        pinned = pinned, hidden = hidden, lastUsedAt = lastUsedAt
+        pinnedFields = pinned, hidden = hidden, lastUsedAt = lastUsedAt
     )
 
     @Test
-    fun `고정 항목이 먼저, 그 다음은 그 칸에서 쓴 횟수 순`() {
+    fun `그 칸에서 고정한 항목이 먼저, 그 다음은 그 칸에서 쓴 횟수 순`() {
         val items = listOf(
             meal("샐러드", dinner = 10),          // 저녁에만 많이 먹음
             meal("김치찌개", lunch = 3),
-            meal("닭가슴살", lunch = 1, pinned = true),
+            meal("닭가슴살", lunch = 1, pinned = "lunch"), // 점심에서만 고정
             meal("현미밥", lunch = 5)
         )
 
         val lunch = FavoriteRank.rankForField(items, "lunch").map { it.text }
         assertEquals(listOf("닭가슴살", "현미밥", "김치찌개", "샐러드"), lunch)
 
+        // 점심에서 고정한 건 저녁 칸에서는 고정이 아니다. 횟수대로 간다
         val dinner = FavoriteRank.rankForField(items, "dinner").map { it.text }
-        assertEquals(listOf("닭가슴살", "샐러드", "현미밥", "김치찌개"), dinner)
+        assertEquals(listOf("샐러드", "현미밥", "김치찌개", "닭가슴살"), dinner)
+    }
+
+    @Test
+    fun `칸별 고정을 켜고 끄면 다른 칸은 그대로`() {
+        val item = meal("닭가슴살").withPinned("lunch", true).withPinned("dinner", true)
+        assertEquals(true, item.isPinnedFor("lunch"))
+        assertEquals(true, item.isPinnedFor("dinner"))
+        assertEquals(false, item.isPinnedFor("breakfast"))
+
+        val unpinned = item.withPinned("lunch", false)
+        assertEquals(false, unpinned.isPinnedFor("lunch"))
+        assertEquals(true, unpinned.isPinnedFor("dinner"))
+        assertEquals("dinner", unpinned.pinnedFields)
+        assertEquals(false, unpinned.withPinned("dinner", false).isPinnedAnywhere)
     }
 
     @Test
@@ -47,7 +62,7 @@ class FavoriteRankTest {
             meal("현미밥", lunch = 5)
         )
         assertEquals(listOf("현미밥"), FavoriteRank.rankForField(items, "lunch").map { it.text })
-        assertEquals(listOf("현미밥"), FavoriteRank.rankOverall(items).map { it.text })
+        assertEquals(listOf("현미밥"), FavoriteRank.rankOverall(items, "lunch").map { it.text })
     }
 
     @Test

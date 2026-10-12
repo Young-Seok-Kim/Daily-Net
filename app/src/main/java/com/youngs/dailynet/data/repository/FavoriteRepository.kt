@@ -95,8 +95,11 @@ class FavoriteRepository @Inject constructor(
         return item
     }
 
-    suspend fun setPinned(item: FavoriteItemEntity, pinned: Boolean) =
-        favoriteDao.setPinned(item.kind, item.text, pinned)
+    /** [field] 칸에서만 고정/해제한다. 다른 칸의 고정은 그대로 둔다 */
+    suspend fun setPinned(item: FavoriteItemEntity, field: String, pinned: Boolean) {
+        val current = favoriteDao.get(item.kind, item.text) ?: item
+        favoriteDao.setPinnedFields(item.kind, item.text, current.withPinned(field, pinned).pinnedFields)
+    }
 
     suspend fun hide(item: FavoriteItemEntity) = favoriteDao.setHidden(item.kind, item.text, true)
 

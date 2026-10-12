@@ -68,6 +68,7 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun FavoriteChipRow(
+    field: String,
     items: List<FavoriteItemEntity>,
     onSameAsYesterday: () -> Unit,
     onChip: (FavoriteItemEntity) -> Unit,
@@ -94,7 +95,7 @@ fun FavoriteChipRow(
         )
 
         items.take(FavoriteRank.CHIP_LIMIT).forEach { item ->
-            if (item.pinned) {
+            if (item.isPinnedFor(field)) {
                 SuggestionChip(
                     onClick = { onChip(item) },
                     label = { Text(item.text, maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -168,9 +169,9 @@ fun FavoriteSheet(
 
     val visible = remember(items) { items.filter { !it.hidden } }
     val thisFieldList = remember(items, field) {
-        FavoriteRank.rankForField(items, field).filter { it.pinned || it.countFor(field) > 0 }
+        FavoriteRank.rankForField(items, field).filter { it.isPinnedFor(field) || it.countFor(field) > 0 }
     }
-    val overall = remember(items) { FavoriteRank.rankOverall(items) }
+    val overall = remember(items, field) { FavoriteRank.rankOverall(items, field) }
 
     // 이 끼니에 쓴 항목이 하나도 없으면(처음 쓰는 사용자) 전체 탭으로 시작한다. 빈 탭을 먼저 보여주지 않는다
     var tab by remember {
@@ -185,7 +186,7 @@ fun FavoriteSheet(
         val base = when (tab) {
             FavoriteTab.THIS_FIELD -> thisFieldList
             FavoriteTab.ALL -> overall
-            FavoriteTab.PINNED -> overall.filter { it.pinned }
+            FavoriteTab.PINNED -> overall.filter { it.isPinnedFor(field) }
         }
         if (trimmedQuery.isEmpty()) base
         else base.filter { it.text.contains(trimmedQuery, ignoreCase = true) }
@@ -323,9 +324,10 @@ fun FavoriteSheet(
                 items(listed, key = { it.kind + "/" + it.text }) { item ->
                     FavoriteRow(
                         item = item,
+                        pinned = item.isPinnedFor(field),
                         checked = selected.contains(item.text),
                         onToggle = { toggle(item.text) },
-                        onPin = { onPin(item, !item.pinned) },
+                        onPin = { onPin(item, !item.isPinnedFor(field)) },
                         onHide = {
                             onHide(item)
                             selected = selected - item.text
@@ -357,6 +359,7 @@ fun FavoriteSheet(
 @Composable
 private fun FavoriteRow(
     item: FavoriteItemEntity,
+    pinned: Boolean,
     checked: Boolean,
     onToggle: () -> Unit,
     onPin: () -> Unit,
@@ -390,11 +393,11 @@ private fun FavoriteRow(
         }
         IconButton(onClick = onPin) {
             Icon(
-                imageVector = if (item.pinned) Icons.Default.Star else Icons.Outlined.Star,
+                imageVector = if (pinned) Icons.Default.Star else Icons.Outlined.Star,
                 contentDescription = stringResource(
-                    if (item.pinned) R.string.fav_cd_unpin else R.string.fav_cd_pin
+                    if (pinned) R.string.fav_cd_unpin else R.string.fav_cd_pin
                 ),
-                tint = if (item.pinned) MaterialTheme.colorScheme.tertiary
+                tint = if (pinned) MaterialTheme.colorScheme.tertiary
                 else MaterialTheme.colorScheme.outlineVariant
             )
         }

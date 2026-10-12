@@ -29,7 +29,7 @@ import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
         UserProfileEntity::class,
         FavoriteItemEntity::class
     ],
-    version = 10, // 👈 입력 즐겨찾기 테이블(favorites) 추가 (MIGRATION_9_10으로 기존 데이터 유지)
+    version = 11, // 👈 favorites 고정을 칸별로 (pinned → pinnedFields, MIGRATION_10_11로 기존 데이터 유지)
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -125,5 +125,56 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
             )
             """.trimIndent()
         )
+    }
+}
+
+/**
+ * favorites 고정을 항목당 하나(pinned)에서 칸별(pinnedFields)로 바꾼다.
+ *
+ * 점심에서 ★를 누르면 아침·저녁 칸에서도 맨 앞에 와버려서, 어느 칸에서 고정했는지를 남기게 했다.
+ * 기존에 고정했던 항목은 식사면 네 끼 전부, 운동이면 운동 칸에 고정한 것으로 옮긴다 (보이던 그대로).
+ *
+ * 컬럼을 빼야 하는데 minSdk 26의 SQLite는 DROP COLUMN을 못 하므로 새 테이블을 만들어 옮기고 바꿔 끼운다.
+ * 컬럼 순서·NOT NULL은 엔티티와 글자 하나까지 같아야 한다 (MIGRATION_9_10 설명 참고).
+ */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `favorites_new` (
+                `kind` TEXT NOT NULL,
+                `text` TEXT NOT NULL,
+                `useCount` INTEGER NOT NULL,
+                `breakfastCount` INTEGER NOT NULL,
+                `lunchCount` INTEGER NOT NULL,
+                `dinnerCount` INTEGER NOT NULL,
+                `snackCount` INTEGER NOT NULL,
+                `kcalSum` INTEGER NOT NULL,
+                `kcalCount` INTEGER NOT NULL,
+                `lastUsedAt` INTEGER NOT NULL,
+                `pinnedFields` TEXT NOT NULL,
+                `hidden` INTEGER NOT NULL,
+                PRIMARY KEY(`kind`, `text`)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `favorites_new`
+                (`kind`, `text`, `useCount`, `breakfastCount`, `lunchCount`, `dinnerCount`, `snackCount`,
+                 `kcalSum`, `kcalCount`, `lastUsedAt`, `pinnedFields`, `hidden`)
+            SELECT `kind`, `text`, `useCount`, `breakfastCount`, `lunchCount`, `dinnerCount`, `snackCount`,
+                 `kcalSum`, `kcalCount`, `lastUsedAt`,
+                 CASE
+                     WHEN `pinned` = 0 THEN ''
+                     WHEN `kind` = 'meal' THEN 'breakfast,dinner,lunch,snack'
+                     ELSE 'exercise'
+                 END,
+                 `hidden`
+            FROM `favorites`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `favorites`")
+        db.execSQL("ALTER TABLE `favorites_new` RENAME TO `favorites`")
     }
 }

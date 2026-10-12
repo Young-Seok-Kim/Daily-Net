@@ -815,8 +815,9 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun pinFavorite(item: FavoriteItemEntity, pinned: Boolean) {
-        viewModelScope.launch { favoriteRepository.setPinned(item, pinned) }
+    /** [field] 칸에서만 고정/해제. 점심에서 고정해도 아침 칸에는 영향이 없다 */
+    fun pinFavorite(item: FavoriteItemEntity, field: String, pinned: Boolean) {
+        viewModelScope.launch { favoriteRepository.setPinned(item, field, pinned) }
     }
 
     fun hideFavorite(item: FavoriteItemEntity) {

@@ -19,8 +19,8 @@ interface FavoriteDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(item: FavoriteItemEntity)
 
-    @Query("UPDATE favorites SET pinned = :pinned WHERE kind = :kind AND text = :text")
-    suspend fun setPinned(kind: String, text: String, pinned: Boolean)
+    @Query("UPDATE favorites SET pinnedFields = :pinnedFields WHERE kind = :kind AND text = :text")
+    suspend fun setPinnedFields(kind: String, text: String, pinnedFields: String)
 
     @Query("UPDATE favorites SET hidden = :hidden WHERE kind = :kind AND text = :text")
     suspend fun setHidden(kind: String, text: String, hidden: Boolean)
