@@ -186,7 +186,7 @@ fun DailyRecordScreen(
             items = if (isMeal) favoriteMeals else favoriteExercises,
             onDismiss = { favoriteSheetField = null },
             onInsert = { mainViewModel.insertFavorites(field, it) },
-            onPin = { item, pinned -> mainViewModel.pinFavorite(item, pinned) },
+            onPin = { item, pinned -> mainViewModel.pinFavorite(item, field, pinned) },
             onHide = { mainViewModel.hideFavorite(it) },
             onAdd = { text ->
                 val kind = FavoriteItemEntity.kindOf(field) ?: return@FavoriteSheet
@@ -566,6 +566,7 @@ fun DailyRecordScreen(
                             FavoriteRank.rankForField(source, category.fieldName)
                         }
                         FavoriteChipRow(
+                            field = category.fieldName,
                             items = ranked,
                             onSameAsYesterday = { mainViewModel.copyFromYesterday(category.fieldName) },
                             onChip = { mainViewModel.insertFavorites(category.fieldName, listOf(it.text)) },
