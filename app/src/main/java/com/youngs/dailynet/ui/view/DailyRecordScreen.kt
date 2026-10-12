@@ -52,6 +52,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import com.youngs.dailynet.R
+import com.youngs.dailynet.data.local.entity.FavoriteItemEntity
+import com.youngs.dailynet.util.FavoriteRank
 import com.youngs.dailynet.util.MealPhoto
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import com.youngs.dailynet.util.HealthStepReader
@@ -168,6 +170,30 @@ fun DailyRecordScreen(
 
     // 📷을 누르면 카메라/갤러리 중 무엇으로 가져올지 먼저 묻는다
     var photoSourceField by remember { mutableStateOf<String?>(null) }
+
+    // ── 입력 즐겨찾기 ─────────────────────────────────────────────
+    // 칸 아래 칩 줄이 진입점이고, "더보기"를 누른 칸 이름을 기억해 그 칸의 시트를 띄운다.
+    val favoriteMeals by mainViewModel.favoriteMeals.collectAsState()
+    val favoriteExercises by mainViewModel.favoriteExercises.collectAsState()
+    var favoriteSheetField by remember { mutableStateOf<String?>(null) }
+
+    favoriteSheetField?.let { field ->
+        val category = mainViewModel.categoryList.firstOrNull { it.fieldName == field }
+        val isMeal = FavoriteItemEntity.kindOf(field) == FavoriteItemEntity.KIND_MEAL
+        FavoriteSheet(
+            field = field,
+            fieldLabel = category?.let { stringResource(it.labelRes) } ?: field,
+            items = if (isMeal) favoriteMeals else favoriteExercises,
+            onDismiss = { favoriteSheetField = null },
+            onInsert = { mainViewModel.insertFavorites(field, it) },
+            onPin = { item, pinned -> mainViewModel.pinFavorite(item, pinned) },
+            onHide = { mainViewModel.hideFavorite(it) },
+            onAdd = { text ->
+                val kind = FavoriteItemEntity.kindOf(field) ?: return@FavoriteSheet
+                mainViewModel.addFavorite(kind, text)
+            }
+        )
+    }
 
     photoSourceField?.let { field ->
         AlertDialog(
@@ -531,6 +557,22 @@ fun DailyRecordScreen(
                         minLines = if (category.fieldName == "remark") 3 else 1,
                         enabled = !isReadOnly
                     )
+
+                    // 즐겨찾기 칩 줄. 식사·운동 칸에만 있고, 정산이 끝난 날에는 넣을 수 없으니 숨긴다
+                    val favoriteKind = FavoriteItemEntity.kindOf(category.fieldName)
+                    if (!isReadOnly && favoriteKind != null) {
+                        val source = if (favoriteKind == FavoriteItemEntity.KIND_MEAL) favoriteMeals else favoriteExercises
+                        val ranked = remember(source, category.fieldName) {
+                            FavoriteRank.rankForField(source, category.fieldName)
+                        }
+                        FavoriteChipRow(
+                            items = ranked,
+                            onSameAsYesterday = { mainViewModel.copyFromYesterday(category.fieldName) },
+                            onChip = { mainViewModel.insertFavorites(category.fieldName, listOf(it.text)) },
+                            onMore = { favoriteSheetField = category.fieldName },
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                    }
 
                     // 👣 걸음수 필드는 '운동' 바로 아래에 배치 (오늘이면 자동 기입, 직접 수정도 가능)
                     if (category.fieldName == "exercise") {

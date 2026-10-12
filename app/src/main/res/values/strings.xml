@@ -277,4 +277,25 @@
     <string name="edit_kcal_label">kcal</string>
     <string name="toast_result_edited">Recalculated with your value.</string>
     <string name="toast_result_edit_failed">Could not save the change: %1$s</string>
+    <!-- 입력 즐겨찾기 (칸 아래 칩 줄 + 더보기 시트) -->
+    <string name="fav_same_as_yesterday">Same as yesterday</string>
+    <string name="fav_more">More</string>
+    <string name="fav_sheet_title">%1$s favorites</string>
+    <string name="fav_done">Done</string>
+    <string name="fav_search_hint">Search or type a new item</string>
+    <string name="fav_tab_this_field">Often at %1$s</string>
+    <string name="fav_tab_all_meals">All meals</string>
+    <string name="fav_tab_frequent">Frequent</string>
+    <string name="fav_tab_pinned">Pinned</string>
+    <string name="fav_meta_with_kcal">%1$d times · avg %2$d kcal</string>
+    <string name="fav_meta_count">%1$d times</string>
+    <string name="fav_meta_manual">Added by you</string>
+    <string name="fav_add_row">Add \"%1$s\"</string>
+    <string name="fav_insert_button">Insert %1$d selected</string>
+    <string name="fav_empty">Items you eat often will collect here after each analysis. Type above to add one yourself.</string>
+    <string name="fav_empty_search">No match. Tap the row above to add it.</string>
+    <string name="fav_cd_pin">Pin to front</string>
+    <string name="fav_cd_unpin">Unpin</string>
+    <string name="fav_cd_hide">Hide from list</string>
+    <string name="fav_yesterday_empty">Nothing was logged for %1$s yesterday</string>
 </resources>

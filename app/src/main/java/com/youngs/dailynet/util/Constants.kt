@@ -62,4 +62,10 @@ object Constants {
 
     /** 손목닥터9988을 마지막으로 띄운 날짜(yyyy-MM-dd). 하루 한 번만 띄우기 위해 쓴다. */
     const val KEY_WRIST_DOCTOR_LAUNCH_DATE = "wrist_doctor_launch_date"
+
+    /**
+     * 과거 분석 결과로 즐겨찾기를 한 번 채웠는지. 두 번 돌면 횟수가 두 배로 센다.
+     * 로컬 데이터를 지울 때(로그아웃·탈퇴) 함께 지워서 다음 동기화 뒤에 다시 채운다.
+     */
+    const val KEY_FAVORITES_BACKFILLED = "favorites_backfilled"
 }

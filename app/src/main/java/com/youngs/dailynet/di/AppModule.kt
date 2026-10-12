@@ -10,6 +10,8 @@ import com.youngs.dailynet.data.local.AppDatabase
 import com.youngs.dailynet.data.local.MIGRATION_6_7
 import com.youngs.dailynet.data.local.MIGRATION_7_8
 import com.youngs.dailynet.data.local.MIGRATION_8_9
+import com.youngs.dailynet.data.local.MIGRATION_9_10
+import com.youngs.dailynet.data.local.entity.dao.FavoriteDao
 import com.youngs.dailynet.data.network.DailyNetApiService
 import com.youngs.dailynet.util.Constants
 import dagger.Module
@@ -97,7 +99,7 @@ object AppModule {
         )
             // 정의된 마이그레이션이 있으면 데이터를 지우지 않는다.
             // 컬럼을 추가할 때마다 여기에 새 마이그레이션을 등록해야 한다.
-            .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+            .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
             .fallbackToDestructiveMigration() // 마이그레이션이 없는 버전 조합일 때만 초기화
             .build()
     }
@@ -107,6 +109,9 @@ object AppModule {
 
     @Provides
     fun provideUserProfileDao(db: AppDatabase): UserProfileDao = db.userProfileDao()
+
+    @Provides
+    fun provideFavoriteDao(db: AppDatabase): FavoriteDao = db.favoriteDao()
 
     @Provides
     @Singleton
