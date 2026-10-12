@@ -1,6 +1,7 @@
 package com.youngs.dailynet.data.repository
 
 import android.content.Context
+import android.util.Log
 import com.youngs.dailynet.data.local.entity.FavoriteItemEntity
 import com.youngs.dailynet.data.local.entity.FavoriteItemEntity.Companion.KIND_EXERCISE
 import com.youngs.dailynet.data.local.entity.FavoriteItemEntity.Companion.KIND_MEAL
@@ -123,13 +124,18 @@ class FavoriteRepository @Inject constructor(
     }
 
     private val lock = Mutex()
+    private val TAG = "FavoriteRepo"
 
     private val isBackfilled: Boolean
         get() = prefs.getBoolean(Constants.KEY_FAVORITES_BACKFILLED, false)
 
     private suspend fun backfillLocked() {
         val records = dailyRecordDao.getAllDailyRecordRoomFlow().first()
-        if (records.isEmpty()) return
+        if (records.isEmpty()) {
+            Log.i(TAG, "backfill skipped: no records in Room yet")
+            return
+        }
+        Log.i(TAG, "backfill start: ${records.size} records (${records.count { it.analysisDetail != null }} with detail)")
 
         val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         records.forEach { record ->
@@ -142,6 +148,7 @@ class FavoriteRepository @Inject constructor(
             }
         }
         prefs.edit().putBoolean(Constants.KEY_FAVORITES_BACKFILLED, true).apply()
+        Log.i(TAG, "backfill done: ${favoriteDao.count()} favorites")
     }
 
     /**

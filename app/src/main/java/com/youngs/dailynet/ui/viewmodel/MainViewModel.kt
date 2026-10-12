@@ -565,6 +565,9 @@ class MainViewModel @Inject constructor(
                     // 캐시가 비었을 때(첫 로그인/최초)만 전체를 가져오고, 이후엔 캐시 사용
                     if (repository.getCachedRecordCount() == 0) {
                         repository.fetchAllFromFirebase()
+                        // 새로 설치한 직후에는 ViewModel이 만들어질 때 Room이 비어 있어 백필이 건너뛰었다.
+                        // 기록을 다 받아온 지금 다시 돌려야 과거 기록이 즐겨찾기에 들어간다.
+                        favoriteRepository.backfillIfNeeded()
                     }
                 } else {
                     // 신체 정보가 아직 없는 사용자.
@@ -589,6 +592,9 @@ class MainViewModel @Inject constructor(
                     // 캐시가 비었을 때(첫 로그인/최초)만 전체를 가져오고, 이후엔 캐시 사용
                     if (repository.getCachedRecordCount() == 0) {
                         repository.fetchAllFromFirebase()
+                        // 새로 설치한 직후에는 ViewModel이 만들어질 때 Room이 비어 있어 백필이 건너뛰었다.
+                        // 기록을 다 받아온 지금 다시 돌려야 과거 기록이 즐겨찾기에 들어간다.
+                        favoriteRepository.backfillIfNeeded()
                     }
                 } else {
                     showProfileDialog = true
