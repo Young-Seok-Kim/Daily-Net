@@ -275,4 +275,25 @@
     <string name="edit_kcal_label">kcal</string>
     <string name="toast_result_edited">고친 값으로 다시 계산했어요.</string>
     <string name="toast_result_edit_failed">수정 저장 실패: %1$s</string>
+    <!-- 입력 즐겨찾기 (칸 아래 칩 줄 + 더보기 시트) -->
+    <string name="fav_same_as_yesterday">어제와 같게</string>
+    <string name="fav_more">더보기</string>
+    <string name="fav_sheet_title">%1$s 즐겨찾기</string>
+    <string name="fav_done">완료</string>
+    <string name="fav_search_hint">검색 또는 새 항목 입력</string>
+    <string name="fav_tab_this_field">%1$s에 자주</string>
+    <string name="fav_tab_all_meals">전체 식사</string>
+    <string name="fav_tab_frequent">자주</string>
+    <string name="fav_tab_pinned">고정만</string>
+    <string name="fav_meta_with_kcal">%1$d회 · 평균 %2$d kcal</string>
+    <string name="fav_meta_count">%1$d회</string>
+    <string name="fav_meta_manual">직접 추가</string>
+    <string name="fav_add_row">\"%1$s\" 추가</string>
+    <string name="fav_insert_button">선택한 %1$d개 넣기</string>
+    <string name="fav_empty">분석을 하면 자주 먹는 항목이 여기에 자동으로 쌓입니다. 위에 입력해 직접 추가할 수도 있습니다.</string>
+    <string name="fav_empty_search">일치하는 항목이 없습니다. 위 줄을 눌러 추가하세요.</string>
+    <string name="fav_cd_pin">맨 앞에 고정</string>
+    <string name="fav_cd_unpin">고정 해제</string>
+    <string name="fav_cd_hide">목록에서 숨기기</string>
+    <string name="fav_yesterday_empty">어제 %1$s 기록이 없습니다</string>
 </resources>

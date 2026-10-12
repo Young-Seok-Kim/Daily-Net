@@ -8,6 +8,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.youngs.dailynet.data.local.entity.dao.DailyRecordDao
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
+import com.youngs.dailynet.data.local.entity.FavoriteItemEntity
+import com.youngs.dailynet.data.local.entity.dao.FavoriteDao
 import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
 
 /**
@@ -24,15 +26,17 @@ import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
 @Database(
     entities = [
         DailyRecordModel::class,
-        UserProfileEntity::class
+        UserProfileEntity::class,
+        FavoriteItemEntity::class
     ],
-    version = 9, // 👈 daily_records에 항목별 분석 결과·수정 여부 추가 (MIGRATION_8_9로 기존 데이터 유지)
+    version = 10, // 👈 입력 즐겨찾기 테이블(favorites) 추가 (MIGRATION_9_10으로 기존 데이터 유지)
     exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dailyRecordDao(): DailyRecordDao
     abstract fun userProfileDao(): UserProfileDao
+    abstract fun favoriteDao(): FavoriteDao
 }
 
 /**
@@ -87,5 +91,39 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE daily_records ADD COLUMN analysisDetail TEXT")
         db.execSQL("ALTER TABLE daily_records ADD COLUMN resultEdited INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+/**
+ * 입력 즐겨찾기 테이블(favorites) 추가. 기존 테이블은 건드리지 않는다.
+ *
+ * 컬럼 정의는 [com.youngs.dailynet.data.local.entity.FavoriteItemEntity]와 글자 하나까지 같아야 한다.
+ * Room은 앱을 열 때 엔티티에서 기대하는 스키마와 실제 테이블을 대조하므로, NOT NULL 하나만
+ * 어긋나도 "Migration didn't properly handle" 예외로 시작하자마자 죽는다.
+ *
+ * 기존 사용자의 항목 목록은 비어 있지 않다. 앱을 켜면 Room에 쌓인 과거 분석 결과를 한 번 훑어
+ * 채운다 ([com.youngs.dailynet.data.repository.FavoriteRepository.backfillIfNeeded]).
+ */
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `favorites` (
+                `kind` TEXT NOT NULL,
+                `text` TEXT NOT NULL,
+                `useCount` INTEGER NOT NULL,
+                `breakfastCount` INTEGER NOT NULL,
+                `lunchCount` INTEGER NOT NULL,
+                `dinnerCount` INTEGER NOT NULL,
+                `snackCount` INTEGER NOT NULL,
+                `kcalSum` INTEGER NOT NULL,
+                `kcalCount` INTEGER NOT NULL,
+                `lastUsedAt` INTEGER NOT NULL,
+                `pinned` INTEGER NOT NULL,
+                `hidden` INTEGER NOT NULL,
+                PRIMARY KEY(`kind`, `text`)
+            )
+            """.trimIndent()
+        )
     }
 }

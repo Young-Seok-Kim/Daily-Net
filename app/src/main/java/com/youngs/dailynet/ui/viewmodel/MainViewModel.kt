@@ -26,6 +26,9 @@ import com.youngs.dailynet.data.network.BillingManager.Companion.PRODUCT_ID_MONT
 import com.youngs.dailynet.data.network.GeminiManager
 import com.youngs.dailynet.data.network.PhotoLimitException
 import com.youngs.dailynet.data.repository.DailyRecordRepository
+import com.youngs.dailynet.data.repository.FavoriteRepository
+import com.youngs.dailynet.data.local.entity.FavoriteItemEntity
+import com.youngs.dailynet.util.FavoriteRank
 import com.youngs.dailynet.util.AnalysisEdit
 import com.youngs.dailynet.util.ReportSection
 import com.youngs.dailynet.util.CrashReporter
@@ -70,6 +73,7 @@ data class CategoryInfo(
 class MainViewModel @Inject constructor(
     @ApplicationContext private val context: Context, // 토스트 문구를 언어에 맞게 꺼내기 위해 필요
     private val repository: DailyRecordRepository,
+    private val favoriteRepository: FavoriteRepository, // 입력 즐겨찾기 (분석 결과에서 자동 수집)
     private val dailyRecordDao: DailyRecordDao,
     private val userProfileDao: UserProfileDao,
     val auth: FirebaseAuth,
@@ -185,6 +189,8 @@ class MainViewModel @Inject constructor(
             updateSubscriptionStatus(purchase.purchaseToken)
         }
         observeTodayRecordForWidget()
+        // 이 기능이 생기기 전에 쌓인 분석 결과로 즐겨찾기를 한 번 채운다 (이미 채웠으면 바로 끝난다)
+        viewModelScope.launch { favoriteRepository.backfillIfNeeded() }
     }
 
     /**
@@ -740,6 +746,82 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    // ── 입력 즐겨찾기 ─────────────────────────────────────────────
+    // 칸 아래 칩 줄과 "더보기" 시트가 쓴다. 목록 자체는 Room을 구독해서 고정·숨김이 바로 반영된다.
+
+    val favoriteMeals: StateFlow<List<FavoriteItemEntity>> =
+        favoriteRepository.observe(FavoriteItemEntity.KIND_MEAL)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val favoriteExercises: StateFlow<List<FavoriteItemEntity>> =
+        favoriteRepository.observe(FavoriteItemEntity.KIND_EXERCISE)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private fun fieldText(fieldName: String): String = when (fieldName) {
+        "breakfast" -> _uiState.value.breakfast
+        "lunch" -> _uiState.value.lunch
+        "dinner" -> _uiState.value.dinner
+        "snack" -> _uiState.value.snack
+        "exercise" -> _uiState.value.exercise
+        else -> ""
+    }
+
+    /** 칩이나 시트에서 고른 항목을 [fieldName] 칸 끝에 ", "로 이어 붙인다. 이미 있는 항목은 건너뛴다 */
+    fun insertFavorites(fieldName: String, items: List<String>) {
+        if (items.isEmpty()) return
+        updateField(fieldName, FavoriteRank.appendAll(fieldText(fieldName), items))
+    }
+
+    /**
+     * "어제와 같게". 어제 같은 칸에 적은 내용을 통째로 가져온다.
+     *
+     * 칸이 비어 있으면 그대로 넣고, 이미 적은 게 있으면 뒤에 이어 붙인다. 어제 기록이 없거나
+     * 그 칸이 비어 있으면 토스트로 알린다. 어제 기록은 Room에 없으면 Firestore까지 찾아본다.
+     */
+    fun copyFromYesterday(fieldName: String) {
+        val date = _uiState.value.date
+        val yesterday = runCatching {
+            val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            Calendar.getInstance().apply {
+                time = fmt.parse(date)!!
+                add(Calendar.DAY_OF_MONTH, -1)
+            }.let { fmt.format(it.time) }
+        }.getOrNull() ?: return
+
+        viewModelScope.launch {
+            val record = repository.getDailyRecordByDate(yesterday)
+            val text = when (fieldName) {
+                "breakfast" -> record?.breakfast
+                "lunch" -> record?.lunch
+                "dinner" -> record?.dinner
+                "snack" -> record?.snack
+                "exercise" -> record?.exercise
+                else -> null
+            }.orEmpty()
+
+            if (text.isBlank()) {
+                val label = categoryList.firstOrNull { it.fieldName == fieldName }
+                    ?.let { context.getString(it.labelRes) } ?: fieldName
+                toast(R.string.fav_yesterday_empty, label)
+                return@launch
+            }
+            insertFavorites(fieldName, FavoriteRank.splitItems(text))
+        }
+    }
+
+    fun pinFavorite(item: FavoriteItemEntity, pinned: Boolean) {
+        viewModelScope.launch { favoriteRepository.setPinned(item, pinned) }
+    }
+
+    fun hideFavorite(item: FavoriteItemEntity) {
+        viewModelScope.launch { favoriteRepository.hide(item) }
+    }
+
+    /** 시트 검색창에 친 글자를 새 항목으로 저장한다 */
+    fun addFavorite(kind: String, text: String) {
+        viewModelScope.launch { favoriteRepository.add(kind, text) }
+    }
+
     fun updateField(fieldName: String, text: String) {
         _uiState.update { current ->
             when (fieldName) {
@@ -990,6 +1072,8 @@ class MainViewModel @Inject constructor(
 
                 // 오늘 정산을 끝냈으니 저녁 리마인더는 울리지 않아야 한다
                 DailyReminder.markRecorded(context, analyzedData.date)
+                // 이번 결과에 나온 메뉴·운동을 즐겨찾기 횟수에 더한다
+                favoriteRepository.recordAnalysis(analyzedData.analysisDetail)
                 // 홈 화면 위젯은 observeTodayRecordForWidget()이 Room 변경을 보고 알아서 갱신한다
 
                 onSuccess(usage)
