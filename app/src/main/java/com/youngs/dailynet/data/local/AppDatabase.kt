@@ -32,7 +32,7 @@ import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
         FavoriteItemEntity::class,
         InbodyRecordEntity::class
     ],
-    version = 14, // 👈 inbody_records 표 (인바디 이력, MIGRATION_13_14)
+    version = 15, // 👈 inbody_records.isDummy (추이 화면 확인용 더미, MIGRATION_14_15)
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -226,5 +226,12 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
                 "0, 0, 0, inbodyAnalysis, inbodyAnalyzedAt, (strftime('%s','now') * 1000) " +
                 "FROM `user_profile` WHERE id = 0 AND (inbodyBmr > 0 OR inbodyMuscle > 0 OR inbodyFat > 0 OR inbodyFatPercent > 0 OR inbodyWeight > 0)"
         )
+    }
+}
+
+/** inbody_records에 더미 표시 컬럼 (b44). 디버그에서 추이 화면을 확인하려고 넣는 가짜 측정을 구분한다 */
+val MIGRATION_14_15 = object : Migration(14, 15) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE inbody_records ADD COLUMN isDummy INTEGER NOT NULL DEFAULT 0")
     }
 }

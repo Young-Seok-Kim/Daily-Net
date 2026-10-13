@@ -60,7 +60,7 @@ class InbodyRepository @Inject constructor(
                 Log.i(TAG, "sync: ${cloud.size} records from cloud")
             } else {
                 // 계정에 이력이 없다. 기기에 있는 것(마이그레이션 산출물)이나 구버전 자리의 한 건을 올린다
-                val local = inbodyDao.getAll().map { it.toData() }.ifEmpty {
+                val local = inbodyDao.getAllReal().map { it.toData() }.ifEmpty {
                     listOfNotNull(InbodyData.fromMap(legacy)?.takeIf { it.measuredAt.isNotBlank() })
                 }
                 local.forEach { data ->
@@ -109,4 +109,34 @@ class InbodyRepository @Inject constructor(
     }
 
     suspend fun clearLocal() = inbodyDao.clear()
+
+    /**
+     * 추이 화면 확인용 더미 측정 6건을 기기에만 넣는다 (디버그 빌드 전용).
+     * 실제 측정보다 과거 날짜라 목록 맨 위(분석 적용)는 바뀌지 않고, 계정에도 올라가지 않는다.
+     */
+    suspend fun insertDummy() {
+        val base = listOf(
+            // 측정일, 체중, 골격근, 체지방, 체지방률, 기초대사량, 내장지방, 점수, 체수분
+            arrayOf("2026-03-10", 99.5f, 31.9f, 41.2f, 41.4f, 1590, 17, 52, 41.9f),
+            arrayOf("2026-04-12", 98.1f, 32.0f, 39.8f, 40.6f, 1598, 16, 54, 42.0f),
+            arrayOf("2026-05-14", 97.0f, 32.3f, 38.6f, 39.8f, 1605, 16, 55, 42.2f),
+            arrayOf("2026-06-15", 96.4f, 32.4f, 37.9f, 39.3f, 1612, 15, 56, 42.4f),
+            arrayOf("2026-07-18", 95.6f, 32.6f, 37.0f, 38.7f, 1618, 15, 57, 42.5f),
+            arrayOf("2026-08-20", 94.9f, 32.7f, 36.4f, 38.4f, 1624, 15, 58, 42.6f)
+        )
+        base.forEach { r ->
+            if (inbodyDao.get(r[0] as String) != null) return@forEach
+            inbodyDao.upsert(
+                InbodyRecordEntity(
+                    measuredAt = r[0] as String,
+                    weight = r[1] as Float, skeletalMuscle = r[2] as Float, bodyFat = r[3] as Float,
+                    bodyFatPercent = r[4] as Float, bmr = r[5] as Int, visceralFatLevel = r[6] as Int,
+                    inbodyScore = r[7] as Int, bodyWater = r[8] as Float,
+                    isDummy = true
+                )
+            )
+        }
+    }
+
+    suspend fun clearDummy() = inbodyDao.clearDummy()
 }

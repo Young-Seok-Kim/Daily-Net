@@ -224,6 +224,15 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    /** 디버그 전용: 추이 화면 확인용 더미 측정을 기기에만 넣는다 */
+    fun insertInbodyDummy() {
+        viewModelScope.launch { inbodyRepository.insertDummy() }
+    }
+
+    fun clearInbodyDummy() {
+        viewModelScope.launch { inbodyRepository.clearDummy() }
+    }
+
     fun deleteInbody(measuredAt: String, onDone: (Boolean) -> Unit) {
         viewModelScope.launch {
             try {

@@ -24,7 +24,9 @@ data class InbodyRecordEntity(
     val bodyWater: Float = 0f,
     val analysis: String = "",
     val analyzedAt: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    /** 디버그 빌드에서 추이 화면 확인용으로 넣은 가짜 측정. 계정에 올리지 않고 분석에도 쓰지 않는다 */
+    val isDummy: Boolean = false
 ) {
     fun toData(): InbodyData = InbodyData(
         bmr = bmr,

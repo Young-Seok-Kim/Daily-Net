@@ -31,6 +31,7 @@ import com.youngs.dailynet.ui.view.DailyRecordScreen
 import com.youngs.dailynet.ui.view.WeightTrendScreen
 import com.youngs.dailynet.ui.view.InbodyEditScreen
 import com.youngs.dailynet.ui.view.InbodyListScreen
+import com.youngs.dailynet.ui.view.InbodyTrendScreen
 import com.youngs.dailynet.ui.view.SettingsScreen
 import com.youngs.dailynet.ui.view.SplashScreen
 import com.youngs.dailynet.ui.view.WithdrawScreen
@@ -231,7 +232,16 @@ class MainActivity : ComponentActivity() {
                                     mainViewModel = mainViewModel,
                                     onBack = { goBack() },
                                     onOpen = { date -> navigateTo(ScreenEntry("inbody_edit", date)) },
-                                    onAdd = { navigateTo(ScreenEntry("inbody_edit")) }
+                                    onAdd = { navigateTo(ScreenEntry("inbody_edit")) },
+                                    onTrend = { navigateTo(ScreenEntry("inbody_trend")) }
+                                )
+                            }
+
+                            "inbody_trend" -> {
+                                InbodyTrendScreen(
+                                    mainViewModel = mainViewModel,
+                                    onBack = { goBack() },
+                                    onOpen = { date -> navigateTo(ScreenEntry("inbody_edit", date)) }
                                 )
                             }
 

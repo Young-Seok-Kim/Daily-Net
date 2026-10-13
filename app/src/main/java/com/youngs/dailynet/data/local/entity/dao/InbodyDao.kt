@@ -19,9 +19,16 @@ interface InbodyDao {
     @Query("SELECT * FROM inbody_records WHERE measuredAt = :measuredAt")
     suspend fun get(measuredAt: String): InbodyRecordEntity?
 
-    /** 가장 최근 측정. 식단 분석과 설정 요약이 쓴다 */
-    @Query("SELECT * FROM inbody_records ORDER BY measuredAt DESC LIMIT 1")
+    /** 가장 최근 실제 측정 (더미 제외). 식단 분석과 설정 요약이 쓴다 */
+    @Query("SELECT * FROM inbody_records WHERE isDummy = 0 ORDER BY measuredAt DESC LIMIT 1")
     suspend fun getLatest(): InbodyRecordEntity?
+
+    /** 계정에 올릴 실제 측정만 */
+    @Query("SELECT * FROM inbody_records WHERE isDummy = 0 ORDER BY measuredAt DESC")
+    suspend fun getAllReal(): List<InbodyRecordEntity>
+
+    @Query("DELETE FROM inbody_records WHERE isDummy = 1")
+    suspend fun clearDummy()
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(record: InbodyRecordEntity)
