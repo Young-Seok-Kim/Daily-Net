@@ -15,7 +15,17 @@ const { calculateBmr } = require("../nutrition");
 
 test("범위 밖 값은 0으로, 전부 비면 null", () => {
     const ok = normalizeInbody({ bmr: "1650.4", skeletalMuscle: 34.26, bodyFat: 22.5, bodyFatPercent: 24.49, weight: 92.2, measuredAt: "2026-10-01" });
-    assert.deepEqual(ok, { bmr: 1650, skeletalMuscle: 34.3, bodyFat: 22.5, bodyFatPercent: 24.5, weight: 92.2, measuredAt: "2026-10-01" });
+    assert.deepEqual(ok, {
+        bmr: 1650, skeletalMuscle: 34.3, bodyFat: 22.5, bodyFatPercent: 24.5, weight: 92.2,
+        visceralFatLevel: 0, inbodyScore: 0, bodyWater: 0, measuredAt: "2026-10-01"
+    });
+
+    // b41 항목: 내장지방 레벨·인바디 점수는 정수, 체수분은 소수 첫째 자리
+    const more = normalizeInbody({ bmr: 1600, visceralFatLevel: "12.4", inbodyScore: 67.6, bodyWater: 41.26 });
+    assert.equal(more.visceralFatLevel, 12);
+    assert.equal(more.inbodyScore, 68);
+    assert.equal(more.bodyWater, 41.3);
+    assert.equal(normalizeInbody({ bmr: 1600, visceralFatLevel: 45 }).visceralFatLevel, 0); // 범위 밖
 
     // 체지방률 자리에 체중이 들어온 경우: 그 칸만 버리고 나머지는 남는다
     const partly = normalizeInbody({ bmr: 1650, bodyFatPercent: 92.2 });
@@ -69,6 +79,8 @@ test("수치 판정: BMI·체지방 구간·골격근 비율·공식 차이", ()
     assert.equal(m.formulaBmr, calculateBmr(94.2, 178, 40, true));
     assert.equal(m.bmrDiff, 1630 - m.formulaBmr);
     assert.equal(m.proteinTarget, Math.round(94.2 * 1.6));
+    assert.equal(m.visceralLevel, "unknown");       // 없으면 unknown
+    assert.equal(bodyMetrics({ inbody: { ...inbody, visceralFatLevel: 12 }, height: 178, weight: 92.2, age: 40, isMale: true }).visceralLevel, "high");
 
     // 값이 없는 항목은 unknown, 측정 체중이 없으면 오늘 체중
     const m2 = bodyMetrics({ inbody: { bmr: 1500, skeletalMuscle: 0, bodyFat: 0, bodyFatPercent: 0, weight: 0 }, height: 165, weight: 60, age: 30, isMale: false });
@@ -103,4 +115,11 @@ test("해석 글은 모델이 비운 칸과 없는 항목을 뺀다", () => {
 
     // 응답이 깨져도 측정값 블록은 남는다
     assert.match(inbodyReportText(null, metrics, inbody, LABELS.en), /Measurements/);
+
+    // 내장지방·점수·체수분은 있을 때만 측정값에 들어간다
+    const rich = { ...inbody, visceralFatLevel: 12, inbodyScore: 68, bodyWater: 41.3 };
+    const richText = inbodyReportText({}, bodyMetrics({ inbody: rich, height: 178, weight: 94.2, age: 40, isMale: true }), rich, LABELS.ko);
+    assert.match(richText, /내장지방 레벨 12 \(표준 이상, 표준 1~9\)/);
+    assert.match(richText, /인바디 점수 68/);
+    assert.match(richText, /체수분 41\.3L/);
 });

@@ -21,8 +21,18 @@ const RANGES = {
     skeletalMuscle: [10, 80],
     bodyFat: [1, 120],
     bodyFatPercent: [1, 70],
-    weight: [20, 300]
+    weight: [20, 300],
+    // b41부터. 결과지에 없으면 0
+    visceralFatLevel: [1, 30],
+    inbodyScore: [1, 100],
+    bodyWater: [10, 100]
 };
+
+/** 정수로 두는 항목. 나머지는 소수 첫째 자리 */
+const INTEGER_KEYS = new Set(["bmr", "visceralFatLevel", "inbodyScore"]);
+
+/** 내장지방 레벨 표준 구간 (인바디 기준 1~9 표준, 10 이상 주의) */
+const VISCERAL_STANDARD = [1, 9];
 
 /**
  * 체지방률 표준 범위(%). 인바디 결과지의 표준 구간과 같다.
@@ -51,7 +61,7 @@ function normalizeInbody(raw) {
         if (value < lo || value > hi) {
             out[key] = 0;
         } else {
-            out[key] = key === "bmr" ? Math.round(value) : Math.round(value * 10) / 10;
+            out[key] = INTEGER_KEYS.has(key) ? Math.round(value) : Math.round(value * 10) / 10;
         }
     }
     const date = typeof raw.measuredAt === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.measuredAt.trim())
@@ -87,6 +97,7 @@ function inbodyPromptLine(inbody) {
     if (inbody.skeletalMuscle > 0) parts.push(`골격근량 ${inbody.skeletalMuscle}kg`);
     if (inbody.bodyFat > 0) parts.push(`체지방량 ${inbody.bodyFat}kg`);
     if (inbody.bodyFatPercent > 0) parts.push(`체지방률 ${inbody.bodyFatPercent}%`);
+    if (inbody.visceralFatLevel > 0) parts.push(`내장지방 레벨 ${inbody.visceralFatLevel}`);
     if (parts.length === 0) return "";
     const when = inbody.measuredAt ? `, ${inbody.measuredAt} 측정` : "";
     return `- 인바디 (참고용 실측값${when}): ${parts.join(", ")}`;
@@ -140,7 +151,12 @@ function bodyMetrics({ inbody, height, weight, age, isMale }) {
     const formulaBmr = calculateBmr(w, h, num(age), !!isMale);
     const bmrDiff = inbody.bmr > 0 ? inbody.bmr - formulaBmr : 0;
 
+    const visceralLevel = levelOf(num(inbody.visceralFatLevel), VISCERAL_STANDARD);
+
     return {
+        visceralLevel,
+        visceralLabel: LEVEL_KO[visceralLevel],
+        visceralStandard: `${VISCERAL_STANDARD[0]}~${VISCERAL_STANDARD[1]}`,
         weight: w,
         bmi,
         fatLevel,
@@ -176,6 +192,9 @@ function inbodyReportText(data, metrics, inbody, L) {
     if (inbody.bodyFatPercent > 0) facts.push(`${L.inbodyFatShort} ${inbody.bodyFatPercent}% (${L.inbodyLevel[metrics.fatLevel]}, ${L.inbodyStandard} ${metrics.fatStandard})`);
     if (inbody.skeletalMuscle > 0) facts.push(`${L.inbodyMuscleShort} ${inbody.skeletalMuscle}kg (${L.inbodyLevel[metrics.muscleLevel]})`);
     if (inbody.bmr > 0) facts.push(`${L.inbodyBmrShort} ${inbody.bmr}kcal (${L.inbodyFormula} ${metrics.formulaBmr})`);
+    if (inbody.visceralFatLevel > 0) facts.push(`${L.inbodyVisceralShort} ${inbody.visceralFatLevel} (${L.inbodyLevel[metrics.visceralLevel]}, ${L.inbodyStandard} ${metrics.visceralStandard})`);
+    if (inbody.inbodyScore > 0) facts.push(`${L.inbodyScoreShort} ${inbody.inbodyScore}`);
+    if (inbody.bodyWater > 0) facts.push(`${L.inbodyWaterShort} ${inbody.bodyWater}L`);
     if (facts.length) parts.push(`${L.inbodyMetricsTitle}\n${facts.map((f) => `• ${f}`).join("\n")}`);
 
     const bodyFat = str(d.bodyFat);
@@ -192,7 +211,7 @@ function inbodyReportText(data, metrics, inbody, L) {
 }
 
 module.exports = {
-    RANGES, FAT_STANDARD, SMM_RATIO_STANDARD,
+    RANGES, FAT_STANDARD, SMM_RATIO_STANDARD, VISCERAL_STANDARD,
     normalizeInbody, resolveBmr, inbodyPromptLine,
     ageFrom, bodyMetrics, inbodyReportText
 };

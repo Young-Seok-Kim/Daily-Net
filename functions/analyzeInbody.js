@@ -62,6 +62,9 @@ exports.analyzeInbody = onRequest({
         if (inbody.bodyFat > 0) lines.push(`- 체지방량 ${inbody.bodyFat}kg`);
         if (inbody.skeletalMuscle > 0) lines.push(`- 골격근량 ${inbody.skeletalMuscle}kg (체중의 ${metrics.smmRatio}%) → 판정: ${metrics.muscleLabel} (표준 ${metrics.muscleStandard})`);
         if (inbody.bmr > 0) lines.push(`- 기초대사량 ${inbody.bmr}kcal (키·체중·나이 공식으로는 ${metrics.formulaBmr}kcal, 차이 ${metrics.bmrDiff >= 0 ? "+" : ""}${metrics.bmrDiff})`);
+        if (inbody.visceralFatLevel > 0) lines.push(`- 내장지방 레벨 ${inbody.visceralFatLevel} → 판정: ${metrics.visceralLabel} (표준 ${metrics.visceralStandard})`);
+        if (inbody.inbodyScore > 0) lines.push(`- 인바디 점수 ${inbody.inbodyScore}점`);
+        if (inbody.bodyWater > 0) lines.push(`- 체수분 ${inbody.bodyWater}L`);
         if (inbody.measuredAt) lines.push(`- 측정일 ${inbody.measuredAt}`);
 
         const prompt = `
@@ -77,6 +80,7 @@ ${lines.map((l) => "            " + l).join("\n")}
                당신의 일은 그 뜻을 풀어 설명하고, 무엇을 하면 좋을지 말하는 것입니다.
             2. summary: 전체 상태를 두세 문장으로. 체지방과 근육 중 무엇이 우선 과제인지 분명히.
             3. bodyFat: 체지방률·체지방량에 대한 설명 두 문장. 표준과 얼마나 떨어져 있는지.
+               내장지방 레벨이 있으면 여기서 함께 언급하십시오 (10 이상이면 건강 위험이 커진다는 점).
             4. muscle: 골격근량에 대한 설명 두 문장. 감량 중 근손실 위험이 있는지.
             5. bmr: 기초대사량이 공식 추정과 어떻게 다른지, 그래서 하루 섭취를 어떻게 잡아야 하는지 두 문장.
                (앱의 식단 분석은 이 실측 기초대사량을 쓴다는 것을 알려 주십시오)

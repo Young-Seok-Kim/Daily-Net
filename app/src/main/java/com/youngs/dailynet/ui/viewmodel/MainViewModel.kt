@@ -30,6 +30,8 @@ import com.youngs.dailynet.data.network.GeminiManager
 import com.youngs.dailynet.data.network.PhotoLimitException
 import com.youngs.dailynet.data.repository.DailyRecordRepository
 import com.youngs.dailynet.data.repository.FavoriteRepository
+import com.youngs.dailynet.data.repository.InbodyRepository
+import com.youngs.dailynet.data.local.entity.InbodyRecordEntity
 import com.youngs.dailynet.data.local.entity.FavoriteItemEntity
 import com.youngs.dailynet.util.FavoriteRank
 import com.youngs.dailynet.util.AnalysisEdit
@@ -77,6 +79,7 @@ class MainViewModel @Inject constructor(
     @ApplicationContext private val context: Context, // 토스트 문구를 언어에 맞게 꺼내기 위해 필요
     private val repository: DailyRecordRepository,
     private val favoriteRepository: FavoriteRepository, // 입력 즐겨찾기 (분석 결과에서 자동 수집)
+    private val inbodyRepository: InbodyRepository,     // 인바디 측정 이력
     private val dailyRecordDao: DailyRecordDao,
     private val userProfileDao: UserProfileDao,
     val auth: FirebaseAuth,
@@ -182,34 +185,54 @@ class MainViewModel @Inject constructor(
     private val _inbodyPhotoProcessing = MutableStateFlow(false)
     val inbodyPhotoProcessing = _inbodyPhotoProcessing.asStateFlow()
 
-    /** 서버가 인바디 해석 글을 쓰는 중인지 */
-    private val _inbodyAnalyzing = MutableStateFlow(false)
-    val inbodyAnalyzing = _inbodyAnalyzing.asStateFlow()
+    /** 인바디 측정 이력. 최근 것이 앞 */
+    val inbodyRecords: StateFlow<List<InbodyRecordEntity>> =
+        inbodyRepository.observe()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** 서버가 해석 글을 쓰는 중인 측정일. null이면 없음 */
+    private val _inbodyAnalyzingFor = MutableStateFlow<String?>(null)
+    val inbodyAnalyzingFor = _inbodyAnalyzingFor.asStateFlow()
+
+    /** 계정 쪽 이력을 로컬에 맞춘다. 목록 화면에 들어올 때 부른다 */
+    fun syncInbody() {
+        viewModelScope.launch { inbodyRepository.sync() }
+    }
 
     /**
-     * 인바디 결과를 Firestore `users/{uid}.inbody`와 로컬 프로필에 저장한다. null이면 지운다.
-     * 다음 분석부터 서버가 여기 적힌 기초대사량을 쓴다.
-     *
-     * 값이 바뀌면 예전 해석은 맞지 않으므로 비우고, 저장이 끝나면 해석을 새로 받는다.
+     * 측정 한 건을 저장한다. 측정일이 키라 같은 날짜면 덮어쓴다.
+     * 값이 바뀌면 예전 해석은 비워지고, 저장이 끝나면 해석을 새로 받는다.
+     * 가장 최근 측정이면 다음 식단 분석부터 그 기초대사량이 쓰인다.
      */
-    fun updateInbody(data: InbodyData?, onDone: (Boolean) -> Unit) {
-        val uid = currentUserId
-        if (uid == null) {
+    fun saveInbody(data: InbodyData, onDone: (Boolean) -> Unit) {
+        if (currentUserId == null || !data.hasData || data.measuredAt.isBlank()) {
             onDone(false)
             return
         }
-        val value = data?.takeIf { it.hasData }?.copy(analysis = "", analyzedAt = "")
         viewModelScope.launch {
             try {
-                firestore.collection("users").document(uid)
-                    .update(mapOf("inbody" to (value?.toMap() ?: FieldValue.delete())))
-                    .await()
-                userProfileDao.getProfile()?.let { userProfileDao.insertProfile(it.withInbody(value)) }
-                toast(if (value == null) R.string.toast_inbody_cleared else R.string.toast_inbody_saved)
+                inbodyRepository.save(data)
+                toast(R.string.toast_inbody_saved)
                 onDone(true)
-                if (value != null) analyzeInbody()
+                if (inbodyRepository.get(data.measuredAt)?.analysis.isNullOrBlank()) {
+                    analyzeInbody(data.measuredAt)
+                }
             } catch (e: Exception) {
-                CrashReporter.report("updateInbody", e)
+                CrashReporter.report("saveInbody", e)
+                toast(R.string.toast_inbody_save_failed, e.message.orEmpty())
+                onDone(false)
+            }
+        }
+    }
+
+    fun deleteInbody(measuredAt: String, onDone: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            try {
+                inbodyRepository.delete(measuredAt)
+                toast(R.string.toast_inbody_cleared)
+                onDone(true)
+            } catch (e: Exception) {
+                CrashReporter.report("deleteInbody", e)
                 toast(R.string.toast_inbody_save_failed, e.message.orEmpty())
                 onDone(false)
             }
@@ -217,17 +240,17 @@ class MainViewModel @Inject constructor(
     }
 
     /**
-     * 저장된 인바디 값을 서버가 해석한 글을 받아 `inbody.analysis`에 둔다.
-     * 저장 직후 자동으로 돌고, 화면의 "다시 해석" 버튼으로도 부른다. 분석 횟수는 소모하지 않는다.
+     * 측정 한 건을 서버가 해석한 글을 받아 그 측정에 둔다.
+     * 저장 직후 자동으로 돌고, 화면의 "다시 해석 받기"로도 부른다. 분석 횟수는 소모하지 않는다.
      */
-    fun analyzeInbody() {
-        val uid = currentUserId ?: return
-        if (_inbodyAnalyzing.value) return
+    fun analyzeInbody(measuredAt: String) {
+        if (currentUserId == null || measuredAt.isBlank()) return
+        if (_inbodyAnalyzingFor.value != null) return
         viewModelScope.launch {
-            _inbodyAnalyzing.value = true
+            _inbodyAnalyzingFor.value = measuredAt
             try {
                 val profile = userProfileDao.getProfile() ?: return@launch
-                val data = InbodyData.fromProfile(profile)
+                val data = inbodyRepository.get(measuredAt) ?: return@launch
                 if (!data.hasData) return@launch
 
                 val text = geminiManager.analyzeInbody(profile, data)
@@ -236,18 +259,12 @@ class MainViewModel @Inject constructor(
                     return@launch
                 }
                 val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                firestore.collection("users").document(uid)
-                    .update(mapOf("inbody.analysis" to text, "inbody.analyzedAt" to today))
-                    .await()
-                // 그 사이 사용자가 값을 또 바꿨을 수 있으니 지금 로컬 값 위에 해석만 얹는다
-                userProfileDao.getProfile()?.let {
-                    userProfileDao.insertProfile(it.copy(inbodyAnalysis = text, inbodyAnalyzedAt = today))
-                }
+                inbodyRepository.setAnalysis(measuredAt, text, today)
             } catch (e: Exception) {
                 CrashReporter.report("analyzeInbody", e)
                 toast(R.string.toast_inbody_analysis_failed)
             } finally {
-                _inbodyAnalyzing.value = false
+                _inbodyAnalyzingFor.value = null
             }
         }
     }
@@ -634,6 +651,8 @@ class MainViewModel @Inject constructor(
                             isSubscribed = isSubscribed
                         ).withInbody(InbodyData.fromMap(document.get("inbody")))
                     )
+                    // 인바디 이력도 계정 기준으로 맞춘다 (다른 기기에서 넣은 것, 재설치 뒤 복원)
+                    inbodyRepository.sync()
 
                     // 💡 기존 사용자 문서를 조용히 보정한다. (앱을 켜기만 하면 적용되고 재로그인 불필요)
                     //    쓰기는 한 번으로 묶고, 실패해도 로그인 흐름을 막지 않는다.
@@ -1008,6 +1027,7 @@ class MainViewModel @Inject constructor(
                     // 예: settlementDao.deleteAll()이 구현되어 있다면 사용, 없다면 아래 쿼리 기반 메서드 추가 필요
                     dailyRecordDao.clearAllDailyRecord()
                     userProfileDao.clearProfile()
+                    inbodyRepository.clearLocal()
                     // 로그아웃과 같은 이유로 직접 부른다.
                     // 탈퇴한 계정의 기록이 홈 화면에 남는 것은 관찰에 맡길 문제가 아니다.
                     TodayWidget.refresh(context)
@@ -1150,7 +1170,8 @@ class MainViewModel @Inject constructor(
 
                 val outcome = repository.analyzeAndSave(
                     currentState.copy(isMale = _isMale.value),
-                    latestProfile
+                    latestProfile,
+                    inbody = inbodyRepository.latest()
                 )
                 val analyzedData = outcome.record
 

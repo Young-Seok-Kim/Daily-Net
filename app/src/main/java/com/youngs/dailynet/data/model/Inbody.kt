@@ -25,6 +25,14 @@ data class InbodyData(
     /** 측정일 yyyy-MM-dd. 모르면 빈 문자열 */
     @SerializedName("measuredAt") val measuredAt: String = "",
 
+    // b41부터. 결과지에 없으면 0
+    /** 내장지방 레벨 (1~30) */
+    @SerializedName("visceralFatLevel") val visceralFatLevel: Int = 0,
+    /** 인바디 점수 (0~100) */
+    @SerializedName("inbodyScore") val inbodyScore: Int = 0,
+    /** 체수분 (L) */
+    @SerializedName("bodyWater") val bodyWater: Float = 0f,
+
     /**
      * 서버(analyzeInbody)가 써 준 해석 글. 저장할 때 한 번 받고 값이 바뀌면 다시 받는다.
      * 분석 요청에는 실려 가지 않는다 (@Transient — Gson이 뺀다). 서버가 쓸 일이 없는 긴 글이다.
@@ -35,7 +43,8 @@ data class InbodyData(
 ) {
     /** 뭐라도 들어 있는지. 전부 0이면 저장할 가치가 없다 */
     val hasData: Boolean
-        get() = bmr > 0 || skeletalMuscle > 0f || bodyFat > 0f || bodyFatPercent > 0f || weight > 0f
+        get() = bmr > 0 || skeletalMuscle > 0f || bodyFat > 0f || bodyFatPercent > 0f || weight > 0f ||
+            visceralFatLevel > 0 || inbodyScore > 0 || bodyWater > 0f
 
     /** Firestore에 넣을 형태 */
     fun toMap(): Map<String, Any> = mapOf(
@@ -45,6 +54,9 @@ data class InbodyData(
         "bodyFatPercent" to bodyFatPercent,
         "weight" to weight,
         "measuredAt" to measuredAt,
+        "visceralFatLevel" to visceralFatLevel,
+        "inbodyScore" to inbodyScore,
+        "bodyWater" to bodyWater,
         "analysis" to analysis,
         "analyzedAt" to analyzedAt
     )
@@ -61,6 +73,9 @@ data class InbodyData(
                 bodyFatPercent = f("bodyFatPercent"),
                 weight = f("weight"),
                 measuredAt = (map["measuredAt"] as? String).orEmpty(),
+                visceralFatLevel = (map["visceralFatLevel"] as? Number)?.toInt() ?: 0,
+                inbodyScore = (map["inbodyScore"] as? Number)?.toInt() ?: 0,
+                bodyWater = f("bodyWater"),
                 analysis = (map["analysis"] as? String).orEmpty(),
                 analyzedAt = (map["analyzedAt"] as? String).orEmpty()
             )

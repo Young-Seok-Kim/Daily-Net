@@ -29,7 +29,8 @@ import com.youngs.dailynet.ui.view.MainScreen
 import com.youngs.dailynet.ui.view.MonthReportScreen
 import com.youngs.dailynet.ui.view.DailyRecordScreen
 import com.youngs.dailynet.ui.view.WeightTrendScreen
-import com.youngs.dailynet.ui.view.InbodyScreen
+import com.youngs.dailynet.ui.view.InbodyEditScreen
+import com.youngs.dailynet.ui.view.InbodyListScreen
 import com.youngs.dailynet.ui.view.SettingsScreen
 import com.youngs.dailynet.ui.view.SplashScreen
 import com.youngs.dailynet.ui.view.WithdrawScreen
@@ -226,9 +227,21 @@ class MainActivity : ComponentActivity() {
                             }
 
                             "inbody" -> {
-                                InbodyScreen(
+                                InbodyListScreen(
                                     mainViewModel = mainViewModel,
-                                    onBack = { goBack() }
+                                    onBack = { goBack() },
+                                    onOpen = { date -> navigateTo(ScreenEntry("inbody_edit", date)) },
+                                    onAdd = { navigateTo(ScreenEntry("inbody_edit")) }
+                                )
+                            }
+
+                            "inbody_edit" -> {
+                                InbodyEditScreen(
+                                    mainViewModel = mainViewModel,
+                                    measuredAt = current.date,
+                                    onBack = { goBack() },
+                                    // 새 측정을 저장하면 그 측정을 연 상태로 바꿔 해석이 보이게 한다 (기록에 쌓지 않는다)
+                                    onSaved = { date -> current = ScreenEntry("inbody_edit", date) }
                                 )
                             }
 
