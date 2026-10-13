@@ -171,7 +171,13 @@ fun AnalysisReport(
         ReportDivider()
 
         BodyLine(stringResource(R.string.report_in, intake), bold = true)
-        BodyLine(stringResource(R.string.report_out, detail.totals.burned, detail.bmr), bold = true)
+        BodyLine(
+            stringResource(
+                if (detail.bmrSource == "inbody") R.string.report_out_inbody else R.string.report_out,
+                detail.totals.burned, detail.bmr
+            ),
+            bold = true
+        )
         BodyLine(stringResource(R.string.report_net, detail.totals.net), bold = true)
 
         if (detail.evaluation.isNotBlank()) {

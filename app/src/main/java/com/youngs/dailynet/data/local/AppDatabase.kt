@@ -29,7 +29,7 @@ import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
         UserProfileEntity::class,
         FavoriteItemEntity::class
     ],
-    version = 11, // 👈 favorites 고정을 칸별로 (pinned → pinnedFields, MIGRATION_10_11로 기존 데이터 유지)
+    version = 12, // 👈 user_profile에 인바디 컬럼 (MIGRATION_11_12)
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -176,5 +176,19 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
         )
         db.execSQL("DROP TABLE `favorites`")
         db.execSQL("ALTER TABLE `favorites_new` RENAME TO `favorites`")
+    }
+}
+
+/**
+ * user_profile에 인바디 컬럼 6개 추가 (b39, 설정 > 인바디 결과).
+ * 컬럼 추가뿐이라 ALTER TABLE로 충분하다. 값은 Firestore에도 있어 로그인하면 다시 채워진다.
+ */
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE user_profile ADD COLUMN inbodyBmr INTEGER NOT NULL DEFAULT 0")
+        listOf("inbodyMuscle", "inbodyFat", "inbodyFatPercent", "inbodyWeight").forEach {
+            db.execSQL("ALTER TABLE user_profile ADD COLUMN $it REAL NOT NULL DEFAULT 0")
+        }
+        db.execSQL("ALTER TABLE user_profile ADD COLUMN inbodyMeasuredAt TEXT NOT NULL DEFAULT ''")
     }
 }

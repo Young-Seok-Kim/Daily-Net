@@ -33,6 +33,29 @@
     <string name="settings_section_my_info">My info</string>
     <string name="settings_edit_body_info">Edit body info</string>
     <string name="settings_body_info_summary">%1$s cm · start %2$s kg · %3$s</string>
+    <string name="settings_inbody">InBody results</string>
+    <string name="settings_inbody_empty">Scan your result sheet or enter the numbers</string>
+    <string name="inbody_summary_bmr">BMR %1$d kcal</string>
+    <string name="inbody_summary_muscle">muscle %1$.1f kg</string>
+    <string name="inbody_summary_fat_pct">body fat %1$.1f%%</string>
+    <string name="inbody_dialog_title">InBody results</string>
+    <string name="inbody_photo_button">Fill from a photo of the sheet</string>
+    <string name="inbody_processing">Reading the sheet…</string>
+    <string name="inbody_note">Analysis uses the BMR entered here instead of the formula estimate. Leave it empty to estimate from height, weight and age.</string>
+    <string name="inbody_bmr_label">Basal metabolic rate (kcal)</string>
+    <string name="inbody_muscle_label">Skeletal muscle (kg)</string>
+    <string name="inbody_fat_label">Body fat (kg)</string>
+    <string name="inbody_fat_pct_label" formatted="false">Body fat (%)</string>
+    <string name="inbody_weight_label">Weight at test (kg)</string>
+    <string name="inbody_date_label">Test date</string>
+    <string name="inbody_clear">Clear</string>
+    <string name="inbody_photo_source_title">Photo of the result sheet</string>
+    <string name="inbody_photo_source_desc">Take a photo or pick one from the gallery. Make sure the numbers are sharp and well lit.</string>
+    <string name="inbody_photo_filled">Numbers read from the photo. Check them, then save.</string>
+    <string name="inbody_photo_not_found">Could not read a body composition sheet. Try again with the numbers clearly visible.</string>
+    <string name="toast_inbody_saved">InBody results saved.</string>
+    <string name="toast_inbody_cleared">InBody results cleared.</string>
+    <string name="toast_inbody_save_failed">Could not save InBody results: %1$s</string>
     <string name="settings_section_account">Account</string>
     <string name="settings_logout_subtitle">Your records are restored when you sign back in</string>
     <string name="settings_section_app_info">App info</string>
@@ -64,9 +87,6 @@
     <string name="default_user_name">User</string>
     <string name="profile_height">Height</string>
     <string name="profile_start_weight">Starting weight</string>
-    <string name="profile_subscription">Subscription</string>
-    <string name="subscription_active">Active</string>
-    <string name="subscription_free">Free</string>
     <string name="total_calories_title">Cumulative calorie balance</string>
     <string name="last_updated">Last updated · %1$s</string>
     <string name="stat_est_weight">Est. weight</string>
@@ -268,6 +288,7 @@
     <string name="report_fat_full">• Fat: %1$sg / %2$dg</string>
     <string name="report_in">🍎 IN: +%1$d kcal</string>
     <string name="report_out">🏃 OUT: -%1$d kcal (includes BMR %2$d)</string>
+    <string name="report_out_inbody">🏃 OUT: -%1$d kcal (includes InBody BMR %2$d)</string>
     <string name="report_net">📉 Net: %1$d kcal</string>
     <string name="report_eval_title">💡 Expert Summary</string>
     <string name="report_edited_badge">✏️ Edited</string>

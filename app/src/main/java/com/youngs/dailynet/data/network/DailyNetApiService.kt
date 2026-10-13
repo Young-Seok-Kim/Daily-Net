@@ -2,6 +2,8 @@ package com.youngs.dailynet.data.network
 
 import com.youngs.dailynet.data.model.AnalysisRequest
 import com.youngs.dailynet.data.model.AnalysisResponse
+import com.youngs.dailynet.data.model.InbodyPhotoRequest
+import com.youngs.dailynet.data.model.InbodyPhotoResponse
 import com.youngs.dailynet.data.model.MealPhotoRequest
 import com.youngs.dailynet.data.model.MealPhotoResponse
 import com.youngs.dailynet.data.model.SubscriptionVerifyRequest
@@ -35,6 +37,14 @@ interface DailyNetApiService {
         @Header("Authorization") authorization: String?,
         @Body request: MealPhotoRequest
     ): MealPhotoResponse
+
+    /** 인바디 결과지 사진에서 기초대사량 등을 읽어온다. extractMeal과 같은 이유로 전체 주소를 넘긴다 */
+    @POST
+    suspend fun extractInbody(
+        @Url url: String,
+        @Header("Authorization") authorization: String?,
+        @Body request: InbodyPhotoRequest
+    ): InbodyPhotoResponse
 
     /**
      * 구매 토큰을 서버에 보내 구독 여부를 확인받는다.

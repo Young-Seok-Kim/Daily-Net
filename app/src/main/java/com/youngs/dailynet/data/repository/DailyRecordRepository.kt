@@ -220,8 +220,11 @@ class DailyRecordRepository @Inject constructor(
     suspend fun clearAllLocalData() {
         // Room DB의 모든 테이블 데이터를 삭제합니다.
         appDatabase.clearAllTables()
-        // 즐겨찾기도 같이 지워졌으니, 다음에 기록이 다시 동기화되면 한 번 더 채우게 한다
+        // 즐겨찾기도 같이 지워졌으니, 다음에 기록이 다시 동기화되면 한 번 더 채우고 클라우드 고정·숨김도 다시 받게 한다
         context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().remove(Constants.KEY_FAVORITES_BACKFILLED).apply()
+            .edit()
+            .remove(Constants.KEY_FAVORITES_BACKFILLED)
+            .remove(Constants.KEY_FAVORITES_PULLED)
+            .apply()
     }
 }

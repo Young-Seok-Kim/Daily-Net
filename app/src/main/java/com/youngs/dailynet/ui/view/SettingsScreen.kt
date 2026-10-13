@@ -6,6 +6,7 @@ import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
@@ -27,8 +28,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.youngs.dailynet.BuildConfig
 import com.youngs.dailynet.R
+import com.youngs.dailynet.data.model.InbodyData
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import com.youngs.dailynet.util.DailyReminder
+import com.youngs.dailynet.util.MealPhoto
 
 /**
  * 설정 화면.
@@ -49,6 +52,29 @@ fun SettingsScreen(
     val userProfile by mainViewModel.userProfile.collectAsState()
 
     var showProfileEditDialog by remember { mutableStateOf(false) }
+
+    // ── 인바디 ────────────────────────────────────────────────
+    var showInbodyDialog by remember { mutableStateOf(false) }
+    // 결과지 사진에서 읽은 값. 다이얼로그가 이 값으로 칸을 다시 채운다
+    var inbodyPrefill by remember { mutableStateOf<InbodyData?>(null) }
+    var showInbodyPhotoSource by remember { mutableStateOf(false) }
+    var inbodyCameraOpen by remember { mutableStateOf(false) }
+    val inbodyPhotoProcessing by mainViewModel.inbodyPhotoProcessing.collectAsState()
+    val cameraDeniedMessage = stringResource(R.string.camera_permission_denied)
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) inbodyCameraOpen = true
+        else Toast.makeText(context, cameraDeniedMessage, Toast.LENGTH_LONG).show()
+    }
+    // 결과지는 한 장이면 된다
+    val inbodyGalleryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            mainViewModel.extractInbodyFromPhoto(uri) { read -> if (read != null) inbodyPrefill = read }
+        }
+    }
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var loadingMessage by remember { mutableStateOf<String?>(null) }
 
@@ -84,6 +110,62 @@ fun SettingsScreen(
                     if (success) showProfileEditDialog = false
                 }
             }
+        )
+    }
+
+    // 카메라가 떠 있는 동안은 다이얼로그를 내린다. 다이얼로그는 별도 창이라 카메라 위에 그대로 남는다.
+    userProfile?.takeIf { showInbodyDialog && !inbodyCameraOpen }?.let { p ->
+        val saved = InbodyData.fromProfile(p)
+        fun close() {
+            showInbodyDialog = false
+            inbodyPrefill = null
+        }
+        InbodyEditDialog(
+            initial = saved,
+            prefill = inbodyPrefill,
+            processing = inbodyPhotoProcessing,
+            onPhoto = { showInbodyPhotoSource = true },
+            onDismiss = { close() },
+            onSave = { data -> mainViewModel.updateInbody(data) { ok -> if (ok) close() } },
+            onClear = if (saved.hasData) ({ mainViewModel.updateInbody(null) { ok -> if (ok) close() } }) else null
+        )
+    }
+
+    if (showInbodyPhotoSource) {
+        AlertDialog(
+            onDismissRequest = { showInbodyPhotoSource = false },
+            title = { Text(stringResource(R.string.inbody_photo_source_title)) },
+            text = { Text(stringResource(R.string.inbody_photo_source_desc)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showInbodyPhotoSource = false
+                    val granted = ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.CAMERA
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (granted) inbodyCameraOpen = true
+                    else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                }) { Text(stringResource(R.string.photo_source_camera)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showInbodyPhotoSource = false
+                    inbodyGalleryLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                }) { Text(stringResource(R.string.photo_source_gallery)) }
+            }
+        )
+    }
+
+    if (inbodyCameraOpen) {
+        MealCameraScreen(
+            onCaptured = {
+                inbodyCameraOpen = false
+                mainViewModel.extractInbodyFromPhoto(MealPhoto.createTempImageUri(context)) { read ->
+                    if (read != null) inbodyPrefill = read
+                }
+            },
+            onDismiss = { inbodyCameraOpen = false }
         )
     }
 
@@ -146,6 +228,15 @@ fun SettingsScreen(
                         } ?: stringResource(R.string.loading),
                         enabled = userProfile != null,
                         onClick = { showProfileEditDialog = true }
+                    )
+                    SettingsItem(
+                        title = stringResource(R.string.settings_inbody),
+                        subtitle = inbodySummary(userProfile?.let { InbodyData.fromProfile(it) }),
+                        enabled = userProfile != null,
+                        onClick = {
+                            inbodyPrefill = null
+                            showInbodyDialog = true
+                        }
                     )
                 }
 

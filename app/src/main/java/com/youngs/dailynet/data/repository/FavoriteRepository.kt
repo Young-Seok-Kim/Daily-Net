@@ -2,6 +2,9 @@ package com.youngs.dailynet.data.repository
 
 import android.content.Context
 import android.util.Log
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
 import com.youngs.dailynet.data.local.entity.FavoriteItemEntity
 import com.youngs.dailynet.data.local.entity.FavoriteItemEntity.Companion.KIND_EXERCISE
 import com.youngs.dailynet.data.local.entity.FavoriteItemEntity.Companion.KIND_MEAL
@@ -10,6 +13,7 @@ import com.youngs.dailynet.data.local.entity.dao.FavoriteDao
 import com.youngs.dailynet.data.model.AnalysisDetail
 import com.youngs.dailynet.data.model.AnalysisItem
 import com.youngs.dailynet.data.model.DailyRecordModel
+import com.youngs.dailynet.util.FavoriteCloud
 import com.youngs.dailynet.util.FavoriteRank
 import com.youngs.dailynet.util.Constants
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -17,23 +21,30 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 입력 즐겨찾기 저장소. 지금은 기기(Room)에만 둔다.
+ * 입력 즐겨찾기 저장소. 목록 본체는 기기(Room)에 두고, 사용자가 손댄 것(고정·숨김·직접 추가)만
+ * Firestore `users/{uid}/favorites/items`에 같이 둔다 ([FavoriteCloud]).
  *
  * 분석 결과에서 자동으로 모으는 것이 핵심이다. 사용자가 저장 버튼을 누르는 방식은
  * 처음 며칠 동안 아무것도 없어 쓰이지 않는다. 서버가 메뉴명을 정규화해 주므로
  * 그 이름을 그대로 세면 "닭가슴살"과 "닭가슴살 " 같은 중복도 생기지 않는다.
+ *
+ * 횟수는 올리지 않는다. 기록이 Firestore에 있어 새 기기에서도 백필로 똑같이 다시 센다.
+ * 앱을 지웠다 깔면 고정·숨김만 사라졌던 것이라 그것만 올린다.
  */
 @Singleton
 class FavoriteRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val favoriteDao: FavoriteDao,
-    private val dailyRecordDao: DailyRecordDao
+    private val dailyRecordDao: DailyRecordDao,
+    private val firestore: FirebaseFirestore,
+    private val auth: FirebaseAuth
 ) {
     private val prefs
         get() = context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
@@ -92,6 +103,7 @@ class FavoriteRepository @Inject constructor(
             lastUsedAt = System.currentTimeMillis()
         )
         favoriteDao.upsert(item)
+        pushToCloud()
         return item
     }
 
@@ -99,9 +111,68 @@ class FavoriteRepository @Inject constructor(
     suspend fun setPinned(item: FavoriteItemEntity, field: String, pinned: Boolean) {
         val current = favoriteDao.get(item.kind, item.text) ?: item
         favoriteDao.setPinnedFields(item.kind, item.text, current.withPinned(field, pinned).pinnedFields)
+        pushToCloud()
     }
 
-    suspend fun hide(item: FavoriteItemEntity) = favoriteDao.setHidden(item.kind, item.text, true)
+    suspend fun hide(item: FavoriteItemEntity) {
+        favoriteDao.setHidden(item.kind, item.text, true)
+        pushToCloud()
+    }
+
+    // ── Firestore 동기화 ─────────────────────────────────────────
+
+    private val cloudDoc
+        get() = auth.currentUser?.uid?.let { uid ->
+            firestore.collection("users").document(uid).collection("favorites").document(FavoriteCloud.DOC_ID)
+        }
+
+    /**
+     * 기기의 고정·숨김·직접 추가 항목 전체를 문서 하나로 덮어쓴다. 고정·숨김·추가 직후마다 부른다.
+     *
+     * 몇십 개 수준이라 매번 통째로 써도 된다. 오프라인이면 Firestore SDK가 쓰기를 들고 있다가
+     * 연결되면 보내므로 실패해도 기기 쪽은 그대로 두고 로그만 남긴다.
+     */
+    private suspend fun pushToCloud() {
+        val doc = cloudDoc ?: return
+        try {
+            val entries = FavoriteCloud.toEntries(favoriteDao.getAll())
+            doc.set(
+                mapOf(
+                    FavoriteCloud.FIELD_ITEMS to entries.map(FavoriteCloud::toMap),
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+            Log.i(TAG, "cloud push: ${entries.size} entries")
+        } catch (e: Exception) {
+            Log.w(TAG, "cloud push failed", e)
+        }
+    }
+
+    /**
+     * 이 기기에 아직 안 받았으면 Firestore의 고정·숨김·직접 추가를 Room에 얹는다.
+     * 횟수는 기기 것을 그대로 두고 고정·숨김만 덮는다 ([FavoriteCloud.apply]).
+     *
+     * 받은 뒤 곧바로 한 번 올린다. b38 이하에서 올라온 기기는 클라우드가 비어 있고 기기에만 고정이 있는데,
+     * 그걸 다음에 ★를 누를 때까지 기다리지 않고 바로 올려 두기 위해서다.
+     * 로그인 전이거나 읽기에 실패하면 플래그를 남기지 않아 다음 시작 때 다시 시도한다.
+     */
+    private suspend fun pullFromCloudLocked() {
+        if (prefs.getBoolean(Constants.KEY_FAVORITES_PULLED, false)) return
+        val doc = cloudDoc ?: return
+        try {
+            val snapshot = doc.get().await()
+            val entries = FavoriteCloud.fromList(snapshot.get(FavoriteCloud.FIELD_ITEMS))
+            val now = System.currentTimeMillis()
+            entries.forEach { entry ->
+                favoriteDao.upsert(FavoriteCloud.apply(favoriteDao.get(entry.kind, entry.text), entry, now))
+            }
+            prefs.edit().putBoolean(Constants.KEY_FAVORITES_PULLED, true).apply()
+            Log.i(TAG, "cloud pull: ${entries.size} entries")
+            pushToCloud()
+        } catch (e: Exception) {
+            Log.w(TAG, "cloud pull failed", e)
+        }
+    }
 
     /**
      * 방금 끝난 분석 결과를 센다. 백필과 겹쳐 같은 결과를 두 번 세지 않도록 한 줄로 세운다.
@@ -111,6 +182,7 @@ class FavoriteRepository @Inject constructor(
      * 시작할 때는 Room이 비어 백필이 미뤄졌고, 그 사이 과거 기록이 동기화되어 들어와 있다.)
      */
     suspend fun recordAnalysis(detail: AnalysisDetail?) = lock.withLock {
+        pullFromCloudLocked()
         if (isBackfilled) recordUsage(detail) else backfillLocked()
     }
 
@@ -123,6 +195,7 @@ class FavoriteRepository @Inject constructor(
      * 다시 돌지 않는다. 두 번 돌면 횟수가 두 배가 된다.
      */
     suspend fun backfillIfNeeded() = lock.withLock {
+        pullFromCloudLocked()
         if (!isBackfilled) backfillLocked()
     }
 

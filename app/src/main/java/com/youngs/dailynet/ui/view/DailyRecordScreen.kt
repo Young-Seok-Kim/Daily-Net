@@ -31,8 +31,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
@@ -43,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.sp
 import androidx.health.connect.client.PermissionController
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -411,6 +416,36 @@ fun DailyRecordScreen(
         }
     }
 
+    // 즐겨찾기 칩 줄(가로 스크롤)은 자기 위에서 시작된 가로 드래그를 전부 가져가 버려서,
+    // 그 위에서 밀면 위 pointerInput까지 오지 않아 날짜가 안 넘어갔다 (칩 줄이 칸마다 있어 오늘 입력 화면은 거의 다 막혔다).
+    // 칩 줄이 끝까지 스크롤돼 더 못 먹은 만큼은 여기로 올라오니, 그걸 본문 스와이프로 넘긴다.
+    // 한 번 본문이 밀리기 시작하면 그 뒤로는 칩 줄 대신 본문이 가로 드래그를 전부 가져가고, 손을 떼면 같은 finishSwipe()로 마무리한다.
+    val swipeNestedScroll = remember(swipeEnabled) {
+        object : NestedScrollConnection {
+            private fun horizontalDrag(available: Offset, source: NestedScrollSource): Boolean =
+                swipeEnabled && source == NestedScrollSource.UserInput && available.x != 0f
+
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (!horizontalDrag(available, source) || swipeOffset.value == 0f) return Offset.Zero
+                scope.launch { swipeOffset.snapTo(swipeOffset.value + available.x) }
+                return Offset(available.x, 0f)
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (!horizontalDrag(available, source)) return Offset.Zero
+                scope.launch { swipeOffset.snapTo(swipeOffset.value + available.x) }
+                return Offset(available.x, 0f)
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (swipeOffset.value == 0f) return Velocity.Zero
+                finishSwipe()
+                // 본문이 넘어가는 중이니 칩 줄은 튕기지 않게 속도를 다 먹는다
+                return available
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
 
         LaunchedEffect(mainViewModel.toastMessage) {
@@ -478,6 +513,8 @@ fun DailyRecordScreen(
                     .fillMaxSize()
                     .padding(padding)
                     .onSizeChanged { contentWidth = it.width }
+                    // 칩 줄 등 자식 가로 스크롤이 남긴 드래그를 받는다 (위 swipeNestedScroll 참고)
+                    .nestedScroll(swipeNestedScroll)
                     // 가로 드래그만 받는다. 세로 스크롤은 아래 verticalScroll이 그대로 가져간다.
                     .pointerInput(swipeEnabled) {
                         if (!swipeEnabled) return@pointerInput

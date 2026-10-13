@@ -14,6 +14,49 @@
 
 ---
 
+## v1.9.0 (b39) — 2026-10-13
+
+### 스토어 문구
+
+인바디 결과를 넣을 수 있습니다. 설정 > 내 정보 > 인바디 결과에서 결과지 사진을 찍으면 기초대사량·골격근량·체지방률을 읽어 채워 주고, 분석은 공식 추정 대신 인바디에 적힌 기초대사량을 사용합니다. 기록 화면에서 즐겨찾기 칩 줄 위를 좌우로 밀어도 전날·다음날로 넘어갑니다. 즐겨찾기 고정(★)·숨김·직접 추가한 항목이 계정에 저장되어 앱을 다시 설치해도 유지됩니다.
+
+### 상세 내역
+
+- **인바디 결과 입력과 분석 반영** (`Inbody.kt`, `InbodyDialog.kt`, `SettingsScreen.kt`, `functions/inbody.js`, `functions/extractInbody.js`)
+  - 설정 > 내 정보에 "인바디 결과" 줄. 다이얼로그 맨 위 사진 버튼(카메라/갤러리, 식사 사진과 같은 흐름)으로
+    결과지를 보내면 서버 `extractInbody`가 기초대사량·골격근량·체지방량·체지방률·체중·측정일을 읽어 칸에 채운다.
+    바로 저장하지 않고 사용자가 확인·수정한 뒤 저장한다 (결과지 양식이 제각각이라 칸을 잘못 읽을 수 있다).
+    사진 인식 시도 상한은 식사 사진과 같이 쓴다
+  - 저장 위치는 Firestore `users/{uid}.inbody` 맵 + Room `user_profile` 컬럼 6개(Room 11 → 12, `MIGRATION_11_12`).
+    로그인하면 `checkProfile`이 서버 값을 로컬에 얹는다. 규칙 변경 없음(서버 전용 필드 아님)
+  - 분석 요청에 `inbody`를 같이 보내고, 서버는 `bmr`이 있으면 공식(Mifflin-St Jeor) 대신 그 값을 기초대사량으로 쓴다
+    (`resolveBmr`). 골격근량·체지방률은 프롬프트에 "참고용 실측값"으로 넣는다. 구버전 앱은 `inbody`를 안 보내므로
+    지금과 똑같이 공식으로 계산된다 → **필수 업데이트 불필요**, 권장 업데이트만 (Google 승인 뒤 Remote Config
+    `recommend_version_code`를 39로)
+  - 응답 `structured.bmrSource`("inbody"/"formula")로 리포트의 배출 줄에 "인바디 기초대사 N 포함"이라고 표시
+  - `functions/test/inbody.test.js`, `InbodyDataTest` 추가
+- **메인 프로필 시트의 구독 칸 제거** (`MainScreen.kt`). 키·시작 체중만 남긴다
+
+- **즐겨찾기 고정·숨김·직접 추가를 Firestore에 보관** (`FavoriteCloud.kt`, `FavoriteRepository.kt`)
+  - 횟수는 기록(settlements)에서 백필로 다시 세지만 고정·숨김·직접 추가는 기록에 없어 재설치하면 사라졌다.
+    그 셋만 `users/{uid}/favorites/items` 문서 하나에 목록(`items: [{kind, text, pinnedFields, hidden, manual}]`)으로 둔다.
+    메뉴명에 "/"나 "."가 있어도 깨지지 않게 문서 ID·필드 키로 쓰지 않는다. 규칙은 기존 `users/{uid}/{sub}/**`로 충분해 서버 변경 없음
+  - 고정·숨김·추가 직후마다 기기 전체를 통째로 덮어쓴다(`pushToCloud`). 기기당 한 번(`KEY_FAVORITES_PULLED`) 내려받아
+    Room에 얹고(`pullFromCloudLocked`, 횟수는 기기 것 유지), 받은 직후 한 번 올려 b38 이하에서 기기에만 있던 고정도 바로 올라간다.
+    로그아웃·탈퇴로 로컬을 지우면 플래그도 지워 다음 로그인 뒤 다시 받는다
+  - `FavoriteCloudTest` 추가
+
+- **칩 줄 위에서 좌우 스와이프가 안 먹던 문제** (`DailyRecordScreen.kt`)
+  - b37에서 넣은 즐겨찾기 칩 줄이 `horizontalScroll`이라 자기 위에서 시작된 가로 드래그를 전부 가져가서,
+    본문의 `detectHorizontalDragGestures`까지 오지 않았다. 칸마다 칩 줄이 있어 오늘 입력 화면은
+    입력칸 위를 정확히 밀지 않는 한 거의 다 막혔고, 위젯으로 열면 바로 그 화면이라 "위젯으로 열면 안 된다"로 보였다.
+    (실제로는 위젯 여부와 무관하고, 정산 끝난 날은 칩 줄이 없어 멀쩡했다)
+  - 본문 Column에 `nestedScroll`을 달아 칩 줄이 끝까지 스크롤돼 못 먹은 가로 드래그(`onPostScroll`)를
+    `swipeOffset`에 더한다. 본문이 한 번 밀리기 시작하면 `onPreScroll`에서 가로 드래그를 전부 가져가 칩 줄이
+    되돌리지 못하게 하고, 손을 떼면 `onPreFling`에서 기존 `finishSwipe()`로 마무리한다 (칩 줄 튕김은 막는다)
+
+---
+
 ## v1.8.10 (b38) — 2026-10-12
 
 ### 스토어 문구

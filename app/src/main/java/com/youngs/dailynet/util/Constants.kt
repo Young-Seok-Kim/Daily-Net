@@ -13,6 +13,10 @@ object Constants {
     const val EXTRACT_MEAL_URL =
         "https://asia-northeast3-daily-net-95d28.cloudfunctions.net/extractMeal"
 
+    /** 인바디 결과지 사진에서 숫자를 읽는 함수 주소. extractMeal과 같은 형태(2세대 함수)다. */
+    const val EXTRACT_INBODY_URL =
+        "https://asia-northeast3-daily-net-95d28.cloudfunctions.net/extractInbody"
+
     /** 구매 토큰을 검증받는 함수 주소. 구독 여부는 서버가 Play에 물어봐서 정한다. */
     const val VERIFY_SUBSCRIPTION_URL =
         "https://asia-northeast3-daily-net-95d28.cloudfunctions.net/verifySubscription"
@@ -68,4 +72,10 @@ object Constants {
      * 로컬 데이터를 지울 때(로그아웃·탈퇴) 함께 지워서 다음 동기화 뒤에 다시 채운다.
      */
     const val KEY_FAVORITES_BACKFILLED = "favorites_backfilled"
+
+    /**
+     * Firestore에 둔 즐겨찾기 고정·숨김·직접 추가를 이 기기에 한 번 내려받았는지.
+     * 로컬 데이터를 지울 때 함께 지워서 다음 로그인 뒤 다시 받는다.
+     */
+    const val KEY_FAVORITES_PULLED = "favorites_pulled"
 }

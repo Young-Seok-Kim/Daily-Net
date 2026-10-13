@@ -27,4 +27,8 @@ interface FavoriteDao {
 
     @Query("SELECT COUNT(*) FROM favorites")
     suspend fun count(): Int
+
+    /** 클라우드에 올릴 때 전체를 훑는다 */
+    @Query("SELECT * FROM favorites")
+    suspend fun getAll(): List<FavoriteItemEntity>
 }
