@@ -349,6 +349,25 @@ fun InbodyEditScreen(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
+            // ── 내 위치 막대 ──
+            // 지금 칸에 적힌 값으로 그린다. 저장 전이라도 숫자를 넣는 대로 위치가 움직인다.
+            // BMI는 측정 체중(없으면 프로필 시작 체중)과 프로필 키로 계산한다.
+            val heightCm = userProfile?.height ?: 0f
+            val weightForBmi = if (draft.weight > 0f) draft.weight else (userProfile?.initialWeight ?: 0f)
+            val bmi = if (heightCm > 0f && weightForBmi > 0f) weightForBmi / ((heightCm / 100f) * (heightCm / 100f)) else 0f
+            if (bmi > 0f || draft.bodyFatPercent > 0f) {
+                Text(
+                    stringResource(R.string.gauge_section_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                if (bmi > 0f) BmiGauge(bmi = bmi)
+                if (draft.bodyFatPercent > 0f) {
+                    BodyFatGauge(percent = draft.bodyFatPercent, isMale = userProfile?.isMale ?: true)
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            }
+
             // ── 해석 리포트 ──
             Text(
                 stringResource(R.string.inbody_analysis_title),
