@@ -66,26 +66,31 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * 인바디 결과 화면. 설정 > 내 정보 > 인바디 결과에서 들어온다.
+ * 인바디 측정 한 건의 입력·보기 화면.
  *
- * 위쪽은 입력(결과지 사진으로 채우기 + 칸), 아래쪽은 저장된 값에 대한 해석 리포트다.
- * 처음엔 다이얼로그였는데 사진 버튼·칸 여섯 개·해석 글까지 들어가니 한 창에 담기엔 길어 화면으로 뺐다.
- * 카메라도 다이얼로그 위에서는 가려지는 문제가 있었다 (다이얼로그는 별도 창이라 카메라 위에 남는다).
+ * [measuredAt]이 비어 있으면 새 측정 추가, 있으면 그 측정을 열어 값·해석을 보고 고치거나 지운다.
+ * 위쪽은 입력(결과지 사진으로 채우기 + 칸), 아래쪽은 해석 리포트다.
  *
  * 사진으로 읽은 값은 바로 저장하지 않고 칸에 채워 사용자가 확인한 뒤 저장한다.
- * 결과지 양식이 제각각이라 칸을 잘못 읽을 수 있어서다. 저장하면 해석은 자동으로 다시 돌린다.
+ * 결과지 양식이 제각각이라 칸을 잘못 읽을 수 있어서다. 저장하면 해석은 자동으로 받는다.
+ * 측정일이 키라, 새 측정의 날짜를 기존 것과 같게 저장하면 그 측정을 덮어쓴다.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InbodyScreen(
+fun InbodyEditScreen(
     mainViewModel: MainViewModel,
-    onBack: () -> Unit
+    measuredAt: String,
+    onBack: () -> Unit,
+    onSaved: (measuredAt: String) -> Unit
 ) {
     val context = LocalContext.current
     val userProfile by mainViewModel.userProfile.collectAsState()
+    val records by mainViewModel.inbodyRecords.collectAsState()
     val photoProcessing by mainViewModel.inbodyPhotoProcessing.collectAsState()
-    val analyzing by mainViewModel.inbodyAnalyzing.collectAsState()
-    val saved = userProfile?.let { InbodyData.fromProfile(it) }
+    val analyzingFor by mainViewModel.inbodyAnalyzingFor.collectAsState()
+    val isNew = measuredAt.isBlank()
+    val saved = if (isNew) null else records.firstOrNull { it.measuredAt == measuredAt }?.toData()
+    val analyzing = !isNew && analyzingFor == measuredAt
 
     BackHandler(enabled = true) { onBack() }
 
@@ -95,18 +100,27 @@ fun InbodyScreen(
     var fatText by remember { mutableStateOf("") }
     var fatPctText by remember { mutableStateOf("") }
     var weightText by remember { mutableStateOf("") }
-    var dateText by remember { mutableStateOf("") }
-    // 칸을 한 번 채웠는지. 프로필이 늦게 도착해도 사용자가 치던 값을 덮지 않기 위해서다
-    var loaded by remember { mutableStateOf(false) }
+    var visceralText by remember { mutableStateOf("") }
+    var scoreText by remember { mutableStateOf("") }
+    var waterText by remember { mutableStateOf("") }
+    var dateText by remember {
+        mutableStateOf(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()))
+    }
+    // 저장된 값을 한 번 채웠는지. 이력이 늦게 도착해도 사용자가 치던 값을 덮지 않기 위해서다
+    var loaded by remember { mutableStateOf(isNew) }
 
     fun num(v: Float) = if (v > 0f) v.toString() else ""
+    fun int(v: Int) = if (v > 0) v.toString() else ""
     fun load(d: InbodyData) {
-        bmrText = if (d.bmr > 0) d.bmr.toString() else ""
+        bmrText = int(d.bmr)
         muscleText = num(d.skeletalMuscle)
         fatText = num(d.bodyFat)
         fatPctText = num(d.bodyFatPercent)
         weightText = num(d.weight)
-        dateText = d.measuredAt.ifBlank { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()) }
+        visceralText = int(d.visceralFatLevel)
+        scoreText = int(d.inbodyScore)
+        waterText = num(d.bodyWater)
+        if (d.measuredAt.isNotBlank()) dateText = d.measuredAt
     }
 
     LaunchedEffect(saved) {
@@ -122,6 +136,9 @@ fun InbodyScreen(
         bodyFat = fatText.trim().toFloatOrNull() ?: 0f,
         bodyFatPercent = fatPctText.trim().toFloatOrNull() ?: 0f,
         weight = weightText.trim().toFloatOrNull() ?: 0f,
+        visceralFatLevel = visceralText.trim().toIntOrNull() ?: 0,
+        inbodyScore = scoreText.trim().toIntOrNull() ?: 0,
+        bodyWater = waterText.trim().toFloatOrNull() ?: 0f,
         measuredAt = dateText.trim()
     )
 
@@ -143,7 +160,7 @@ fun InbodyScreen(
         if (granted) cameraOpen = true
         else Toast.makeText(context, cameraDeniedMessage, Toast.LENGTH_LONG).show()
     }
-    // 결과지는 한 장이면 된다. 읽은 값은 칸에만 채우고 저장은 사용자가 한다
+    // 결과지는 한 장이면 된다. 읽은 값은 칸에만 채우고 저장은 사용자가 한다. 사진 자체는 남기지 않는다
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
@@ -189,13 +206,31 @@ fun InbodyScreen(
         )
     }
 
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    if (showDeleteConfirm && !isNew) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text(stringResource(R.string.inbody_delete_title)) },
+            text = { Text(stringResource(R.string.inbody_delete_message, measuredAt)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    mainViewModel.deleteInbody(measuredAt) { ok -> if (ok) onBack() }
+                }) { Text(stringResource(R.string.inbody_clear), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
+
     val busy = photoProcessing || analyzing
     val draft = current()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.inbody_dialog_title)) },
+                title = { Text(if (isNew) stringResource(R.string.inbody_add) else measuredAt) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -239,50 +274,6 @@ fun InbodyScreen(
             )
 
             OutlinedTextField(
-                value = bmrText,
-                onValueChange = { bmrText = it.filter { c -> c.isDigit() } },
-                label = { Text(stringResource(R.string.inbody_bmr_label)) },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = muscleText,
-                    onValueChange = { muscleText = it },
-                    label = { Text(stringResource(R.string.inbody_muscle_label)) },
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = weightText,
-                    onValueChange = { weightText = it },
-                    label = { Text(stringResource(R.string.inbody_weight_label)) },
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = fatText,
-                    onValueChange = { fatText = it },
-                    label = { Text(stringResource(R.string.inbody_fat_label)) },
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = fatPctText,
-                    onValueChange = { fatPctText = it },
-                    label = { Text(stringResource(R.string.inbody_fat_pct_label)) },
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true
-                )
-            }
-            OutlinedTextField(
                 value = dateText,
                 onValueChange = { },
                 label = { Text(stringResource(R.string.inbody_date_label)) },
@@ -309,23 +300,48 @@ fun InbodyScreen(
                 singleLine = true
             )
 
+            OutlinedTextField(
+                value = bmrText,
+                onValueChange = { bmrText = it.filter { c -> c.isDigit() } },
+                label = { Text(stringResource(R.string.inbody_bmr_label)) },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                NumberField(muscleText, { muscleText = it }, R.string.inbody_muscle_label, Modifier.weight(1f))
+                NumberField(weightText, { weightText = it }, R.string.inbody_weight_label, Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                NumberField(fatText, { fatText = it }, R.string.inbody_fat_label, Modifier.weight(1f))
+                NumberField(fatPctText, { fatPctText = it }, R.string.inbody_fat_pct_label, Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                NumberField(
+                    visceralText, { visceralText = it.filter { c -> c.isDigit() } },
+                    R.string.inbody_visceral_label, Modifier.weight(1f), integer = true
+                )
+                NumberField(
+                    scoreText, { scoreText = it.filter { c -> c.isDigit() } },
+                    R.string.inbody_score_label, Modifier.weight(1f), integer = true
+                )
+            }
+            NumberField(waterText, { waterText = it }, R.string.inbody_water_label, Modifier.fillMaxWidth())
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (saved != null && saved.hasData) {
-                    TextButton(
-                        onClick = { mainViewModel.updateInbody(null) { ok -> if (ok) load(InbodyData()) } },
-                        enabled = !busy
-                    ) {
+                if (!isNew) {
+                    TextButton(onClick = { showDeleteConfirm = true }, enabled = !busy) {
                         Text(stringResource(R.string.inbody_clear), color = MaterialTheme.colorScheme.error)
                     }
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 Button(
-                    onClick = { mainViewModel.updateInbody(draft) { } },
-                    enabled = draft.hasData && !busy && userProfile != null
+                    onClick = { mainViewModel.saveInbody(draft) { ok -> if (ok) onSaved(draft.measuredAt) } },
+                    enabled = draft.hasData && draft.measuredAt.isNotBlank() && !busy && userProfile != null
                 ) {
                     Text(stringResource(R.string.inbody_save_and_analyze))
                 }
@@ -348,7 +364,7 @@ fun InbodyScreen(
                         Text(stringResource(R.string.inbody_analyzing), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
-                saved == null || !saved.hasData -> {
+                saved == null -> {
                     Text(
                         stringResource(R.string.inbody_analysis_empty),
                         style = MaterialTheme.typography.bodyMedium,
@@ -361,7 +377,7 @@ fun InbodyScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    OutlinedButton(onClick = { mainViewModel.analyzeInbody() }, enabled = !busy) {
+                    OutlinedButton(onClick = { mainViewModel.analyzeInbody(measuredAt) }, enabled = !busy) {
                         Text(stringResource(R.string.inbody_analyze_button))
                     }
                 }
@@ -381,7 +397,7 @@ fun InbodyScreen(
                             }
                         }
                     }
-                    OutlinedButton(onClick = { mainViewModel.analyzeInbody() }, enabled = !busy) {
+                    OutlinedButton(onClick = { mainViewModel.analyzeInbody(measuredAt) }, enabled = !busy) {
                         Text(stringResource(R.string.inbody_reanalyze_button))
                     }
                 }
@@ -392,14 +408,32 @@ fun InbodyScreen(
     }
 }
 
-/** 설정 목록 부제에 쓸 한 줄 요약. 있는 값만 " · "로 잇는다 */
 @Composable
-fun inbodySummary(data: InbodyData?): String {
+private fun NumberField(
+    value: String,
+    onChange: (String) -> Unit,
+    labelRes: Int,
+    modifier: Modifier,
+    integer: Boolean = false
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        label = { Text(stringResource(labelRes)) },
+        modifier = modifier,
+        keyboardOptions = KeyboardOptions(keyboardType = if (integer) KeyboardType.Number else KeyboardType.Decimal),
+        singleLine = true
+    )
+}
+
+/** 설정 목록·이력 줄에 쓸 한 줄 요약. 있는 값만 " · "로 잇는다 */
+@Composable
+fun inbodySummary(data: InbodyData?, withDate: Boolean = true): String {
     if (data == null || !data.hasData) return stringResource(R.string.settings_inbody_empty)
     val parts = mutableListOf<String>()
     if (data.bmr > 0) parts += stringResource(R.string.inbody_summary_bmr, data.bmr)
     if (data.skeletalMuscle > 0f) parts += stringResource(R.string.inbody_summary_muscle, data.skeletalMuscle)
     if (data.bodyFatPercent > 0f) parts += stringResource(R.string.inbody_summary_fat_pct, data.bodyFatPercent)
-    if (data.measuredAt.isNotBlank()) parts += data.measuredAt
+    if (withDate && data.measuredAt.isNotBlank()) parts += data.measuredAt
     return parts.joinToString(" · ")
 }

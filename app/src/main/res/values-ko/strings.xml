@@ -63,6 +63,14 @@
     <string name="inbody_reanalyze_button">다시 해석 받기</string>
     <string name="inbody_analyzed_at">%1$s 해석</string>
     <string name="toast_inbody_analysis_failed">인바디 해석을 받지 못했어요. 다시 시도해 주세요.</string>
+    <string name="inbody_add">새 인바디 추가</string>
+    <string name="inbody_list_empty">아직 인바디 결과가 없어요. 아래 버튼으로 추가하세요.</string>
+    <string name="inbody_applied">분석에 적용 중</string>
+    <string name="inbody_delete_title">이 결과를 지울까요?</string>
+    <string name="inbody_delete_message">%1$s 측정과 그 해석이 지워집니다.</string>
+    <string name="inbody_visceral_label">내장지방 레벨</string>
+    <string name="inbody_score_label">인바디 점수</string>
+    <string name="inbody_water_label">체수분 (L)</string>
     <string name="settings_section_account">계정</string>
     <string name="settings_logout_subtitle">다시 로그인하면 기록이 그대로 복구됩니다</string>
     <string name="settings_section_app_info">앱 정보</string>

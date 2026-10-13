@@ -65,6 +65,14 @@
     <string name="inbody_reanalyze_button">Interpret again</string>
     <string name="inbody_analyzed_at">Interpreted on %1$s</string>
     <string name="toast_inbody_analysis_failed">Could not interpret the InBody results. Please try again.</string>
+    <string name="inbody_add">Add InBody</string>
+    <string name="inbody_list_empty">No InBody results yet. Add one with the button below.</string>
+    <string name="inbody_applied">Used for analysis</string>
+    <string name="inbody_delete_title">Delete this result?</string>
+    <string name="inbody_delete_message">The %1$s measurement and its interpretation will be deleted.</string>
+    <string name="inbody_visceral_label">Visceral fat level</string>
+    <string name="inbody_score_label">InBody score</string>
+    <string name="inbody_water_label">Body water (L)</string>
     <string name="settings_section_account">Account</string>
     <string name="settings_logout_subtitle">Your records are restored when you sign back in</string>
     <string name="settings_section_app_info">App info</string>

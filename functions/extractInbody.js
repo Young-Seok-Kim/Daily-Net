@@ -72,6 +72,9 @@ exports.extractInbody = onRequest({
             - bodyFat: 체지방량 (kg). "체지방량", "Body Fat Mass", "BFM"
             - bodyFatPercent: 체지방률 (%). "체지방률", "Percent Body Fat", "PBF"
             - weight: 체중 (kg). "체중", "Weight"
+            - visceralFatLevel: 내장지방 레벨. "내장지방레벨", "Visceral Fat Level" (1~30 사이 정수)
+            - inbodyScore: 인바디 점수. "인바디점수", "InBody Score" (0~100 점)
+            - bodyWater: 체수분 (L). "체수분", "Total Body Water", "TBW"
             - measuredAt: 측정일. 결과지 상단의 검사일시를 "YYYY-MM-DD"로. 없으면 빈 문자열
 
             [지침]
@@ -90,6 +93,9 @@ exports.extractInbody = onRequest({
               "bodyFat": 0,
               "bodyFatPercent": 0,
               "weight": 0,
+              "visceralFatLevel": 0,
+              "inbodyScore": 0,
+              "bodyWater": 0,
               "measuredAt": ""
             }
         `;
@@ -113,7 +119,7 @@ exports.extractInbody = onRequest({
         console.log(
             "[inbody]",
             inbody
-                ? `bmr=${inbody.bmr} smm=${inbody.skeletalMuscle} bfm=${inbody.bodyFat} pbf=${inbody.bodyFatPercent} wt=${inbody.weight} at=${inbody.measuredAt || "-"}`
+                ? `bmr=${inbody.bmr} smm=${inbody.skeletalMuscle} bfm=${inbody.bodyFat} pbf=${inbody.bodyFatPercent} wt=${inbody.weight} vfl=${inbody.visceralFatLevel} score=${inbody.inbodyScore} tbw=${inbody.bodyWater} at=${inbody.measuredAt || "-"}`
                 : "인식 실패"
         );
 

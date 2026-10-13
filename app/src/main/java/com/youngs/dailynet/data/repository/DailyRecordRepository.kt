@@ -10,6 +10,7 @@ import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.local.entity.dao.DailyRecordDao
 import com.youngs.dailynet.data.model.AnalysisUsage
 import com.youngs.dailynet.data.model.DailyRecordModel
+import com.youngs.dailynet.data.model.InbodyData
 import com.youngs.dailynet.R
 import com.youngs.dailynet.data.network.GeminiManager
 import com.youngs.dailynet.util.AnalysisEdit
@@ -153,9 +154,13 @@ class DailyRecordRepository @Inject constructor(
         val usage: AnalysisUsage?
     )
 
-    suspend fun analyzeAndSave(dailyRecordModel: DailyRecordModel, userProfile: UserProfileEntity): AnalysisOutcome {
+    suspend fun analyzeAndSave(
+        dailyRecordModel: DailyRecordModel,
+        userProfile: UserProfileEntity,
+        inbody: InbodyData? = null
+    ): AnalysisOutcome {
         val analysisResponse =
-            geminiManager.analyzeFoodAndExercise(dailyRecordModel, userProfile)
+            geminiManager.analyzeFoodAndExercise(dailyRecordModel, userProfile, inbody)
                 ?: throw Exception(context.getString(R.string.error_server_analysis))
 
 

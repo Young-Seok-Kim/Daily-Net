@@ -1,5 +1,6 @@
 package com.youngs.dailynet
 
+import com.youngs.dailynet.data.local.entity.InbodyRecordEntity
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.model.InbodyData
 import com.youngs.dailynet.data.model.withInbody
@@ -17,6 +18,7 @@ class InbodyDataTest {
     private val sample = InbodyData(
         bmr = 1650, skeletalMuscle = 34.3f, bodyFat = 22.5f, bodyFatPercent = 24.5f,
         weight = 92.2f, measuredAt = "2026-10-01",
+        visceralFatLevel = 12, inbodyScore = 68, bodyWater = 41.3f,
         analysis = "요약 글", analyzedAt = "2026-10-13"
     )
 
@@ -50,11 +52,27 @@ class InbodyDataTest {
         assertEquals("2026-10-01", with.inbodyMeasuredAt)
         assertEquals(178f, with.height)
         assertTrue(with.isSubscribed)
-        assertEquals(sample, InbodyData.fromProfile(with))
+        // 프로필 컬럼은 b41 항목(내장지방·점수·체수분)을 담지 못한다
+        assertEquals(sample.copy(visceralFatLevel = 0, inbodyScore = 0, bodyWater = 0f), InbodyData.fromProfile(with))
 
         // null이면 지운다
         val cleared = with.withInbody(null)
         assertFalse(InbodyData.fromProfile(cleared).hasData)
         assertEquals(178f, cleared.height)
+    }
+
+    @Test
+    fun recordEntityRoundTrip() {
+        val entity = InbodyRecordEntity.fromData(sample, createdAt = 7L)
+        assertEquals("2026-10-01", entity.measuredAt)
+        assertEquals(12, entity.visceralFatLevel)
+        assertEquals(sample, entity.toData())
+    }
+
+    @Test
+    fun profileMirrorDropsFieldsItCannotHold() {
+        // 프로필 컬럼에는 b41 항목(내장지방 등)이 없다. 최근 측정 복사본은 그 셋만 비고 나머지는 같다
+        val mirrored = InbodyData.fromProfile(UserProfileEntity(initialWeight = 90f, birthDate = "1990-01-01").withInbody(sample))
+        assertEquals(sample.copy(visceralFatLevel = 0, inbodyScore = 0, bodyWater = 0f), mirrored)
     }
 }

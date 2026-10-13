@@ -9,6 +9,8 @@ import com.youngs.dailynet.data.local.entity.dao.DailyRecordDao
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.local.entity.FavoriteItemEntity
+import com.youngs.dailynet.data.local.entity.InbodyRecordEntity
+import com.youngs.dailynet.data.local.entity.dao.InbodyDao
 import com.youngs.dailynet.data.local.entity.dao.FavoriteDao
 import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
 
@@ -27,9 +29,10 @@ import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
     entities = [
         DailyRecordModel::class,
         UserProfileEntity::class,
-        FavoriteItemEntity::class
+        FavoriteItemEntity::class,
+        InbodyRecordEntity::class
     ],
-    version = 13, // 👈 user_profile에 인바디 해석 컬럼 (MIGRATION_12_13)
+    version = 14, // 👈 inbody_records 표 (인바디 이력, MIGRATION_13_14)
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -37,6 +40,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun dailyRecordDao(): DailyRecordDao
     abstract fun userProfileDao(): UserProfileDao
     abstract fun favoriteDao(): FavoriteDao
+    abstract fun inbodyDao(): InbodyDao
 }
 
 /**
@@ -198,5 +202,29 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE user_profile ADD COLUMN inbodyAnalysis TEXT NOT NULL DEFAULT ''")
         db.execSQL("ALTER TABLE user_profile ADD COLUMN inbodyAnalyzedAt TEXT NOT NULL DEFAULT ''")
+    }
+}
+
+/**
+ * 인바디 이력 표 추가 (b41). 프로필 컬럼에 있던 마지막 한 건(b39·b40)을 첫 줄로 옮긴다.
+ * 측정일이 비어 있던 값은 오늘 날짜를 키로 쓴다. 프로필 컬럼은 "가장 최근 측정" 복사본으로 계속 쓴다.
+ */
+val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `inbody_records` (" +
+                "`measuredAt` TEXT NOT NULL, `bmr` INTEGER NOT NULL, `skeletalMuscle` REAL NOT NULL, " +
+                "`bodyFat` REAL NOT NULL, `bodyFatPercent` REAL NOT NULL, `weight` REAL NOT NULL, " +
+                "`visceralFatLevel` INTEGER NOT NULL, `inbodyScore` INTEGER NOT NULL, `bodyWater` REAL NOT NULL, " +
+                "`analysis` TEXT NOT NULL, `analyzedAt` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, " +
+                "PRIMARY KEY(`measuredAt`))"
+        )
+        db.execSQL(
+            "INSERT OR IGNORE INTO `inbody_records` " +
+                "(measuredAt, bmr, skeletalMuscle, bodyFat, bodyFatPercent, weight, visceralFatLevel, inbodyScore, bodyWater, analysis, analyzedAt, createdAt) " +
+                "SELECT COALESCE(NULLIF(inbodyMeasuredAt, ''), date('now')), inbodyBmr, inbodyMuscle, inbodyFat, inbodyFatPercent, inbodyWeight, " +
+                "0, 0, 0, inbodyAnalysis, inbodyAnalyzedAt, (strftime('%s','now') * 1000) " +
+                "FROM `user_profile` WHERE id = 0 AND (inbodyBmr > 0 OR inbodyMuscle > 0 OR inbodyFat > 0 OR inbodyFatPercent > 0 OR inbodyWeight > 0)"
+        )
     }
 }
