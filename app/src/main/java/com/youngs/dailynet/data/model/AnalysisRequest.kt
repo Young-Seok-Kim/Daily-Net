@@ -19,5 +19,8 @@ data class AnalysisRequest(
     val appVersion: Int,
     // 분석 리포트를 어떤 언어로 받을지. "ko-KR", "en-US" 같은 BCP-47 태그를 보낸다.
     // 서버는 앞부분(ko/en)만 보고 판단하며, 값이 없으면 한국어로 처리한다.
-    val language: String
+    val language: String,
+    // 설정에 넣은 인바디 결과. 서버는 bmr이 있으면 공식 대신 그 값을 기초대사량으로 쓴다.
+    // 없으면 null → Gson이 필드를 빼고 보내 구버전 서버에도 그대로 통한다.
+    val inbody: InbodyData? = null
 )

@@ -31,6 +31,29 @@
     <string name="settings_section_my_info">내 정보</string>
     <string name="settings_edit_body_info">신체 정보 수정</string>
     <string name="settings_body_info_summary">키 %1$scm · 시작 %2$skg · %3$s</string>
+    <string name="settings_inbody">인바디 결과</string>
+    <string name="settings_inbody_empty">결과지 사진을 찍거나 직접 입력하세요</string>
+    <string name="inbody_summary_bmr">기초대사량 %1$d kcal</string>
+    <string name="inbody_summary_muscle">골격근 %1$.1f kg</string>
+    <string name="inbody_summary_fat_pct">체지방 %1$.1f%%</string>
+    <string name="inbody_dialog_title">인바디 결과</string>
+    <string name="inbody_photo_button">결과지 사진으로 채우기</string>
+    <string name="inbody_processing">결과지를 읽는 중…</string>
+    <string name="inbody_note">분석은 여기 적은 기초대사량을 공식 추정 대신 씁니다. 비워 두면 키·체중·나이로 추정합니다.</string>
+    <string name="inbody_bmr_label">기초대사량 (kcal)</string>
+    <string name="inbody_muscle_label">골격근량 (kg)</string>
+    <string name="inbody_fat_label">체지방량 (kg)</string>
+    <string name="inbody_fat_pct_label" formatted="false">체지방률 (%)</string>
+    <string name="inbody_weight_label">측정 체중 (kg)</string>
+    <string name="inbody_date_label">측정일</string>
+    <string name="inbody_clear">지우기</string>
+    <string name="inbody_photo_source_title">인바디 결과지 사진</string>
+    <string name="inbody_photo_source_desc">결과지를 찍거나 갤러리에서 고르세요. 숫자가 선명하게 보이게 찍어 주세요.</string>
+    <string name="inbody_photo_filled">사진에서 값을 읽었어요. 확인하고 저장하세요.</string>
+    <string name="inbody_photo_not_found">인바디 결과지를 알아보지 못했어요. 숫자가 잘 보이게 다시 찍어 주세요.</string>
+    <string name="toast_inbody_saved">인바디 결과를 저장했습니다.</string>
+    <string name="toast_inbody_cleared">인바디 결과를 지웠습니다.</string>
+    <string name="toast_inbody_save_failed">인바디 저장 실패: %1$s</string>
     <string name="settings_section_account">계정</string>
     <string name="settings_logout_subtitle">다시 로그인하면 기록이 그대로 복구됩니다</string>
     <string name="settings_section_app_info">앱 정보</string>
@@ -62,9 +85,6 @@
     <string name="default_user_name">사용자</string>
     <string name="profile_height">키</string>
     <string name="profile_start_weight">시작 몸무게</string>
-    <string name="profile_subscription">구독</string>
-    <string name="subscription_active">이용 중</string>
-    <string name="subscription_free">무료</string>
     <string name="total_calories_title">누적 칼로리 결산</string>
     <string name="last_updated">최근 업데이트 · %1$s</string>
     <string name="stat_est_weight">예상 체중</string>
@@ -266,6 +286,7 @@
     <string name="report_fat_full">• 지방: %1$sg / %2$dg</string>
     <string name="report_in">🍎 인입 (IN): +%1$d kcal</string>
     <string name="report_out">🏃 배출 (OUT): -%1$d kcal (기초대사 %2$d 포함)</string>
+    <string name="report_out_inbody">🏃 배출 (OUT): -%1$d kcal (인바디 기초대사 %2$d 포함)</string>
     <string name="report_net">📉 최종 결산: %1$d kcal</string>
     <string name="report_eval_title">💡 전문가 총평</string>
     <string name="report_edited_badge">✏️ 수정됨</string>

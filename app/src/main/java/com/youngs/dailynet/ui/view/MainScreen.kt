@@ -502,15 +502,6 @@ fun MainScreen(
                                     MaterialTheme.colorScheme.onSurface,
                                     Modifier.weight(1f)
                                 )
-                                HeroStat(
-                                    stringResource(R.string.profile_subscription),
-                                    stringResource(
-                                        if (p.isSubscribed) R.string.subscription_active
-                                        else R.string.subscription_free
-                                    ),
-                                    MaterialTheme.colorScheme.onSurface,
-                                    Modifier.weight(1f)
-                                )
                             }
                         }
 

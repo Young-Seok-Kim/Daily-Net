@@ -16,6 +16,8 @@ import com.google.firebase.firestore.Exclude
 data class AnalysisDetail(
     /** 기초대사량 */
     val bmr: Int = 0,
+    /** "inbody"면 사용자가 넣은 인바디 실측값, "formula"면 공식 추정. b38 이전 기록은 null */
+    val bmrSource: String? = null,
     val recommended: RecommendedIntake = RecommendedIntake(),
     val calories: MealCalories = MealCalories(),
     /** 하루 총 탄단지 (끼니별 합계) */

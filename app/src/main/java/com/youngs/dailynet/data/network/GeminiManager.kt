@@ -8,6 +8,8 @@ import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.model.AnalysisRequest
 import com.youngs.dailynet.data.model.AnalysisResponse
 import com.youngs.dailynet.data.model.DailyRecordModel
+import com.youngs.dailynet.data.model.InbodyData
+import com.youngs.dailynet.data.model.InbodyPhotoRequest
 import com.youngs.dailynet.data.model.MealPhotoRequest
 import com.youngs.dailynet.util.Constants
 import com.youngs.dailynet.util.CrashReporter
@@ -54,7 +56,9 @@ class GeminiManager @Inject constructor(
                     steps = dailyRecordModel.steps,
                     appVersion = BuildConfig.VERSION_CODE,
                     // 기기 언어를 그대로 보낸다. 앱 화면과 분석 리포트의 언어를 일치시키기 위함이다.
-                    language = Locale.getDefault().toLanguageTag()
+                    language = Locale.getDefault().toLanguageTag(),
+                    // 인바디를 넣어 뒀으면 같이 보낸다. 서버가 기초대사량을 이 값으로 바꿔 쓴다
+                    inbody = InbodyData.fromProfile(userProfile).takeIf { it.hasData }
                 )
 
                 // 서버가 사용자를 확인하고 하루 횟수를 세는 데 쓴다.
@@ -98,6 +102,39 @@ class GeminiManager @Inject constructor(
      * 여러 번 다시 찍어도 부담이 없어야 하기 때문이다. 서버에는 계정 탈취 같은
      * 비용 사고를 막는 높은 시도 상한만 있고, 그때 429가 온다.
      */
+    /**
+     * 인바디 결과지 사진에서 체성분 숫자를 읽어온다. 못 읽었으면 null.
+     * @throws PhotoLimitException 사진 인식 시도 상한(식사 사진과 공유)에 닿은 경우
+     */
+    suspend fun extractInbodyFromPhoto(base64Image: String): InbodyData? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val token = runCatching {
+                    auth.currentUser?.getIdToken(false)?.await()?.token
+                }.getOrNull()
+
+                val response = apiService.extractInbody(
+                    url = Constants.EXTRACT_INBODY_URL,
+                    authorization = token?.let { "Bearer $it" },
+                    request = InbodyPhotoRequest(
+                        image = base64Image,
+                        language = Locale.getDefault().toLanguageTag()
+                    )
+                )
+                response.inbody?.takeIf { response.found && it.hasData }
+            } catch (e: HttpException) {
+                if (e.code() == HTTP_TOO_MANY_REQUESTS) {
+                    throw PhotoLimitException()
+                }
+                CrashReporter.report("extractInbody:http${e.code()}", e)
+                null
+            } catch (e: Exception) {
+                CrashReporter.report("extractInbody", e)
+                null
+            }
+        }
+    }
+
     suspend fun extractMealFromPhoto(base64Images: List<String>): String? {
         require(base64Images.isNotEmpty()) { "사진이 없다" }
         return withContext(Dispatchers.IO) {

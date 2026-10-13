@@ -6,6 +6,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { LABELS, resolveLang } = require("./labels");
 const { generateAndParse, paidModel, FIRST_ATTEMPT_TIMEOUT_MS } = require("./gemini");
 const { recommendedIntake } = require("./nutrition");
+const { normalizeInbody, resolveBmr, inbodyPromptLine } = require("./inbody");
 const { mergeDuplicateItems } = require("./mergeItems");
 const { numberedLines } = require("./splitInput");
 const { settleItemKcal } = require("./shareItems");
@@ -78,7 +79,9 @@ exports.analyzeDiet = onRequest({
         const {
             weight, height, isMale, birthDate,
             breakfast, lunch, dinner, snack,
-            exercise: exerciseInput, remark, steps
+            exercise: exerciseInput, remark, steps,
+            // b39부터. 설정에 인바디를 넣은 사용자만 보낸다. 구버전 앱은 없다 → 공식으로 계산
+            inbody: inbodyRaw
         } = req.body;
         const stepCount = Number(steps) || 0;
 
@@ -120,7 +123,13 @@ const genderText = isMale ? '남성' : '여성';
             return age;
         };
         const age = calculateAge(birthDate);
-        const bmr = Math.round(10 * weight + 6.25 * height - 5 * age + (isMale ? 5 : -161));
+        // 인바디에 적힌 기초대사량이 있으면 그것, 없으면 공식 (inbody.js 참고)
+        const inbody = normalizeInbody(inbodyRaw);
+        const bmrInfo = resolveBmr({ weight, height, age, isMale, inbody });
+        const bmr = bmrInfo.bmr;
+        if (bmrInfo.source === "inbody") {
+            console.log(`[bmr] 인바디 ${bmr} (공식이면 ${bmrInfo.formula})`);
+        }
 
         // 운동 소모는 체중에 비례한다. 모델은 이 곱셈을 못 해서 서버가 한다 (exerciseCalc.js 참고)
         const weightKg = Number(weight) || 70;
@@ -158,6 +167,7 @@ const prompt = `
 
             [사용자 데이터]
             - 신체: ${height}cm, ${weight}kg, ${genderText} (만 ${age}세)
+            ${inbodyPromptLine(inbody)}
             - 식사 (번호 붙은 줄 하나가 사용자가 적은 항목 하나입니다):
 ${mealsBlock}
             - 활동 (같은 형식):
@@ -552,7 +562,7 @@ ${L.fatFull}: ${totalFat}g / ${recFat}g
 ---
 
 ${L.inLabel}: +${totalIn} kcal
-${L.outLabel}: -${totalOut} kcal (${L.bmrNote(bmr)})
+${L.outLabel}: -${totalOut} kcal (${bmrInfo.source === "inbody" ? L.bmrInbodyNote(bmr) : L.bmrNote(bmr)})
 ${L.netLabel}: ${netCalories} kcal
 
 ${L.evalTitle}
@@ -570,6 +580,8 @@ ${data.evaluation}
         // 여기 structured는 모르는 필드라 Gson이 조용히 무시한다. 그래서 이 추가는 구버전을 깨지 않는다.
         const structured = {
             bmr: bmr,
+            // "inbody"면 사용자가 넣은 실측값, "formula"면 키·체중·나이 공식. 앱이 리포트에 표시할 수 있다
+            bmrSource: bmrInfo.source,
             recommended: {
                 calories: recommendedCalories,
                 carb: recCarb,

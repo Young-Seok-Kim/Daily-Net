@@ -14,6 +14,7 @@ import androidx.credentials.CredentialManager
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
@@ -21,6 +22,8 @@ import com.youngs.dailynet.data.local.entity.dao.DailyRecordDao
 import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.data.model.AnalysisUsage
+import com.youngs.dailynet.data.model.InbodyData
+import com.youngs.dailynet.data.model.withInbody
 import com.youngs.dailynet.data.network.AnalysisLimitException
 import com.youngs.dailynet.data.network.BillingManager.Companion.PRODUCT_ID_MONTHLY
 import com.youngs.dailynet.data.network.GeminiManager
@@ -168,6 +171,69 @@ class MainViewModel @Inject constructor(
                 toast(R.string.photo_filled)
             } finally {
                 _photoProcessingField.value = null
+                MealPhoto.deleteTemp(context)
+            }
+        }
+    }
+
+    // ── 인바디 ─────────────────────────────────────────────────
+
+    /** 결과지 사진을 서버가 읽는 중인지. 설정의 인바디 다이얼로그가 버튼을 잠그는 데 쓴다 */
+    private val _inbodyPhotoProcessing = MutableStateFlow(false)
+    val inbodyPhotoProcessing = _inbodyPhotoProcessing.asStateFlow()
+
+    /**
+     * 인바디 결과를 Firestore `users/{uid}.inbody`와 로컬 프로필에 저장한다. null이면 지운다.
+     * 다음 분석부터 서버가 여기 적힌 기초대사량을 쓴다.
+     */
+    fun updateInbody(data: InbodyData?, onDone: (Boolean) -> Unit) {
+        val uid = currentUserId
+        if (uid == null) {
+            onDone(false)
+            return
+        }
+        val value = data?.takeIf { it.hasData }
+        viewModelScope.launch {
+            try {
+                firestore.collection("users").document(uid)
+                    .update(mapOf("inbody" to (value?.toMap() ?: FieldValue.delete())))
+                    .await()
+                userProfileDao.getProfile()?.let { userProfileDao.insertProfile(it.withInbody(value)) }
+                toast(if (value == null) R.string.toast_inbody_cleared else R.string.toast_inbody_saved)
+                onDone(true)
+            } catch (e: Exception) {
+                CrashReporter.report("updateInbody", e)
+                toast(R.string.toast_inbody_save_failed, e.message.orEmpty())
+                onDone(false)
+            }
+        }
+    }
+
+    /**
+     * 결과지 사진에서 숫자를 읽어 [onResult]로 돌려준다. 바로 저장하지 않는다 —
+     * 다이얼로그 칸에 채워 사용자가 확인한 뒤 저장한다. 못 읽었으면 null.
+     */
+    fun extractInbodyFromPhoto(uri: Uri, onResult: (InbodyData?) -> Unit) {
+        viewModelScope.launch {
+            _inbodyPhotoProcessing.value = true
+            try {
+                val encoded = withContext(Dispatchers.IO) { MealPhoto.encodeToBase64(context, uri) }
+                if (encoded == null) {
+                    toast(R.string.photo_read_failed)
+                    onResult(null)
+                    return@launch
+                }
+                val result = try {
+                    geminiManager.extractInbodyFromPhoto(encoded)
+                } catch (e: PhotoLimitException) {
+                    toast(R.string.photo_limit_reached)
+                    onResult(null)
+                    return@launch
+                }
+                toast(if (result == null) R.string.inbody_photo_not_found else R.string.inbody_photo_filled)
+                onResult(result)
+            } finally {
+                _inbodyPhotoProcessing.value = false
                 MealPhoto.deleteTemp(context)
             }
         }
@@ -523,7 +589,7 @@ class MainViewModel @Inject constructor(
                             createdAt = createdAt,
                             lastAnalyzedDate = lastAnalyzedDate,
                             isSubscribed = isSubscribed
-                        )
+                        ).withInbody(InbodyData.fromMap(document.get("inbody")))
                     )
 
                     // 💡 기존 사용자 문서를 조용히 보정한다. (앱을 켜기만 하면 적용되고 재로그인 불필요)
