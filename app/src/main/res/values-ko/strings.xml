@@ -83,6 +83,10 @@
     <string name="fat_standard">표준</string>
     <string name="fat_high">높음</string>
     <string name="fat_very_high">매우 높음</string>
+    <string name="inbody_trend_title">인바디 추이</string>
+    <string name="inbody_trend_need_two">측정이 2건 이상이어야 추이를 볼 수 있어요.</string>
+    <string name="inbody_trend_period">측정 %1$d회 · %2$s ~ %3$s</string>
+    <string name="inbody_trend_hint">점을 누르면 그 측정이 보이고, 한 번 더 누르면 열립니다.</string>
     <string name="settings_section_account">계정</string>
     <string name="settings_logout_subtitle">다시 로그인하면 기록이 그대로 복구됩니다</string>
     <string name="settings_section_app_info">앱 정보</string>

@@ -85,6 +85,10 @@
     <string name="fat_standard">Standard</string>
     <string name="fat_high">High</string>
     <string name="fat_very_high">Very high</string>
+    <string name="inbody_trend_title">InBody trend</string>
+    <string name="inbody_trend_need_two">Add at least two measurements to see a trend.</string>
+    <string name="inbody_trend_period">%1$d measurements · %2$s ~ %3$s</string>
+    <string name="inbody_trend_hint">Tap a point to see that measurement. Tap again to open it.</string>
     <string name="settings_section_account">Account</string>
     <string name="settings_logout_subtitle">Your records are restored when you sign back in</string>
     <string name="settings_section_app_info">App info</string>

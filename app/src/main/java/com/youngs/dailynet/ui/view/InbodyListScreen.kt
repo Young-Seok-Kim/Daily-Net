@@ -32,6 +32,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -51,7 +52,8 @@ fun InbodyListScreen(
     mainViewModel: MainViewModel,
     onBack: () -> Unit,
     onOpen: (measuredAt: String) -> Unit,
-    onAdd: () -> Unit
+    onAdd: () -> Unit,
+    onTrend: () -> Unit
 ) {
     val records by mainViewModel.inbodyRecords.collectAsState()
 
@@ -69,6 +71,15 @@ fun InbodyListScreen(
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.cd_back)
+                        )
+                    }
+                },
+                actions = {
+                    // 측정이 2건 이상일 때만 추이를 볼 수 있다
+                    IconButton(onClick = onTrend, enabled = records.size >= 2) {
+                        Icon(
+                            painterResource(R.drawable.ic_weight_chart),
+                            contentDescription = stringResource(R.string.inbody_trend_title)
                         )
                     }
                 }
@@ -139,6 +150,14 @@ private fun InbodyRow(record: InbodyRecordEntity, applied: Boolean, onClick: () 
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.weight(1f))
+                if (record.isDummy) {
+                    Text(
+                        "더미",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                }
                 if (applied) {
                     SuggestionChip(
                         onClick = onClick,
