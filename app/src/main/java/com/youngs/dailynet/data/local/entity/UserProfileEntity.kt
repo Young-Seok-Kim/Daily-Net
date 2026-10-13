@@ -18,8 +18,8 @@ data class UserProfileEntity(
     val isSubscribed: Boolean = false,
     val todayAnalysisCount: Int = 0,
 
-    // 인바디 결과 (한 덩어리로 다루려면 InbodyData.fromProfile). 0·빈 문자열이면 없음.
-    // b39에서 추가. Firestore users 문서의 inbody 맵과 같은 내용이다.
+    // ⚠️ b39~b40이 쓰던 인바디 자리. b41부터 inbody_records 표로 옮겼고(MIGRATION_13_14) 지금은 읽지 않는다.
+    //    컬럼을 빼려면 테이블을 다시 만들어야 해서 그대로 둔다. 값은 전부 기본값이다.
     val inbodyBmr: Int = 0,
     val inbodyMuscle: Float = 0f,
     val inbodyFat: Float = 0f,

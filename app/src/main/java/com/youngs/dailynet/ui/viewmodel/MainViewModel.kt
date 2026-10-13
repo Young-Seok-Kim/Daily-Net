@@ -23,7 +23,6 @@ import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.data.model.AnalysisUsage
 import com.youngs.dailynet.data.model.InbodyData
-import com.youngs.dailynet.data.model.withInbody
 import com.youngs.dailynet.data.network.AnalysisLimitException
 import com.youngs.dailynet.data.network.BillingManager.Companion.PRODUCT_ID_MONTHLY
 import com.youngs.dailynet.data.network.GeminiManager
@@ -649,7 +648,7 @@ class MainViewModel @Inject constructor(
                             createdAt = createdAt,
                             lastAnalyzedDate = lastAnalyzedDate,
                             isSubscribed = isSubscribed
-                        ).withInbody(InbodyData.fromMap(document.get("inbody")))
+                        )
                     )
                     // 인바디 이력도 계정 기준으로 맞춘다 (다른 기기에서 넣은 것, 재설치 뒤 복원)
                     inbodyRepository.sync()
