@@ -25,5 +25,8 @@ data class UserProfileEntity(
     val inbodyFat: Float = 0f,
     val inbodyFatPercent: Float = 0f,
     val inbodyWeight: Float = 0f,
-    val inbodyMeasuredAt: String = ""
+    val inbodyMeasuredAt: String = "",
+    /** 서버가 써 준 인바디 해석 글과 받은 날 (b40) */
+    val inbodyAnalysis: String = "",
+    val inbodyAnalyzedAt: String = ""
 )

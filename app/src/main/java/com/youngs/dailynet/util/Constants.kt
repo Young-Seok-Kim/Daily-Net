@@ -17,6 +17,10 @@ object Constants {
     const val EXTRACT_INBODY_URL =
         "https://asia-northeast3-daily-net-95d28.cloudfunctions.net/extractInbody"
 
+    /** 인바디 값을 해석해 주는 함수 주소 */
+    const val ANALYZE_INBODY_URL =
+        "https://asia-northeast3-daily-net-95d28.cloudfunctions.net/analyzeInbody"
+
     /** 구매 토큰을 검증받는 함수 주소. 구독 여부는 서버가 Play에 물어봐서 정한다. */
     const val VERIFY_SUBSCRIPTION_URL =
         "https://asia-northeast3-daily-net-95d28.cloudfunctions.net/verifySubscription"

@@ -29,7 +29,7 @@ import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
         UserProfileEntity::class,
         FavoriteItemEntity::class
     ],
-    version = 12, // 👈 user_profile에 인바디 컬럼 (MIGRATION_11_12)
+    version = 13, // 👈 user_profile에 인바디 해석 컬럼 (MIGRATION_12_13)
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -190,5 +190,13 @@ val MIGRATION_11_12 = object : Migration(11, 12) {
             db.execSQL("ALTER TABLE user_profile ADD COLUMN $it REAL NOT NULL DEFAULT 0")
         }
         db.execSQL("ALTER TABLE user_profile ADD COLUMN inbodyMeasuredAt TEXT NOT NULL DEFAULT ''")
+    }
+}
+
+/** user_profile에 인바디 해석 글·해석일 컬럼 추가 (b40, 인바디 화면의 해석 리포트) */
+val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE user_profile ADD COLUMN inbodyAnalysis TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE user_profile ADD COLUMN inbodyAnalyzedAt TEXT NOT NULL DEFAULT ''")
     }
 }

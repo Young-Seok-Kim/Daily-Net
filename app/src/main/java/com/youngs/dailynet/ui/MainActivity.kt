@@ -29,6 +29,7 @@ import com.youngs.dailynet.ui.view.MainScreen
 import com.youngs.dailynet.ui.view.MonthReportScreen
 import com.youngs.dailynet.ui.view.DailyRecordScreen
 import com.youngs.dailynet.ui.view.WeightTrendScreen
+import com.youngs.dailynet.ui.view.InbodyScreen
 import com.youngs.dailynet.ui.view.SettingsScreen
 import com.youngs.dailynet.ui.view.SplashScreen
 import com.youngs.dailynet.ui.view.WithdrawScreen
@@ -219,7 +220,15 @@ class MainActivity : ComponentActivity() {
                                         authViewModel.resetUserState()
                                         resetTo(ScreenEntry("login"))
                                     },
-                                    onNavigateToWithdraw = { navigateTo(ScreenEntry("withdraw")) }
+                                    onNavigateToWithdraw = { navigateTo(ScreenEntry("withdraw")) },
+                                    onNavigateToInbody = { navigateTo(ScreenEntry("inbody")) }
+                                )
+                            }
+
+                            "inbody" -> {
+                                InbodyScreen(
+                                    mainViewModel = mainViewModel,
+                                    onBack = { goBack() }
                                 )
                             }
 

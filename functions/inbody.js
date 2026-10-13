@@ -2,7 +2,8 @@
  * 인바디(체성분) 결과 처리.
  *
  * 앱은 설정에서 입력한 인바디 값을 `users/{uid}.inbody`에 두고, 분석 요청마다 같이 보낸다.
- * 여기서는 그 값을 검증하고, 분석이 쓸 기초대사량을 정한다.
+ * 여기서는 그 값을 검증하고, 분석이 쓸 기초대사량을 정하고, 인바디 해석(analyzeInbody)에 쓸
+ * 수치 판정을 계산한다.
  *
  * 기초대사량은 **인바디에 적힌 값이 있으면 그것을 그대로 쓴다.** 공식(Mifflin-St Jeor)은
  * 키·체중·나이로 평균을 추정한 값이고, 인바디는 그 사람의 근육량을 반영한 실측값이라
@@ -22,6 +23,13 @@ const RANGES = {
     bodyFatPercent: [1, 70],
     weight: [20, 300]
 };
+
+/**
+ * 체지방률 표준 범위(%). 인바디 결과지의 표준 구간과 같다.
+ * 골격근량은 절대값 표준이 키·체중마다 달라 체중 대비 비율로 본다 (대략적인 기준이다).
+ */
+const FAT_STANDARD = { male: [10, 20], female: [18, 28] };
+const SMM_RATIO_STANDARD = { male: [40, 46], female: [33, 39] };
 
 function num(value) {
     const n = Number(value);
@@ -84,4 +92,107 @@ function inbodyPromptLine(inbody) {
     return `- 인바디 (참고용 실측값${when}): ${parts.join(", ")}`;
 }
 
-module.exports = { RANGES, normalizeInbody, resolveBmr, inbodyPromptLine };
+/** 생년월일(YYYY-MM-DD)로 만 나이. 없거나 이상하면 29 (analyzeDiet과 같은 기본값) */
+function ageFrom(birthDate, today = new Date()) {
+    if (!birthDate || typeof birthDate !== "string") return 29;
+    const birth = new Date(birthDate);
+    if (Number.isNaN(birth.getTime())) return 29;
+    let age = today.getFullYear() - birth.getFullYear();
+    if (today.getMonth() < birth.getMonth() ||
+        (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) {
+        age--;
+    }
+    return age;
+}
+
+/** 값이 [lo, hi] 표준 구간의 어디에 있는지. 모르면 "unknown" */
+function levelOf(value, [lo, hi]) {
+    if (!(value > 0)) return "unknown";
+    if (value < lo) return "low";
+    if (value > hi) return "high";
+    return "standard";
+}
+
+/**
+ * 인바디 해석에 쓰는 수치 판정. 모델에게 계산을 맡기지 않으려고 서버가 먼저 센다.
+ *
+ * - bmi: 측정 체중(없으면 오늘 체중) 기준
+ * - fatLevel: 체지방률의 표준 구간 대비 (low / standard / high / unknown)
+ * - smmRatio·muscleLevel: 골격근량이 체중에서 차지하는 비율과 그 판정
+ * - formulaBmr·bmrDiff: 공식 기초대사량과 인바디 값의 차이
+ * - proteinTarget: 감량 중 근손실을 막는 단백질 목표 (nutrition.js와 같은 1.6g/kg)
+ */
+function bodyMetrics({ inbody, height, weight, age, isMale }) {
+    const h = num(height);
+    const w = inbody.weight > 0 ? inbody.weight : num(weight);
+    const bmi = h > 0 && w > 0 ? Math.round((w / ((h / 100) ** 2)) * 10) / 10 : 0;
+
+    const sex = isMale ? "male" : "female";
+    const fatStandard = FAT_STANDARD[sex];
+    const fatLevel = levelOf(inbody.bodyFatPercent, fatStandard);
+
+    const smmRatio = w > 0 && inbody.skeletalMuscle > 0
+        ? Math.round((inbody.skeletalMuscle / w) * 1000) / 10
+        : 0;
+    const muscleStandard = SMM_RATIO_STANDARD[sex];
+    const muscleLevel = levelOf(smmRatio, muscleStandard);
+
+    const formulaBmr = calculateBmr(w, h, num(age), !!isMale);
+    const bmrDiff = inbody.bmr > 0 ? inbody.bmr - formulaBmr : 0;
+
+    return {
+        weight: w,
+        bmi,
+        fatLevel,
+        fatLabel: LEVEL_KO[fatLevel],
+        fatStandard: `${fatStandard[0]}~${fatStandard[1]}%`,
+        smmRatio,
+        muscleLevel,
+        muscleLabel: LEVEL_KO[muscleLevel],
+        muscleStandard: `체중의 ${muscleStandard[0]}~${muscleStandard[1]}%`,
+        formulaBmr,
+        bmrDiff,
+        proteinTarget: Math.round(w * 1.6)
+    };
+}
+
+/** 프롬프트에 넣는 판정 글자 (프롬프트는 언제나 한국어다) */
+const LEVEL_KO = { low: "표준 이하", standard: "표준", high: "표준 이상", unknown: "정보 없음" };
+
+/**
+ * 모델 응답 + 수치를 앱이 그대로 보여줄 글로 조립한다. 식단 리포트처럼 서버가 조립해야
+ * 구버전·신버전이 같은 글을 본다. 모델이 칸을 비우면 그 칸은 뺀다.
+ */
+function inbodyReportText(data, metrics, inbody, L) {
+    const d = data && typeof data === "object" ? data : {};
+    const str = (v) => (typeof v === "string" ? v.trim() : "");
+    const parts = [];
+
+    const summary = str(d.summary);
+    if (summary) parts.push(summary);
+
+    const facts = [];
+    if (metrics.bmi > 0) facts.push(`BMI ${metrics.bmi}`);
+    if (inbody.bodyFatPercent > 0) facts.push(`${L.inbodyFatShort} ${inbody.bodyFatPercent}% (${L.inbodyLevel[metrics.fatLevel]}, ${L.inbodyStandard} ${metrics.fatStandard})`);
+    if (inbody.skeletalMuscle > 0) facts.push(`${L.inbodyMuscleShort} ${inbody.skeletalMuscle}kg (${L.inbodyLevel[metrics.muscleLevel]})`);
+    if (inbody.bmr > 0) facts.push(`${L.inbodyBmrShort} ${inbody.bmr}kcal (${L.inbodyFormula} ${metrics.formulaBmr})`);
+    if (facts.length) parts.push(`${L.inbodyMetricsTitle}\n${facts.map((f) => `• ${f}`).join("\n")}`);
+
+    const bodyFat = str(d.bodyFat);
+    if (bodyFat && inbody.bodyFatPercent > 0) parts.push(`${L.inbodyFatTitle}\n${bodyFat}`);
+    const muscle = str(d.muscle);
+    if (muscle && inbody.skeletalMuscle > 0) parts.push(`${L.inbodyMuscleTitle}\n${muscle}`);
+    const bmr = str(d.bmr);
+    if (bmr && inbody.bmr > 0) parts.push(`${L.inbodyBmrTitle}\n${bmr}`);
+
+    const actions = Array.isArray(d.actions) ? d.actions.map(str).filter(Boolean).slice(0, 3) : [];
+    if (actions.length) parts.push(`${L.inbodyActionsTitle}\n${actions.map((a, i) => `${i + 1}. ${a}`).join("\n")}`);
+
+    return parts.join("\n\n").trim();
+}
+
+module.exports = {
+    RANGES, FAT_STANDARD, SMM_RATIO_STANDARD,
+    normalizeInbody, resolveBmr, inbodyPromptLine,
+    ageFrom, bodyMetrics, inbodyReportText
+};
