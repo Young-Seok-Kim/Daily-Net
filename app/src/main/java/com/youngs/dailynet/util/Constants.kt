@@ -68,4 +68,10 @@ object Constants {
      * 로컬 데이터를 지울 때(로그아웃·탈퇴) 함께 지워서 다음 동기화 뒤에 다시 채운다.
      */
     const val KEY_FAVORITES_BACKFILLED = "favorites_backfilled"
+
+    /**
+     * Firestore에 둔 즐겨찾기 고정·숨김·직접 추가를 이 기기에 한 번 내려받았는지.
+     * 로컬 데이터를 지울 때 함께 지워서 다음 로그인 뒤 다시 받는다.
+     */
+    const val KEY_FAVORITES_PULLED = "favorites_pulled"
 }
