@@ -1,12 +1,12 @@
 package com.youngs.dailynet.data.model
 
 import com.google.gson.annotations.SerializedName
-import com.youngs.dailynet.data.local.entity.UserProfileEntity
 
 /**
- * 인바디(체성분) 결과. 설정에서 넣고, Firestore `users/{uid}.inbody`와 Room 프로필 양쪽에 둔다.
+ * 인바디(체성분) 측정 한 건. 인바디 화면에서 넣고, Firestore `users/{uid}/inbody/{측정일}`과
+ * Room `inbody_records`에 둔다 (InbodyRepository).
  *
- * 분석 요청에 같이 실려 가고, 서버는 [bmr]이 있으면 공식 대신 그 값을 기초대사량으로 쓴다
+ * 가장 최근 측정이 분석 요청에 같이 실려 가고, 서버는 [bmr]이 있으면 공식 대신 그 값을 기초대사량으로 쓴다
  * (functions/inbody.js). 나머지는 피드백의 근거로만 쓰인다.
  *
  * 0은 "없음"이다. 결과지에 그 칸이 없거나 사용자가 비워 둔 것이라, 분석에서는 그 칸을 모르는 것으로 친다.
@@ -81,34 +81,7 @@ data class InbodyData(
             )
             return data.takeIf { it.hasData }
         }
-
-        /** Room 프로필에 흩어진 컬럼을 한 덩어리로 */
-        fun fromProfile(profile: UserProfileEntity): InbodyData = InbodyData(
-            bmr = profile.inbodyBmr,
-            skeletalMuscle = profile.inbodyMuscle,
-            bodyFat = profile.inbodyFat,
-            bodyFatPercent = profile.inbodyFatPercent,
-            weight = profile.inbodyWeight,
-            measuredAt = profile.inbodyMeasuredAt,
-            analysis = profile.inbodyAnalysis,
-            analyzedAt = profile.inbodyAnalyzedAt
-        )
     }
-}
-
-/** 프로필에 인바디 값을 얹은 사본. null이면 지운다 */
-fun UserProfileEntity.withInbody(data: InbodyData?): UserProfileEntity {
-    val d = data?.takeIf { it.hasData } ?: InbodyData()
-    return copy(
-        inbodyBmr = d.bmr,
-        inbodyMuscle = d.skeletalMuscle,
-        inbodyFat = d.bodyFat,
-        inbodyFatPercent = d.bodyFatPercent,
-        inbodyWeight = d.weight,
-        inbodyMeasuredAt = d.measuredAt,
-        inbodyAnalysis = d.analysis,
-        inbodyAnalyzedAt = d.analyzedAt
-    )
 }
 
 /** 저장된 인바디 값을 해석해 달라는 요청. 서버가 BMI·체지방 구간을 계산하므로 신체 정보도 같이 보낸다 */

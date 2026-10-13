@@ -34,7 +34,7 @@ class GeminiManager @Inject constructor(
     suspend fun analyzeFoodAndExercise(
         dailyRecordModel: DailyRecordModel,
         userProfile: UserProfileEntity,
-        /** 가장 최근 인바디. null이면 프로필 컬럼(구버전 자리)에서 찾는다 */
+        /** 가장 최근 인바디 측정. 없으면 서버가 공식으로 기초대사량을 추정한다 */
         inbody: InbodyData? = null,
     ): AnalysisResponse? {
         return withContext(Dispatchers.IO) {
@@ -61,7 +61,7 @@ class GeminiManager @Inject constructor(
                     // 기기 언어를 그대로 보낸다. 앱 화면과 분석 리포트의 언어를 일치시키기 위함이다.
                     language = Locale.getDefault().toLanguageTag(),
                     // 인바디를 넣어 뒀으면 같이 보낸다. 서버가 기초대사량을 이 값으로 바꿔 쓴다
-                    inbody = inbody?.takeIf { it.hasData } ?: InbodyData.fromProfile(userProfile).takeIf { it.hasData }
+                    inbody = inbody?.takeIf { it.hasData }
                 )
 
                 // 서버가 사용자를 확인하고 하루 횟수를 세는 데 쓴다.

@@ -27,7 +27,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.youngs.dailynet.BuildConfig
 import com.youngs.dailynet.R
-import com.youngs.dailynet.data.model.InbodyData
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import com.youngs.dailynet.util.DailyReminder
 
@@ -49,6 +48,7 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val userProfile by mainViewModel.userProfile.collectAsState()
+    val inbodyRecords by mainViewModel.inbodyRecords.collectAsState()
 
     var showProfileEditDialog by remember { mutableStateOf(false) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
@@ -151,7 +151,7 @@ fun SettingsScreen(
                     )
                     SettingsItem(
                         title = stringResource(R.string.settings_inbody),
-                        subtitle = inbodySummary(userProfile?.let { InbodyData.fromProfile(it) }),
+                        subtitle = inbodySummary(inbodyRecords.firstOrNull()?.toData()),
                         enabled = userProfile != null,
                         onClick = onNavigateToInbody
                     )
