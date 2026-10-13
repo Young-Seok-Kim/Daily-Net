@@ -16,7 +16,8 @@ class InbodyDataTest {
 
     private val sample = InbodyData(
         bmr = 1650, skeletalMuscle = 34.3f, bodyFat = 22.5f, bodyFatPercent = 24.5f,
-        weight = 92.2f, measuredAt = "2026-10-01"
+        weight = 92.2f, measuredAt = "2026-10-01",
+        analysis = "요약 글", analyzedAt = "2026-10-13"
     )
 
     @Test

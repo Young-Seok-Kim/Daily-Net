@@ -54,6 +54,15 @@
     <string name="toast_inbody_saved">인바디 결과를 저장했습니다.</string>
     <string name="toast_inbody_cleared">인바디 결과를 지웠습니다.</string>
     <string name="toast_inbody_save_failed">인바디 저장 실패: %1$s</string>
+    <string name="inbody_save_and_analyze">저장하고 해석 받기</string>
+    <string name="inbody_analysis_title">🤖 인바디 해석</string>
+    <string name="inbody_analyzing">결과를 해석하는 중…</string>
+    <string name="inbody_analysis_empty">인바디 결과를 저장하면 해석을 받을 수 있어요.</string>
+    <string name="inbody_analysis_missing">아직 해석을 받지 않았어요.</string>
+    <string name="inbody_analyze_button">해석 받기</string>
+    <string name="inbody_reanalyze_button">다시 해석 받기</string>
+    <string name="inbody_analyzed_at">%1$s 해석</string>
+    <string name="toast_inbody_analysis_failed">인바디 해석을 받지 못했어요. 다시 시도해 주세요.</string>
     <string name="settings_section_account">계정</string>
     <string name="settings_logout_subtitle">다시 로그인하면 기록이 그대로 복구됩니다</string>
     <string name="settings_section_app_info">앱 정보</string>

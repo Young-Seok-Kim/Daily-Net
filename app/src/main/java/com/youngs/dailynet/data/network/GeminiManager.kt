@@ -8,6 +8,7 @@ import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.model.AnalysisRequest
 import com.youngs.dailynet.data.model.AnalysisResponse
 import com.youngs.dailynet.data.model.DailyRecordModel
+import com.youngs.dailynet.data.model.InbodyAnalysisRequest
 import com.youngs.dailynet.data.model.InbodyData
 import com.youngs.dailynet.data.model.InbodyPhotoRequest
 import com.youngs.dailynet.data.model.MealPhotoRequest
@@ -102,6 +103,33 @@ class GeminiManager @Inject constructor(
      * 여러 번 다시 찍어도 부담이 없어야 하기 때문이다. 서버에는 계정 탈취 같은
      * 비용 사고를 막는 높은 시도 상한만 있고, 그때 429가 온다.
      */
+    /** 저장된 인바디 값의 해석 글. 실패하면 null */
+    suspend fun analyzeInbody(userProfile: UserProfileEntity, inbody: InbodyData): String? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val token = runCatching {
+                    auth.currentUser?.getIdToken(false)?.await()?.token
+                }.getOrNull()
+                val response = apiService.analyzeInbody(
+                    url = Constants.ANALYZE_INBODY_URL,
+                    authorization = token?.let { "Bearer $it" },
+                    request = InbodyAnalysisRequest(
+                        inbody = inbody,
+                        height = userProfile.height,
+                        weight = userProfile.initialWeight,
+                        isMale = userProfile.isMale,
+                        birthDate = userProfile.birthDate,
+                        language = Locale.getDefault().toLanguageTag()
+                    )
+                )
+                response.text.takeIf { it.isNotBlank() }
+            } catch (e: Exception) {
+                CrashReporter.report("analyzeInbody", e)
+                null
+            }
+        }
+    }
+
     /**
      * 인바디 결과지 사진에서 체성분 숫자를 읽어온다. 못 읽었으면 null.
      * @throws PhotoLimitException 사진 인식 시도 상한(식사 사진과 공유)에 닿은 경우

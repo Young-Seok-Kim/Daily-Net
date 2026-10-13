@@ -56,6 +56,15 @@
     <string name="toast_inbody_saved">InBody results saved.</string>
     <string name="toast_inbody_cleared">InBody results cleared.</string>
     <string name="toast_inbody_save_failed">Could not save InBody results: %1$s</string>
+    <string name="inbody_save_and_analyze">Save and interpret</string>
+    <string name="inbody_analysis_title">🤖 InBody interpretation</string>
+    <string name="inbody_analyzing">Interpreting your results…</string>
+    <string name="inbody_analysis_empty">Save your InBody results to get an interpretation.</string>
+    <string name="inbody_analysis_missing">No interpretation yet.</string>
+    <string name="inbody_analyze_button">Interpret</string>
+    <string name="inbody_reanalyze_button">Interpret again</string>
+    <string name="inbody_analyzed_at">Interpreted on %1$s</string>
+    <string name="toast_inbody_analysis_failed">Could not interpret the InBody results. Please try again.</string>
     <string name="settings_section_account">Account</string>
     <string name="settings_logout_subtitle">Your records are restored when you sign back in</string>
     <string name="settings_section_app_info">App info</string>

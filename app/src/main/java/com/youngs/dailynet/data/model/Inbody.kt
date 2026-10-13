@@ -23,7 +23,15 @@ data class InbodyData(
     /** 측정 당시 체중 (kg). 일일 기록의 체중과 별개다 */
     @SerializedName("weight") val weight: Float = 0f,
     /** 측정일 yyyy-MM-dd. 모르면 빈 문자열 */
-    @SerializedName("measuredAt") val measuredAt: String = ""
+    @SerializedName("measuredAt") val measuredAt: String = "",
+
+    /**
+     * 서버(analyzeInbody)가 써 준 해석 글. 저장할 때 한 번 받고 값이 바뀌면 다시 받는다.
+     * 분석 요청에는 실려 가지 않는다 (@Transient — Gson이 뺀다). 서버가 쓸 일이 없는 긴 글이다.
+     */
+    @Transient val analysis: String = "",
+    /** 해석을 받은 날 yyyy-MM-dd */
+    @Transient val analyzedAt: String = ""
 ) {
     /** 뭐라도 들어 있는지. 전부 0이면 저장할 가치가 없다 */
     val hasData: Boolean
@@ -36,7 +44,9 @@ data class InbodyData(
         "bodyFat" to bodyFat,
         "bodyFatPercent" to bodyFatPercent,
         "weight" to weight,
-        "measuredAt" to measuredAt
+        "measuredAt" to measuredAt,
+        "analysis" to analysis,
+        "analyzedAt" to analyzedAt
     )
 
     companion object {
@@ -50,7 +60,9 @@ data class InbodyData(
                 bodyFat = f("bodyFat"),
                 bodyFatPercent = f("bodyFatPercent"),
                 weight = f("weight"),
-                measuredAt = (map["measuredAt"] as? String).orEmpty()
+                measuredAt = (map["measuredAt"] as? String).orEmpty(),
+                analysis = (map["analysis"] as? String).orEmpty(),
+                analyzedAt = (map["analyzedAt"] as? String).orEmpty()
             )
             return data.takeIf { it.hasData }
         }
@@ -62,7 +74,9 @@ data class InbodyData(
             bodyFat = profile.inbodyFat,
             bodyFatPercent = profile.inbodyFatPercent,
             weight = profile.inbodyWeight,
-            measuredAt = profile.inbodyMeasuredAt
+            measuredAt = profile.inbodyMeasuredAt,
+            analysis = profile.inbodyAnalysis,
+            analyzedAt = profile.inbodyAnalyzedAt
         )
     }
 }
@@ -76,9 +90,26 @@ fun UserProfileEntity.withInbody(data: InbodyData?): UserProfileEntity {
         inbodyFat = d.bodyFat,
         inbodyFatPercent = d.bodyFatPercent,
         inbodyWeight = d.weight,
-        inbodyMeasuredAt = d.measuredAt
+        inbodyMeasuredAt = d.measuredAt,
+        inbodyAnalysis = d.analysis,
+        inbodyAnalyzedAt = d.analyzedAt
     )
 }
+
+/** 저장된 인바디 값을 해석해 달라는 요청. 서버가 BMI·체지방 구간을 계산하므로 신체 정보도 같이 보낸다 */
+data class InbodyAnalysisRequest(
+    val inbody: InbodyData,
+    val height: Float,
+    val weight: Float,
+    val isMale: Boolean,
+    val birthDate: String,
+    val language: String
+)
+
+data class InbodyAnalysisResponse(
+    /** 화면에 그대로 보여줄 해석 글. 실패하면 빈 문자열 */
+    @SerializedName("text") val text: String = ""
+)
 
 /** 인바디 결과지 사진을 읽어달라는 요청 */
 data class InbodyPhotoRequest(

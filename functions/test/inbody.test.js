@@ -9,7 +9,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { normalizeInbody, resolveBmr, inbodyPromptLine } = require("../inbody");
+const { normalizeInbody, resolveBmr, inbodyPromptLine, ageFrom, bodyMetrics, inbodyReportText } = require("../inbody");
+const { LABELS } = require("../labels");
 const { calculateBmr } = require("../nutrition");
 
 test("범위 밖 값은 0으로, 전부 비면 null", () => {
@@ -55,4 +56,51 @@ test("프롬프트 줄은 있는 값만 적는다", () => {
     assert.match(line, /체지방률 24\.5%/);
     assert.doesNotMatch(line, /체지방량/);
     assert.match(line, /2026-10-01 측정/);
+});
+
+test("수치 판정: BMI·체지방 구간·골격근 비율·공식 차이", () => {
+    const inbody = { bmr: 1630, skeletalMuscle: 32.8, bodyFat: 35.9, bodyFatPercent: 38.1, weight: 94.2, measuredAt: "2026-09-28" };
+    const m = bodyMetrics({ inbody, height: 178, weight: 92.2, age: 40, isMale: true });
+    assert.equal(m.weight, 94.2);                 // 측정 체중 우선
+    assert.equal(m.bmi, 29.7);
+    assert.equal(m.fatLevel, "high");             // 남성 표준 10~20%
+    assert.equal(m.smmRatio, 34.8);               // 32.8 / 94.2
+    assert.equal(m.muscleLevel, "low");           // 남성 표준 40~46%
+    assert.equal(m.formulaBmr, calculateBmr(94.2, 178, 40, true));
+    assert.equal(m.bmrDiff, 1630 - m.formulaBmr);
+    assert.equal(m.proteinTarget, Math.round(94.2 * 1.6));
+
+    // 값이 없는 항목은 unknown, 측정 체중이 없으면 오늘 체중
+    const m2 = bodyMetrics({ inbody: { bmr: 1500, skeletalMuscle: 0, bodyFat: 0, bodyFatPercent: 0, weight: 0 }, height: 165, weight: 60, age: 30, isMale: false });
+    assert.equal(m2.weight, 60);
+    assert.equal(m2.fatLevel, "unknown");
+    assert.equal(m2.muscleLevel, "unknown");
+});
+
+test("나이: 생일 전후", () => {
+    const today = new Date("2026-10-13");
+    assert.equal(ageFrom("1986-10-14", today), 39);
+    assert.equal(ageFrom("1986-10-13", today), 40);
+    assert.equal(ageFrom("", today), 29);
+    assert.equal(ageFrom("나중에", today), 29);
+});
+
+test("해석 글은 모델이 비운 칸과 없는 항목을 뺀다", () => {
+    const inbody = { bmr: 1630, skeletalMuscle: 32.8, bodyFat: 0, bodyFatPercent: 38.1, weight: 94.2, measuredAt: "" };
+    const metrics = bodyMetrics({ inbody, height: 178, weight: 94.2, age: 40, isMale: true });
+    const text = inbodyReportText(
+        { summary: "요약", bodyFat: "지방 설명", muscle: "", bmr: "대사 설명", actions: ["하나", "", "둘", "셋", "넷"] },
+        metrics, inbody, LABELS.ko
+    );
+    assert.match(text, /^요약/);
+    assert.match(text, /📏 측정값/);
+    assert.match(text, /체지방률 38\.1% \(표준 이상, 표준 10~20%\)/);
+    assert.match(text, /🧈 체지방\n지방 설명/);
+    assert.doesNotMatch(text, /💪 골격근/);       // 모델이 비움
+    assert.match(text, /🔥 기초대사량\n대사 설명/);
+    assert.match(text, /1\. 하나\n2\. 둘\n3\. 셋/); // 빈 칸 빼고 3개까지
+    assert.doesNotMatch(text, /넷/);
+
+    // 응답이 깨져도 측정값 블록은 남는다
+    assert.match(inbodyReportText(null, metrics, inbody, LABELS.en), /Measurements/);
 });

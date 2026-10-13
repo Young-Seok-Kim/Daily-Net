@@ -182,9 +182,15 @@ class MainViewModel @Inject constructor(
     private val _inbodyPhotoProcessing = MutableStateFlow(false)
     val inbodyPhotoProcessing = _inbodyPhotoProcessing.asStateFlow()
 
+    /** 서버가 인바디 해석 글을 쓰는 중인지 */
+    private val _inbodyAnalyzing = MutableStateFlow(false)
+    val inbodyAnalyzing = _inbodyAnalyzing.asStateFlow()
+
     /**
      * 인바디 결과를 Firestore `users/{uid}.inbody`와 로컬 프로필에 저장한다. null이면 지운다.
      * 다음 분석부터 서버가 여기 적힌 기초대사량을 쓴다.
+     *
+     * 값이 바뀌면 예전 해석은 맞지 않으므로 비우고, 저장이 끝나면 해석을 새로 받는다.
      */
     fun updateInbody(data: InbodyData?, onDone: (Boolean) -> Unit) {
         val uid = currentUserId
@@ -192,7 +198,7 @@ class MainViewModel @Inject constructor(
             onDone(false)
             return
         }
-        val value = data?.takeIf { it.hasData }
+        val value = data?.takeIf { it.hasData }?.copy(analysis = "", analyzedAt = "")
         viewModelScope.launch {
             try {
                 firestore.collection("users").document(uid)
@@ -201,10 +207,47 @@ class MainViewModel @Inject constructor(
                 userProfileDao.getProfile()?.let { userProfileDao.insertProfile(it.withInbody(value)) }
                 toast(if (value == null) R.string.toast_inbody_cleared else R.string.toast_inbody_saved)
                 onDone(true)
+                if (value != null) analyzeInbody()
             } catch (e: Exception) {
                 CrashReporter.report("updateInbody", e)
                 toast(R.string.toast_inbody_save_failed, e.message.orEmpty())
                 onDone(false)
+            }
+        }
+    }
+
+    /**
+     * 저장된 인바디 값을 서버가 해석한 글을 받아 `inbody.analysis`에 둔다.
+     * 저장 직후 자동으로 돌고, 화면의 "다시 해석" 버튼으로도 부른다. 분석 횟수는 소모하지 않는다.
+     */
+    fun analyzeInbody() {
+        val uid = currentUserId ?: return
+        if (_inbodyAnalyzing.value) return
+        viewModelScope.launch {
+            _inbodyAnalyzing.value = true
+            try {
+                val profile = userProfileDao.getProfile() ?: return@launch
+                val data = InbodyData.fromProfile(profile)
+                if (!data.hasData) return@launch
+
+                val text = geminiManager.analyzeInbody(profile, data)
+                if (text == null) {
+                    toast(R.string.toast_inbody_analysis_failed)
+                    return@launch
+                }
+                val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                firestore.collection("users").document(uid)
+                    .update(mapOf("inbody.analysis" to text, "inbody.analyzedAt" to today))
+                    .await()
+                // 그 사이 사용자가 값을 또 바꿨을 수 있으니 지금 로컬 값 위에 해석만 얹는다
+                userProfileDao.getProfile()?.let {
+                    userProfileDao.insertProfile(it.copy(inbodyAnalysis = text, inbodyAnalyzedAt = today))
+                }
+            } catch (e: Exception) {
+                CrashReporter.report("analyzeInbody", e)
+                toast(R.string.toast_inbody_analysis_failed)
+            } finally {
+                _inbodyAnalyzing.value = false
             }
         }
     }

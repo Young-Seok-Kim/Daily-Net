@@ -10,6 +10,8 @@ exports.analyzeDiet = require("./analyzeDiet").analyzeDiet;
 exports.extractMeal = require("./extractMeal").extractMeal;
 // 인바디 결과지 사진에서 기초대사량 등을 읽는다. 설정 화면의 인바디 입력이 쓴다.
 exports.extractInbody = require("./extractInbody").extractInbody;
+// 인바디 결과 해석. 저장할 때 한 번 부르고, 분석 횟수는 소모하지 않는다.
+exports.analyzeInbody = require("./analyzeInbody").analyzeInbody;
 
 // 구독 검증. 앱이 보낸 "나 구독자야"를 믿지 않고 서버가 Play에 직접 확인한다.
 exports.verifySubscription = require("./subscription").verifySubscription;
