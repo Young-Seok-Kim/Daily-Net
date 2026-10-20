@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -42,11 +43,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -166,6 +169,7 @@ fun FavoriteSheet(
     val isMeal = FavoriteItemEntity.kindOf(field) == FavoriteItemEntity.KIND_MEAL
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
 
     val visible = remember(items) { items.filter { !it.hidden } }
     val thisFieldList = remember(items, field) {
@@ -193,6 +197,35 @@ fun FavoriteSheet(
     }
     val canAdd = trimmedQuery.isNotEmpty() &&
         visible.none { it.text.equals(trimmedQuery, ignoreCase = true) }
+
+    // 고정을 켜고 끄면 정렬이 바뀌어 그 항목이 목록의 다른 자리로 간다. 행 자체는 animateItem으로 미끄러지지만
+    // 화면 밖으로 나가 버리면 어디로 갔는지 알 수 없으니, 목록이 새 순서로 바뀐 뒤 그 항목까지 스크롤을 따라간다.
+    // 키를 기억해 두고 Room에서 새 목록이 돌아와 listed가 바뀔 때 한 번만 처리한다
+    var followKey by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(listed) {
+        val key = followKey ?: return@LaunchedEffect
+        followKey = null
+        val index = listed.indexOfFirst { favoriteKey(it) == key }
+        if (index < 0) return@LaunchedEffect
+        val lazyIndex = index + if (canAdd) 1 else 0
+        // 새 순서로 레이아웃이 끝난 뒤 보이는 범위를 읽어야 한다
+        withFrameNanos { }
+        val info = listState.layoutInfo
+        val rows = info.visibleItemsInfo
+        if (rows.isEmpty()) return@LaunchedEffect
+        val shown = rows.firstOrNull { it.key == key }
+        val fullyVisible = shown != null &&
+            shown.offset >= info.viewportStartOffset &&
+            shown.offset + shown.size <= info.viewportEndOffset
+        if (fullyVisible) return@LaunchedEffect
+        if (lazyIndex <= rows.first().index) {
+            listState.animateScrollToItem(lazyIndex)
+        } else {
+            // 아래로 간 항목은 맨 아래 줄에 걸치게 맞춘다. 행 높이는 모두 같다
+            val viewport = info.viewportEndOffset - info.viewportStartOffset
+            listState.animateScrollToItem(lazyIndex, scrollOffset = -(viewport - rows.first().size))
+        }
+    }
 
     fun toggle(text: String) {
         selected = if (selected.contains(text)) selected - text else selected + text
@@ -275,6 +308,7 @@ fun FavoriteSheet(
             }
 
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .weight(1f)
                     .padding(top = 8.dp)
@@ -321,19 +355,25 @@ fun FavoriteSheet(
                     }
                 }
 
-                items(listed, key = { it.kind + "/" + it.text }) { item ->
-                    FavoriteRow(
-                        item = item,
-                        pinned = item.isPinnedFor(field),
-                        checked = selected.contains(item.text),
-                        onToggle = { toggle(item.text) },
-                        onPin = { onPin(item, !item.isPinnedFor(field)) },
-                        onHide = {
-                            onHide(item)
-                            selected = selected - item.text
-                        }
-                    )
-                    HorizontalDivider()
+                items(listed, key = { favoriteKey(it) }) { item ->
+                    // 자리 이동은 미끄러지고, 숨긴 행은 서서히 사라진다
+                    Column(modifier = Modifier.animateItem()) {
+                        FavoriteRow(
+                            item = item,
+                            pinned = item.isPinnedFor(field),
+                            checked = selected.contains(item.text),
+                            onToggle = { toggle(item.text) },
+                            onPin = {
+                                followKey = favoriteKey(item)
+                                onPin(item, !item.isPinnedFor(field))
+                            },
+                            onHide = {
+                                onHide(item)
+                                selected = selected - item.text
+                            }
+                        )
+                        HorizontalDivider()
+                    }
                 }
 
                 item { Spacer(Modifier.height(8.dp)) }
@@ -355,6 +395,8 @@ fun FavoriteSheet(
         }
     }
 }
+
+private fun favoriteKey(item: FavoriteItemEntity): String = item.kind + "/" + item.text
 
 @Composable
 private fun FavoriteRow(
