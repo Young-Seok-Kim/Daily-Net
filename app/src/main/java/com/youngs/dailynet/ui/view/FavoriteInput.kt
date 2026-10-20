@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -194,6 +195,15 @@ fun FavoriteSheet(
     val canAdd = trimmedQuery.isNotEmpty() &&
         visible.none { it.text.equals(trimmedQuery, ignoreCase = true) }
 
+    // LazyColumn은 맨 위에 보이는 항목을 키로 기억해 두고, 그 항목이 다른 자리로 가면 스크롤이 따라간다.
+    // 그래서 맨 윗줄 항목의 고정을 끄면 화면이 그 항목을 따라 아래로 내려가 버린다. 목록 순서가 바뀔 때마다
+    // 다음 측정에서 지금 보고 있는 인덱스·오프셋을 그대로 쓰라고 요청해 스크롤을 제자리에 둔다
+    // (requestScrollToItem은 composition 중에 불러도 되는 Foundation 1.7 API)
+    val listState = rememberLazyListState()
+    remember(listed) {
+        listState.requestScrollToItem(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+    }
+
     fun toggle(text: String) {
         selected = if (selected.contains(text)) selected - text else selected + text
     }
@@ -275,6 +285,7 @@ fun FavoriteSheet(
             }
 
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .weight(1f)
                     .padding(top = 8.dp)
@@ -321,19 +332,23 @@ fun FavoriteSheet(
                     }
                 }
 
-                items(listed, key = { it.kind + "/" + it.text }) { item ->
-                    FavoriteRow(
-                        item = item,
-                        pinned = item.isPinnedFor(field),
-                        checked = selected.contains(item.text),
-                        onToggle = { toggle(item.text) },
-                        onPin = { onPin(item, !item.isPinnedFor(field)) },
-                        onHide = {
-                            onHide(item)
-                            selected = selected - item.text
-                        }
-                    )
-                    HorizontalDivider()
+                items(listed, key = { favoriteKey(it) }) { item ->
+                    // 자리 이동은 미끄러지고, 숨긴 행은 서서히 사라진다. 스크롤은 위 requestScrollToItem으로 제자리에 둔다
+                    // (한 번 따라가게 해 봤더니 고정을 누를 때마다 화면이 튀어 사용자가 되돌리길 원했다)
+                    Column(modifier = Modifier.animateItem()) {
+                        FavoriteRow(
+                            item = item,
+                            pinned = item.isPinnedFor(field),
+                            checked = selected.contains(item.text),
+                            onToggle = { toggle(item.text) },
+                            onPin = { onPin(item, !item.isPinnedFor(field)) },
+                            onHide = {
+                                onHide(item)
+                                selected = selected - item.text
+                            }
+                        )
+                        HorizontalDivider()
+                    }
                 }
 
                 item { Spacer(Modifier.height(8.dp)) }
@@ -355,6 +370,8 @@ fun FavoriteSheet(
         }
     }
 }
+
+private fun favoriteKey(item: FavoriteItemEntity): String = item.kind + "/" + item.text
 
 @Composable
 private fun FavoriteRow(

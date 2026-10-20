@@ -14,6 +14,23 @@
 
 ---
 
+## v1.12.1 (b45) — 2026-10-20
+
+### 스토어 문구
+
+즐겨찾기 목록에서 고정을 켜고 끄면 항목이 새 자리로 미끄러지며 이동하고, 숨긴 항목은 서서히 사라집니다.
+
+### 상세 내역
+
+- **즐겨찾기 시트 목록 애니메이션** (`FavoriteInput.kt` `FavoriteSheet`)
+  - 각 행을 `Modifier.animateItem()`으로 감싸 자리 이동·숨김(fadeOut)·새 항목(fadeIn)에 기본 스프링 애니메이션
+  - 스크롤은 따라가지 않는다. 처음엔 토글한 항목이 화면 밖으로 나가면 `animateScrollToItem`으로 따라가게 했는데,
+    고정을 누를 때마다 화면이 튀어 빼고 제자리에 두기로 함(2026-10-20 사용자 결정)
+  - LazyColumn 기본 동작(맨 위 보이는 항목을 키로 따라감) 때문에 맨 윗줄 항목의 고정을 끄면 화면이 따라 내려가던 것도
+    `listed`가 바뀔 때 `requestScrollToItem(firstVisibleItemIndex, firstVisibleItemScrollOffset)`을 불러 막음
+
+---
+
 ## v1.12.0 (b44) — 2026-10-13
 
 ### 스토어 문구
