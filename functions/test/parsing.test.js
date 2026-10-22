@@ -260,6 +260,45 @@ test("generateAndParse - 호출 자체가 실패했을 때", async (t) => {
         assert.equal(fallbackModel.requests.length, 1);
     });
 
+    await t.test("무응답(제한 시간 초과)이 연달아 오면 예비 모델로 갈아탄다", async () => {
+        // 2026-10-22 21:02, lite가 에러 한 번 없이 네 번 연달아 매달려 84초 뒤 실패했다.
+        // 그동안 예비 모델은 한 번도 묻지 않았다 — 무응답을 과부하 횟수에 안 세고 있었기 때문이다.
+        const hung = sdkError("Request aborted when fetching https://x: This operation was aborted");
+        const model = fakeModel([hung, hung, '{"from":"lite"}']);
+        const fallbackModel = fakeModel(['{"from":"flash"}']);
+        assert.deepEqual(
+            await generateAndParse(model, "p", { maxRetries: 6, fallbackModels: [fallbackModel] }),
+            { from: "flash" }
+        );
+        assert.equal(model.requests.length, 2, "두 번 매달린 뒤엔 원래 모델에 더 묻지 않는다");
+        assert.equal(fallbackModel.requests.length, 1);
+    });
+
+    await t.test("무응답이 한 번뿐이면 원래 모델로 계속 간다", async () => {
+        // 매달렸다가 다시 물으면 4초 만에 오는 날도 많다 (9/28, 10/13, 10/22 20:45). 한 번은 잡음일 수 있다.
+        const hung = sdkError("Request aborted: This operation was aborted");
+        const model = fakeModel([hung, '{"ok":1}']);
+        const fallbackModel = fakeModel(['{"from":"flash"}']);
+        assert.deepEqual(
+            await generateAndParse(model, "p", { maxRetries: 6, fallbackModels: [fallbackModel] }),
+            { ok: 1 }
+        );
+        assert.equal(fallbackModel.requests.length, 0);
+    });
+
+    await t.test("네트워크 오류는 갈아탈 사유가 아니다", async () => {
+        // 우리 쪽 연결이 끊긴 것이라 모델을 바꿔도 달라질 게 없다. 같은 모델에 다시 묻는다.
+        const down = sdkError("fetch failed");
+        const model = fakeModel([down, down, '{"ok":1}']);
+        const fallbackModel = fakeModel(['{"from":"flash"}']);
+        assert.deepEqual(
+            await generateAndParse(model, "p", { maxRetries: 6, fallbackModels: [fallbackModel] }),
+            { ok: 1 }
+        );
+        assert.equal(model.requests.length, 3);
+        assert.equal(fallbackModel.requests.length, 0);
+    });
+
     await t.test("유료 키가 없어 null이 섞여도 건너뛴다", async () => {
         const overloaded = sdkError("[503 Service Unavailable]", 503);
         const model = fakeModel([overloaded]);

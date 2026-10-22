@@ -70,11 +70,13 @@ class GeminiManager @Inject constructor(
                     auth.currentUser?.getIdToken(false)?.await()?.token
                 }.getOrNull()
 
-                // 서버 호출
-                apiService.analyzeFoodAndExercise(
-                    authorization = token?.let { "Bearer $it" },
-                    request = request
-                )
+                // 서버 호출. 서버에 닿지도 못하고 바로 튕기면 한 번 더 보낸다.
+                retryOnceIfRejectedFast("analyzeDiet") {
+                    apiService.analyzeFoodAndExercise(
+                        authorization = token?.let { "Bearer $it" },
+                        request = request
+                    )
+                }
             } catch (e: HttpException) {
                 if (e.code() == HTTP_TOO_MANY_REQUESTS) {
                     // 한도 초과는 정상 동작이므로 오류로 보고하지 않는다
@@ -112,18 +114,20 @@ class GeminiManager @Inject constructor(
                 val token = runCatching {
                     auth.currentUser?.getIdToken(false)?.await()?.token
                 }.getOrNull()
-                val response = apiService.analyzeInbody(
-                    url = Constants.ANALYZE_INBODY_URL,
-                    authorization = token?.let { "Bearer $it" },
-                    request = InbodyAnalysisRequest(
-                        inbody = inbody,
-                        height = userProfile.height,
-                        weight = userProfile.initialWeight,
-                        isMale = userProfile.isMale,
-                        birthDate = userProfile.birthDate,
-                        language = Locale.getDefault().toLanguageTag()
+                val response = retryOnceIfRejectedFast("analyzeInbody") {
+                    apiService.analyzeInbody(
+                        url = Constants.ANALYZE_INBODY_URL,
+                        authorization = token?.let { "Bearer $it" },
+                        request = InbodyAnalysisRequest(
+                            inbody = inbody,
+                            height = userProfile.height,
+                            weight = userProfile.initialWeight,
+                            isMale = userProfile.isMale,
+                            birthDate = userProfile.birthDate,
+                            language = Locale.getDefault().toLanguageTag()
+                        )
                     )
-                )
+                }
                 response.text.takeIf { it.isNotBlank() }
             } catch (e: Exception) {
                 CrashReporter.report("analyzeInbody", e)
@@ -143,14 +147,16 @@ class GeminiManager @Inject constructor(
                     auth.currentUser?.getIdToken(false)?.await()?.token
                 }.getOrNull()
 
-                val response = apiService.extractInbody(
-                    url = Constants.EXTRACT_INBODY_URL,
-                    authorization = token?.let { "Bearer $it" },
-                    request = InbodyPhotoRequest(
-                        image = base64Image,
-                        language = Locale.getDefault().toLanguageTag()
+                val response = retryOnceIfRejectedFast("extractInbody") {
+                    apiService.extractInbody(
+                        url = Constants.EXTRACT_INBODY_URL,
+                        authorization = token?.let { "Bearer $it" },
+                        request = InbodyPhotoRequest(
+                            image = base64Image,
+                            language = Locale.getDefault().toLanguageTag()
+                        )
                     )
-                )
+                }
                 response.inbody?.takeIf { response.found && it.hasData }
             } catch (e: HttpException) {
                 if (e.code() == HTTP_TOO_MANY_REQUESTS) {
@@ -173,15 +179,17 @@ class GeminiManager @Inject constructor(
                     auth.currentUser?.getIdToken(false)?.await()?.token
                 }.getOrNull()
 
-                val response = apiService.extractMeal(
-                    url = Constants.EXTRACT_MEAL_URL,
-                    authorization = token?.let { "Bearer $it" },
-                    request = MealPhotoRequest(
-                        image = base64Images.first(),
-                        images = base64Images,
-                        language = Locale.getDefault().toLanguageTag()
+                val response = retryOnceIfRejectedFast("extractMeal") {
+                    apiService.extractMeal(
+                        url = Constants.EXTRACT_MEAL_URL,
+                        authorization = token?.let { "Bearer $it" },
+                        request = MealPhotoRequest(
+                            image = base64Images.first(),
+                            images = base64Images,
+                            language = Locale.getDefault().toLanguageTag()
+                        )
                     )
-                )
+                }
                 response.text.takeIf { it.isNotBlank() }
             } catch (e: HttpException) {
                 if (e.code() == HTTP_TOO_MANY_REQUESTS) {
@@ -196,7 +204,36 @@ class GeminiManager @Inject constructor(
         }
     }
 
+    /**
+     * 서버 코드에 닿지도 못하고 **바로** 튕긴 5xx는 한 번만 다시 보낸다.
+     *
+     * 2026-10-23 07:23 실제로 겪었다 — Cloud Run이 컨테이너를 띄우기도 전에 0초 만에 500을 돌려줬다
+     * (요청 로그만 남고 인스턴스 기동·함수 로그가 전무, 30일 중 유일). 9분 뒤 다시 누르자 6.7초에
+     * 정상 처리됐다. 이런 인프라 일시 오류는 바로 다시 보내면 사용자는 모른다.
+     *
+     * 오래 걸린 뒤의 5xx는 다시 보내지 않는다. 그건 서버가 Gemini를 80초 넘게 기다리다 포기한 것이라
+     * (2026-10-22 21:02, 84초 뒤 500) 다시 보내면 사용자가 또 80초를 기다린다. 서버 함수가 실제로 돌면
+     * 인증·횟수 확인·모델 호출을 합쳐 3초는 넘기므로, 그보다 빨리 온 5xx만 "서버에 닿지 못한 것"으로 본다.
+     *
+     * 429·4xx는 그대로 던진다. 한도 초과나 인증 실패는 다시 보내도 같은 답이 온다.
+     */
+    private suspend fun <T> retryOnceIfRejectedFast(where: String, call: suspend () -> T): T {
+        val started = System.nanoTime()
+        return try {
+            call()
+        } catch (e: HttpException) {
+            val elapsedMs = (System.nanoTime() - started) / 1_000_000
+            if (e.code() < 500 || elapsedMs > FAST_REJECT_MS) throw e
+            // 얼마나 자주 겪는지 보려고 남긴다. 재시도까지 실패하면 호출한 쪽이 다시 보고한다.
+            CrashReporter.report("$where:http${e.code()} ${elapsedMs}ms 만에 튕김, 1회 재시도", e)
+            call()
+        }
+    }
+
     companion object {
         private const val HTTP_TOO_MANY_REQUESTS = 429
+
+        /** 이보다 빨리 온 5xx는 서버 함수가 돌지도 않은 것이다 (retryOnceIfRejectedFast 참고) */
+        private const val FAST_REJECT_MS = 3000L
     }
 }
