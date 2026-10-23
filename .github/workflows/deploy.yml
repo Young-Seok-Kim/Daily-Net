@@ -6,6 +6,8 @@
 #         → 유닛 테스트 → bundleRelease → Play Console 프로덕션 트랙 업로드
 #   등록정보: store-listing/ 이 바뀐 커밋에서만
 #         → Play Console 스토어 등록정보(앱 이름·간단한 설명·자세한 설명) 갱신
+#   태그:   앱 업로드가 성공한 커밋에 v{versionName}-b{versionCode} 태그와 GitHub 릴리스를 만든다
+#         → 어느 커밋이 어느 버전으로 나갔는지 기록. 사람이 태그를 칠 일은 없다
 #
 # 조건을 거는 이유:
 # - 앱만 고친 커밋에서 함수를 매번 다시 올리면 3분씩 낭비되고 콜드스타트만 생긴다.
@@ -257,3 +259,48 @@ jobs:
           [ -n "$PLAY_SERVICE_ACCOUNT_JSON" ] || { echo "::error::PLAY_SERVICE_ACCOUNT_JSON 시크릿이 없다"; exit 1; }
           printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/play.json"
           python .github/scripts/play_listing.py "$RUNNER_TEMP/play.json" store-listing
+
+  tag:
+    name: 릴리스 태그 (GitHub)
+    needs: [changes, play]
+    # Play 에 올라간 커밋에만 붙인다. 서버만 바뀐 머지는 버전이 그대로라 붙일 이름이 없고,
+    # 업로드가 실패한 커밋에 태그가 붙으면 "나간 버전" 기록이 거짓이 된다.
+    if: needs.changes.outputs.app == 'true' && needs.play.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 태그와 릴리스 만들기
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          code="$(grep -E '^\s*versionCode\s*=' app/build.gradle.kts | grep -oE '[0-9]+')"
+          name="$(grep -E '^\s*versionName\s*=' app/build.gradle.kts | grep -oE '"[^"]+"' | tr -d '"')"
+          tag="v${name}-b${code}"
+
+          # 같은 커밋을 다시 돌렸거나(re-run) 버전을 안 올리고 두 번 머지한 경우. 덮어쓰지 않는다.
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "::notice::태그 $tag 가 이미 있다. 건너뛴다"
+            exit 0
+          fi
+
+          # CHANGELOG 맨 위 "## v..." 항목 전체(스토어 문구 + 상세 내역)가 릴리스 노트가 된다.
+          # 다음 "## " 제목이나 구분선(---)에서 멈춘다.
+          awk '
+            /^## / || /^---$/ { if (seen) exit }
+            /^## v/ && !seen  { seen = 1; next }
+            seen { print }
+          ' CHANGELOG.md | sed -e '/./,$!d' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > "$RUNNER_TEMP/notes.md"
+          [ -s "$RUNNER_TEMP/notes.md" ] || echo "(CHANGELOG 에 이 버전 항목이 없다)" > "$RUNNER_TEMP/notes.md"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "v$name (b$code)"
+          git push origin "$tag"
+
+          gh release create "$tag" --verify-tag \
+            --title "v$name (b$code)" \
+            --notes-file "$RUNNER_TEMP/notes.md"
+          echo "릴리스 $tag 생성: $(gh release view "$tag" --json url --jq .url)"
