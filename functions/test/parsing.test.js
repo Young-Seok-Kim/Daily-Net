@@ -7,7 +7,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { safeParseJson, salvageTruncatedJson, generateAndParse, retryReason } = require("../gemini");
+const { safeParseJson, salvageTruncatedJson, generateAndParse, retryReason, PHOTO_RETRY_OPTIONS } = require("../gemini");
 const { resolveLang, LABELS } = require("../labels");
 
 test("safeParseJson - 모델이 섞어 보내는 것들을 걷어낸다", async (t) => {
@@ -345,6 +345,19 @@ test("generateAndParse - 호출 자체가 실패했을 때", async (t) => {
         });
         assert.equal(model.options[0].timeout, 12000);
         assert.equal(model.options[1].timeout, 25000);
+    });
+
+    await t.test("사진 옵션은 매달린 두 번 뒤에 예비 모델을 한 번은 물을 수 있어야 한다", () => {
+        // 2026-10-27: 20초×2 = 40초 예산을 다 써서 "갈아탐" 다음 줄에 "예산 소진"이 찍혔다.
+        // 첫 재시도 대기는 최대 1초(2^0 × 1000ms)라 그것까지 더해 예산 안에 들어가야 한다.
+        const { attemptTimeoutMs, totalBudgetMs } = PHOTO_RETRY_OPTIONS;
+        const twoHangsThenFallback = attemptTimeoutMs * 2 + 1000 + attemptTimeoutMs;
+        assert.ok(
+            twoHangsThenFallback <= totalBudgetMs,
+            `매달림 2회 + 대기 + 예비 1회 = ${twoHangsThenFallback}ms > 예산 ${totalBudgetMs}ms`
+        );
+        // 사진 함수의 타임아웃은 60초다. 환불·응답 조립 시간은 남겨야 한다.
+        assert.ok(totalBudgetMs <= 50000);
     });
 
     await t.test("남은 예산보다 긴 제한 시간은 걸지 않는다", async () => {

@@ -4,7 +4,7 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { LABELS, resolveLang } = require("./labels");
-const { generateAndParse, paidModel } = require("./gemini");
+const { generateAndParse, paidModel, PHOTO_RETRY_OPTIONS } = require("./gemini");
 const { verifyUser, reservePhoto, refundPhoto } = require("./quota");
 const { normalizeExtracted, toInputText } = require("./extractItems");
 
@@ -184,7 +184,8 @@ exports.extractMeal = onRequest({
         // analyzeDiet과 같은 무료 등급 모델을 쓴다. 과부하와 끊긴 연결은 여기서도 그대로 온다.
         //
         // 예산이 analyzeDiet(80초)보다 짧은 이유는 이 함수의 타임아웃이 60초이기 때문이다.
-        // 재시도하다 60초를 넘기면 사용자는 아무것도 못 받는다.
+        // 재시도하다 60초를 넘기면 사용자는 아무것도 못 받는다. 다만 매달린 호출 두 번 뒤에
+        // 예비 모델을 한 번은 물을 수 있어야 한다 (gemini.js PHOTO_RETRY_OPTIONS 주석 참고).
         // 건져 쓰기(salvageIfHas)는 하지 않는다 — 잘린 목록은 음식이 통째로 빠진 목록이고,
         // 그건 사용자가 알아채기 어려운 채로 칼로리를 덜 세게 만든다.
         const data = await generateAndParse(
@@ -193,7 +194,7 @@ exports.extractMeal = onRequest({
                 ...images.map((img) => ({ inlineData: { data: img, mimeType: mimeType || "image/jpeg" } })),
                 prompt
             ],
-            { attemptTimeoutMs: 20000, totalBudgetMs: 40000, fallbackModels }
+            { ...PHOTO_RETRY_OPTIONS, fallbackModels }
         );
         const items = normalizeExtracted(data.items);
 

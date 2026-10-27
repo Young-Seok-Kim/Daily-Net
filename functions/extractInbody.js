@@ -4,7 +4,7 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { LABELS, resolveLang } = require("./labels");
-const { generateAndParse, paidModel } = require("./gemini");
+const { generateAndParse, paidModel, PHOTO_RETRY_OPTIONS } = require("./gemini");
 const { verifyUser, reservePhoto, refundPhoto } = require("./quota");
 const { normalizeInbody } = require("./inbody");
 
@@ -106,7 +106,8 @@ exports.extractInbody = onRequest({
                 { inlineData: { data: image, mimeType: mimeType || "image/jpeg" } },
                 prompt
             ],
-            { attemptTimeoutMs: 20000, totalBudgetMs: 40000, fallbackModels }
+            // 매달린 호출 두 번 뒤에도 예비 모델을 한 번은 묻는 조합 (gemini.js PHOTO_RETRY_OPTIONS 주석 참고)
+            { ...PHOTO_RETRY_OPTIONS, fallbackModels }
         );
 
         const inbody = data && data.found !== false ? normalizeInbody(data) : null;
