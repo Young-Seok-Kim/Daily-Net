@@ -78,6 +78,23 @@ const MAX_BACKOFF_MS = 8000;
 const FALLBACK_AFTER_OVERLOADS = 2;
 
 /**
+ * 사진 함수(extractMeal·extractInbody)가 쓰는 재시도 옵션.
+ *
+ * 두 함수는 타임아웃이 60초라 analyzeDiet(80초 예산)보다 짧게 잡아야 하는데,
+ * 예전 값(한 번 20초, 예산 40초)은 **예비 모델을 한 번도 못 묻는 조합**이었다.
+ * 2026-10-27 23:39·23:40(UTC) 실제로 겪었다 — lite가 두 번 연달아 매달려 20초+20초를 쓰고 나니
+ * "예비 모델로 갈아탐" 로그 바로 다음 줄에 "예산 40000ms 소진"이 찍혔다. 갈아타기로 해놓고
+ * 물을 시간이 없어 그대로 실패했고, 사용자는 40초를 기다린 뒤 "인식 실패"를 봤다.
+ *
+ * 그래서 **매달린 두 번 + 예비 모델 한 번**이 예산 안에 들어가게 맞춘다.
+ * 15 + (대기 최대 1) + 15 + 15 = 46초 < 48초. 함수 타임아웃 60초까지 12초가 남아
+ * 환불·응답 조립은 충분하다.
+ * 15초인 이유: 사진 호출의 정상 응답은 2~7초고 제일 길었던 게 13초였다 (2026-10-22 11:46).
+ * 그걸 자르지 않으면서, 매달린 호출을 20초보다는 빨리 끊는다.
+ */
+const PHOTO_RETRY_OPTIONS = Object.freeze({ attemptTimeoutMs: 15000, totalBudgetMs: 48000 });
+
+/**
  * 유료 키로 만든 모델. 시크릿 GEMINI_API_KEY_PAID가 비어 있으면 null.
  *
  * 무료 키가 과부하·한도로 연달아 튕길 때 **마지막 예비**로만 쓴다. 여기까지 온 호출만 요금이 나가므로
@@ -313,7 +330,9 @@ async function generateAndParse(model, prompt, options = {}) {
             if (stage < chain.length - 1 && overloads >= fallbackAfter) {
                 stage++;
                 current = chain[stage];
-                console.warn(`[gemini] ${reason} ${overloads}번 연속 - 예비 모델 ${stage}단계로 갈아탐 (${current.model || "?"})`);
+                // 남은 예산도 같이 남긴다. 갈아타 놓고 물을 시간이 없으면 다음 줄에 "예산 소진"이 찍히는데,
+                // 그 둘을 붙여 봐야 "옵션 조합이 틀렸다"는 걸 알 수 있다 (PHOTO_RETRY_OPTIONS 주석 참고).
+                console.warn(`[gemini] ${reason} ${overloads}번 연속 - 예비 모델 ${stage}단계로 갈아탐 (${current.model || "?"}, 남은 예산 ${Math.max(0, deadline - Date.now())}ms)`);
                 overloads = 0;
                 continue;
             }
@@ -348,4 +367,7 @@ async function generateAndParse(model, prompt, options = {}) {
     throw lastError || new Error(`[gemini] 시간이 없어 한 번도 묻지 못함 (예산 ${totalBudgetMs}ms)`);
 }
 
-module.exports = { safeParseJson, salvageTruncatedJson, generateAndParse, retryReason, paidModel, FIRST_ATTEMPT_TIMEOUT_MS };
+module.exports = {
+    safeParseJson, salvageTruncatedJson, generateAndParse, retryReason, paidModel,
+    FIRST_ATTEMPT_TIMEOUT_MS, PHOTO_RETRY_OPTIONS
+};
