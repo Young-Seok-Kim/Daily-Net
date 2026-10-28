@@ -43,14 +43,19 @@ function stepKcal(weightKg, steps) {
 /**
  * 모델 응답에서 운동 목록과 총 소모 칼로리를 만든다.
  *
- * 걸음 항목은 **모델에게 맡기지 않고 여기서 붙인다.** 모델이 하는 판단은
- * "그 걸음 중 몇 보가 이미 운동에 들어가 있나"(stepsInExercise) 하나뿐이다.
+ * 걸음 항목은 **모델에게 맡기지 않고 여기서 붙인다.** 그날 걸음 수를 그대로 센다.
  *
- * @param data 모델 응답. exercises[].{name, minutes, mets}와 stepsInExercise를 본다
+ * 예전에는 "운동 중에 걸은 걸음"(stepsInExercise)을 모델이 추정해 그만큼 빼고 셌다.
+ * 2026-10-28 없앴다 — 같은 "킥복싱 50분"에 800·1000·1500보를 제각각 추정해 분석할 때마다
+ * 결과 걸음이 달라졌고, 앱에 보이는 걸음 수와 결과의 걸음 항목이 왜 다른지 알 수 없었다.
+ * 러닝처럼 발로 하는 운동은 걸음 칼로리와 일부 겹치지만, 그 몇십 kcal보다
+ * "앱에 보이는 걸음 그대로"가 낫다는 사용자 결정이다.
+ *
+ * @param data 모델 응답. exercises[].{name, minutes, mets}를 본다
  * @param weightKg 사용자 체중
  * @param stepCount 그날 걸음 수
  * @param stepName 걸음 항목 이름을 만드는 함수 (언어별). `(steps) => "걸음 6199보"`
- * @returns { items, total, overlap, fellBack, droppedStepItems }
+ * @returns { items, total, fellBack, droppedStepItems }
  *   - items: [{ name, kcal, minutes, mets }] — 화면과 저장에 그대로 쓴다
  *   - fellBack: mets/minutes 없이 kcal만 온 항목이 있었는지 (구버전 응답 경로)
  *   - droppedStepItems: 모델이 넣지 말라는 걸음 항목을 넣어서 버린 것들
@@ -89,16 +94,11 @@ function buildExercises(data, weightKg, stepCount, stepName) {
         }
     }
 
-    // 운동 중에 이미 세어진 걸음만 뺀다. 통째로 버리지 않는다 —
-    // 그러면 그날 걸어다닌 걸음이 전부 사라진다
     const steps = Math.max(0, Number(stepCount) || 0);
-    const overlap = Math.min(steps, Math.max(0, Number(data?.stepsInExercise) || 0));
-    const netSteps = steps - overlap;
-
-    if (netSteps > 0) {
+    if (steps > 0) {
         items.push({
-            name: stepName(netSteps),
-            kcal: stepKcal(weightKg, netSteps),
+            name: stepName(steps),
+            kcal: stepKcal(weightKg, steps),
             minutes: 0,
             mets: 0
         });
@@ -106,7 +106,7 @@ function buildExercises(data, weightKg, stepCount, stepName) {
 
     const total = items.reduce((acc, item) => acc + item.kcal, 0);
 
-    return { items, total, overlap, fellBack, droppedStepItems };
+    return { items, total, fellBack, droppedStepItems };
 }
 
 module.exports = { buildExercises, metsToKcal, stepKcal, KCAL_PER_STEP_PER_KG };

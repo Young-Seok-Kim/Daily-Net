@@ -55,8 +55,7 @@ test("stepKcal - 걸음당 소모도 체중에 비례한다", async (t) => {
 test("buildExercises - 모델 판단 + 서버 산수", async (t) => {
     await t.test("실제로 틀렸던 그날을 제대로 계산한다", () => {
         const data = {
-            exercises: [{ name: "스파링 60분", minutes: 60, mets: 7.5 }],
-            stepsInExercise: 0
+            exercises: [{ name: "스파링 60분", minutes: 60, mets: 7.5 }]
         };
 
         const built = buildExercises(data, WEIGHT, STEPS, stepName);
@@ -93,8 +92,9 @@ test("buildExercises - 모델 판단 + 서버 산수", async (t) => {
         assert.deepEqual(built.droppedStepItems, ["걸음 6199보"]);
     });
 
-    await t.test("운동 중에 걸은 걸음만 뺀다", () => {
-        // 워치를 차고 걷는 운동을 하면 그 걸음이 걸음 수에도 잡힌다
+    await t.test("발로 하는 운동이 있어도 걸음은 그대로 센다", () => {
+        // 예전엔 모델이 추정한 stepsInExercise만큼 뺐는데, 같은 입력에 800~1500보씩
+        // 제각각이라 2026-10-28 없앴다. 구버전 응답에 그 값이 남아 와도 무시한다.
         const data = {
             exercises: [{ name: "산책 30분", minutes: 30, mets: 3.5 }],
             stepsInExercise: 3000
@@ -102,16 +102,13 @@ test("buildExercises - 모델 판단 + 서버 산수", async (t) => {
 
         const built = buildExercises(data, WEIGHT, STEPS, stepName);
 
-        assert.equal(built.overlap, 3000);
-        // 나머지 3199보는 그대로 센다. 통째로 버리지 않는다
-        assert.equal(built.items[1].name, "걸음 3199보");
-        assert.equal(built.items[1].kcal, stepKcal(WEIGHT, 3199));
+        assert.equal(built.items[1].name, "걸음 6199보");
+        assert.equal(built.items[1].kcal, stepKcal(WEIGHT, 6199));
+        assert.equal(built.overlap, undefined);
     });
 
-    await t.test("겹침이 걸음 수보다 커도 음수가 되지 않는다", () => {
-        const data = { exercises: [], stepsInExercise: 999999 };
-        const built = buildExercises(data, WEIGHT, STEPS, stepName);
-        assert.equal(built.overlap, STEPS);
+    await t.test("걸음이 0이면 걸음 항목을 붙이지 않는다", () => {
+        const built = buildExercises({ exercises: [] }, WEIGHT, 0, stepName);
         assert.deepEqual(built.items, []);
         assert.equal(built.total, 0);
     });
