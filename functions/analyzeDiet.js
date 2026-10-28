@@ -367,12 +367,6 @@ ${remarkBlock}
                    구분할 수가 없습니다
                - ⚠️ **걸음 수(${stepCount}보)는 서버가 직접 계산합니다.
                  [exercises]에 걸음 항목을 넣지 마십시오.** 넣으면 두 번 세어집니다
-                 - 대신 **운동을 하는 동안 걸은 걸음 수**를 "stepsInExercise"에 적으십시오
-                   - 발로 이동하는 운동이 적혀 있으면, 그 운동에서 걸었을 걸음 수
-                   - 제자리에서 하거나 발로 이동하지 않는 운동뿐이면 **0**
-                   - 운동이 아예 없으면 **0**
-                 - 서버는 이 값만큼만 빼고 나머지 걸음을 셉니다.
-                   그러니 **넉넉히 잡지 마십시오.** 그만큼 그날 걸어다닌 걸음이 사라집니다
             2. **단계별 사고(Chain of Thought)**: 내부적으로 아래 단계를 거쳐 계산한 뒤 결과값만 JSON에 담으세요.
                - 음식: [메뉴명 -> 예상 중량(g) -> 100g당 칼로리 -> 최종 칼로리]
                - 운동: [운동명 -> 시간(분) -> METs] **여기까지입니다. 칼로리는 서버가 냅니다**
@@ -393,14 +387,13 @@ ${remarkBlock}
                - 각 끼니의 [calories] 객체와 [macros] 객체, 그리고 [meals] 리스트를 모두 포함해야 합니다.
                - [exercises] 리스트에는 사용자가 한 **운동을 항목별로 나누어** 각각의 "minutes"(분)와 "mets"를 담으세요.
                  **kcal은 담지 마십시오. 서버가 계산합니다.** 걸음 항목도 넣지 마십시오. 운동이 전혀 없으면 빈 배열([])로 두세요.
-               - "stepsInExercise"에는 운동 중에 걸은 걸음 수를 담으세요. 해당 없으면 0입니다.
                - [meals] 항목 중 **개수로 적힌 것에만** "units"(개수)와 "unitKcal"(한 단위의 열량)을,
                  **여럿이 나눠 먹은 것에만** "sharedBy"(나눠 먹은 사람 수)를,
                  똑같이 나누지 않았을 때만 "myShare"(사용자 몫의 비율, 0~1)를 함께 담으세요.
                  해당 없는 항목에는 이 필드들을 넣지 마세요. **곱셈과 몫 나눗셈은 서버가 합니다.**
                - Markdown 형식(\`\`\`json) 없이 오직 순수 JSON 문자열만 응답하십시오.
                - ⚠️ **숫자 칸은 JSON 숫자로만 채우십시오. 따옴표로 감싸거나 단위를 붙이지 마십시오.**
-                 (kcal·calories·macros·units·unitKcal·sharedBy·myShare·minutes·mets·stepsInExercise 전부)
+                 (kcal·calories·macros·units·unitKcal·sharedBy·myShare·minutes·mets 전부)
                  - 맞음: \`"kcal": 215\`, \`"carb": 20.5\` / 틀림: \`"kcal": "215"\`, \`"kcal": "215kcal"\`, \`"carb": "20g"\`
                  - calories는 끼니별 객체입니다. 하루 총합 숫자 하나로 바꾸지 마십시오
                  - 실제로 문자열로 온 값이 있어 분석이 통째로 실패하거나 섭취 합계가 0으로 나간 적이 있습니다
@@ -417,7 +410,6 @@ ${remarkBlock}
                     "snack": [{ "name": "메뉴1", "kcal": 0 }, { "name": "메뉴2", "kcal": 0 }]
                 },
                 "exercises": [{ "name": "운동명 60분", "minutes": 60, "mets": 0 }],
-                "stepsInExercise": 0,
                 "macros": {
                     "breakfast": { "carb": 0, "protein": 0, "fat": 0 },
                     "lunch": { "carb": 0, "protein": 0, "fat": 0 },
@@ -710,7 +702,6 @@ ${data.evaluation}
             .join(" / ");
         console.log(
             `[exercise] 입력="${exerciseInput || ""}" 걸음=${stepCount}` +
-            (exercise.overlap > 0 ? `(운동중 ${exercise.overlap} 제외)` : "") +
             ` | ${exerciseLog || "없음"} | 합계=${exerciseCalories}` +
             (exercise.fellBack ? " ⚠️METs없이옴" : "") +
             (exercise.droppedStepItems.length > 0
