@@ -11,6 +11,7 @@
  * 모델은 그 수치를 바탕으로 **말로 풀어주는 일**만 한다.
  */
 const { onRequest } = require("firebase-functions/v2/https");
+const { rejectNonAppRequest } = require("./requestGuard");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { LABELS, resolveLang } = require("./labels");
 const { generateAndParse, paidModel } = require("./gemini");
@@ -24,6 +25,9 @@ exports.analyzeInbody = onRequest({
     enforceAppCheck: true,
     timeoutSeconds: 60,
 }, async (req, res) => {
+    // 스캐너·봇의 GET이나 빈 요청은 모델을 부르기 전에 끊는다 (requestGuard.js 참고)
+    if (rejectNonAppRequest(req, res)) return;
+
     const lang = resolveLang(req.body && req.body.language);
     const L = LABELS[lang];
 

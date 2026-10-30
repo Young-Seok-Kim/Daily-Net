@@ -2,6 +2,7 @@
  * 음식 사진에서 메뉴명을 읽어오는 함수.
  */
 const { onRequest } = require("firebase-functions/v2/https");
+const { rejectNonAppRequest } = require("./requestGuard");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { LABELS, resolveLang } = require("./labels");
 const { generateAndParse, paidModel, PHOTO_RETRY_OPTIONS } = require("./gemini");
@@ -37,6 +38,9 @@ exports.extractMeal = onRequest({
     enforceAppCheck: true,
     timeoutSeconds: 60,
 }, async (req, res) => {
+    // 스캐너·봇의 GET이나 빈 요청은 모델을 부르기 전에 끊는다 (requestGuard.js 참고)
+    if (rejectNonAppRequest(req, res)) return;
+
     const lang = resolveLang(req.body && req.body.language);
     const L = LABELS[lang];
 
