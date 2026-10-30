@@ -2,6 +2,7 @@
  * 하루 식단·운동을 분석해 리포트를 만드는 함수.
  */
 const { onRequest } = require("firebase-functions/v2/https");
+const { rejectNonAppRequest } = require("./requestGuard");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { LABELS, resolveLang } = require("./labels");
 const { generateAndParse, paidModel, FIRST_ATTEMPT_TIMEOUT_MS } = require("./gemini");
@@ -35,6 +36,9 @@ exports.analyzeDiet = onRequest({
     enforceAppCheck: true,
     timeoutSeconds: 120,
 }, async (req, res) => {
+
+    // 스캐너·봇의 GET이나 빈 요청은 모델을 부르기 전에 끊는다 (requestGuard.js 참고)
+    if (rejectNonAppRequest(req, res)) return;
 
     // 어느 단계에서 시간을 쓰는지 보기 위한 계측. 응답 직전에 한 줄로 남긴다.
     const t0 = Date.now();
