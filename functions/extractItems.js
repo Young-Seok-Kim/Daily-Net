@@ -1,7 +1,9 @@
 /**
  * 사진에서 읽은 항목을 정리하고 입력창에 넣을 텍스트로 바꾼다.
  *
- * 여기서 지켜야 할 계약은 하나다 — **영양성분표에서 읽은 열량만 텍스트에 적는다.**
+ * 여기서 지켜야 할 계약은 하나다 — **사진에 인쇄된 열량만 텍스트에 적는다.**
+ * 영양성분표에서 읽어 환산한 값(label)과, 메뉴판·컵 라벨·포장 앞면에 "1잔 10kcal"처럼
+ * 그대로 적힌 값(printedKcal) 두 가지다. 둘 다 눈으로 읽은 사실이지 추측이 아니다.
  * 이 텍스트는 그대로 analyzeDiet으로 넘어가고, 거기서 "적힌 kcal은 그대로 쓰라"는
  * 지시를 받는다. 눈대중으로 낸 숫자가 섞여 들어가면 **추측이 정답 자리에 앉는다.**
  */
@@ -97,6 +99,29 @@ function wholePackGuess(label, eatenAmount, amount) {
     return `${basis} 기준의 ${times}배를 먹은 것으로 잡음 (N개입을 통째로 셌을 수 있음)`;
 }
 
+/**
+ * 메뉴판·컵 라벨·포장 앞면에 "1개(1잔·1인분)당 N kcal"로 인쇄된 열량에서 먹은 양의 열량을 낸다.
+ * 못 내면 0.
+ *
+ * 성분표와 달리 기준량(g·ml)이 없고 **개당 값**이라, amount에 적힌 개수를 곱하기만 한다.
+ * 곱셈은 여기서 한다 — 모델에게 시키지 않는 것은 kcalFromLabel과 같은 이유다.
+ * 개수를 안 적은 항목("1인분", "")은 1개로 본다.
+ *
+ * 2026-11-09 추가. 카페 메뉴판에 열량이 뻔히 보이는데 텍스트에 안 적혀 나간 일이 있었다.
+ * 인쇄된 값을 담을 자리가 label(성분표)뿐이라, 기준량이 없는 메뉴판 열량은 kcal(눈대중 칸)에
+ * 들어왔다가 "눈대중은 안 적는다"는 규칙에 걸려 버려지고 있었다.
+ */
+function kcalFromPrinted(printedKcal, amount) {
+    const per = Number(printedKcal);
+    if (!Number.isFinite(per) || per <= 0 || per > MAX_ITEM_KCAL) return 0;
+
+    const counted = countOf(amount);
+    const count = counted ? counted.count : 1;
+
+    const kcal = Math.round(per * count);
+    return kcal <= MAX_ITEM_KCAL ? kcal : 0;
+}
+
 /** 모델 응답을 {name, amount, kcal, kcalFromLabel} 형태로 고정한다 */
 function normalizeExtracted(rawItems) {
     if (!Array.isArray(rawItems)) return [];
@@ -104,30 +129,37 @@ function normalizeExtracted(rawItems) {
     return rawItems
         .filter((m) => m && m.name)
         .map((m) => {
+            const amount = m.amount ? String(m.amount).trim() : "";
             const fromLabel = kcalFromLabel(m.label, m.eatenAmount);
+            const fromPrinted = fromLabel > 0 ? 0 : kcalFromPrinted(m.printedKcal, amount);
             // 눈대중값도 성분표값과 같은 상한을 둔다. 메뉴판 사진에서 가격 16000원이
             // 그대로 kcal로 들어온 적이 있다. 한 끼 항목 하나가 이 선을 넘을 일은 없다
             const raw = Number(m.kcal) || 0;
             const guessed = raw >= 0 && raw <= MAX_ITEM_KCAL ? raw : 0;
-            const amount = m.amount ? String(m.amount).trim() : "";
 
             return {
                 name: String(m.name),
                 // 못 알아본 양은 빈 문자열로 통일한다. 없는 필드와 null을 나눠 다루지 않기 위함
                 amount,
-                // 성분표에서 낸 값이 있으면 그것을 쓴다. 눈대중보다 언제나 낫다
-                kcal: fromLabel || guessed,
-                kcalFromLabel: fromLabel > 0,
+                // 성분표에서 낸 값 > 메뉴판 등에 인쇄된 값 > 눈대중. 읽은 값이 언제나 낫고,
+                // 성분표는 기준량까지 있어 인쇄된 개당 값보다 정확하다
+                kcal: fromLabel || fromPrinted || guessed,
+                // 이름과 달리 "사진에서 읽은 값인가"를 뜻한다. 인쇄된 값도 참이다
+                kcalFromLabel: fromLabel > 0 || fromPrinted > 0,
                 // 로그용. 기준이 30인지 100인지 400인지 보여야
-                // "1회 제공량을 봉지 전체로 착각했는지"를 눈으로 가릴 수 있다
+                // "1회 제공량을 봉지 전체로 착각했는지"를 눈으로 가릴 수 있다.
+                // 인쇄된 값은 "10×2개"처럼 개당 값과 곱한 개수를 남긴다
                 basis: fromLabel > 0
                     ? `${Number(m.label.kcal)}/${Number(m.label.basisAmount)}×${Number(m.eatenAmount)}`
-                    : "",
+                    : fromPrinted > 0
+                        ? `${Number(m.printedKcal)}×${(countOf(amount) || { count: 1 }).count}개`
+                        : "",
                 // 이름과 열량이 서로 안 맞는 줄. 값은 그대로 두고 알리기만 한다
                 mismatch: fromLabel > 0
                     ? (amountMismatch(amount, m.eatenAmount) || wholePackGuess(m.label, m.eatenAmount, amount))
                     : "",
-                // 개당 중량을 낼 때 쓴다. 문자열을 파싱하는 것보다 이 숫자가 정확하다
+                // 개당 중량을 낼 때 쓴다. 문자열을 파싱하는 것보다 이 숫자가 정확하다.
+                // 인쇄된 개당 값에는 먹은 중량이 없으므로 0이고, 그러면 텍스트에 중량이 안 붙는다
                 eaten: fromLabel > 0 ? Number(m.eatenAmount) : 0
             };
         });
@@ -198,4 +230,4 @@ function toInputText(items, perUnitWord = "개당") {
         .join(", ");
 }
 
-module.exports = { normalizeExtracted, toInputText, kcalFromLabel, amountMismatch, wholePackGuess, countOf };
+module.exports = { normalizeExtracted, toInputText, kcalFromLabel, kcalFromPrinted, amountMismatch, wholePackGuess, countOf };
