@@ -1,14 +1,14 @@
 /**
  * 사진에서 읽은 항목 정리 검증.
  *
- * 지켜야 할 계약은 하나다 — **영양성분표에서 읽은 열량만 텍스트에 나간다.**
+ * 지켜야 할 계약은 하나다 — **사진에 인쇄된 열량(성분표·메뉴판 등)만 텍스트에 나간다.**
  * 이 텍스트가 그대로 analyzeDiet으로 가고 거기서 "적힌 kcal은 그대로 쓰라"는 지시를 받으므로,
  * 눈대중 숫자가 새어 들어가면 추측이 정답 자리에 앉는다. 그래서 "안 나가야 하는" 검사가 핵심이다.
  */
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { normalizeExtracted, toInputText, kcalFromLabel, amountMismatch, wholePackGuess, countOf } = require("../extractItems");
+const { normalizeExtracted, toInputText, kcalFromLabel, kcalFromPrinted, amountMismatch, wholePackGuess, countOf } = require("../extractItems");
 
 test("normalizeExtracted - 모델이 어떻게 보내든 모양을 고정한다", async (t) => {
     await t.test("빠진 필드를 채운다", () => {
@@ -46,6 +46,53 @@ test("normalizeExtracted - 모델이 어떻게 보내든 모양을 고정한다"
         ]);
         assert.equal(item.kcal, 400);
         assert.equal(item.kcalFromLabel, true);
+    });
+
+    await t.test("메뉴판에 인쇄된 열량은 눈대중값을 이기고 읽은 값으로 친다", () => {
+        // 카페 메뉴판에 10kcal이 보이는데 눈대중 15가 나가던 경우. 인쇄된 값이 읽은 사실이다
+        const [item] = normalizeExtracted([
+            { name: "스타벅스 아메리카노", amount: "1잔", kcal: 15, label: null, printedKcal: 10 }
+        ]);
+        assert.equal(item.kcal, 10);
+        assert.equal(item.kcalFromLabel, true);
+        assert.equal(item.basis, "10×1개");
+        assert.equal(item.mismatch, "");
+        assert.equal(item.eaten, 0);
+    });
+
+    await t.test("성분표 값은 인쇄된 개당 값보다 우선한다", () => {
+        // 둘 다 왔으면 기준량까지 있는 성분표 쪽이 정확하다
+        const [item] = normalizeExtracted([{
+            name: "씨리얼", amount: "80g", printedKcal: 300,
+            label: { kcal: 500, basisAmount: 100 }, eatenAmount: 80
+        }]);
+        assert.equal(item.kcal, 400);
+        assert.equal(item.basis, "500/100×80");
+    });
+});
+
+test("kcalFromPrinted - 인쇄된 개당 값에 개수만 곱한다", async (t) => {
+    await t.test("개수를 적었으면 곱한다", () => {
+        assert.equal(kcalFromPrinted(180, "2잔"), 360);
+        assert.equal(kcalFromPrinted(250, "3개"), 750);
+    });
+
+    await t.test("개수가 없으면 1개로 본다", () => {
+        assert.equal(kcalFromPrinted(520, "1인분"), 520);
+        assert.equal(kcalFromPrinted(520, ""), 520);
+        assert.equal(kcalFromPrinted(10, "355ml"), 10);
+    });
+
+    await t.test("값이 없거나 수상하면 0", () => {
+        assert.equal(kcalFromPrinted(null, "1잔"), 0);
+        assert.equal(kcalFromPrinted(undefined, "1잔"), 0);
+        assert.equal(kcalFromPrinted("몰라", "1잔"), 0);
+        assert.equal(kcalFromPrinted(0, "1잔"), 0);
+        assert.equal(kcalFromPrinted(-10, "1잔"), 0);
+        // 메뉴판 가격 16,000원이 들어온 것이다
+        assert.equal(kcalFromPrinted(16000, "1개"), 0);
+        // 개당은 멀쩡해도 곱한 결과가 하루치를 넘으면 버린다
+        assert.equal(kcalFromPrinted(3000, "2개"), 0);
     });
 });
 
@@ -250,6 +297,30 @@ test("toInputText - 입력창에 넣을 한 줄", async (t) => {
             { name: "LOTTE 씨리얼 초코", amount: "80g", label: { kcal: 500, basisAmount: 100 }, eatenAmount: 80 }
         ]);
         assert.equal(toInputText(items), "LOTTE 씨리얼 초코 80g 400kcal");
+    });
+
+    await t.test("메뉴판에 인쇄된 열량은 적는다", () => {
+        // 사용자가 겪은 바로 그 경우. 칼로리가 뻔히 보이는데 텍스트에 안 적혀 나갔다
+        const items = normalizeExtracted([
+            { name: "스타벅스 아메리카노", amount: "1잔", kcal: 15, label: null, printedKcal: 10 }
+        ]);
+        assert.equal(toInputText(items), "스타벅스 아메리카노 1잔 (개당 10kcal)");
+    });
+
+    await t.test("인쇄된 값에 개수가 붙으면 개당으로 적고 중량은 안 붙인다", () => {
+        // 먹은 중량(eaten)이 없으므로 "개당 1ml" 같은 엉뚱한 중량이 나가면 안 된다
+        const items = normalizeExtracted([
+            { name: "카페라떼", amount: "2잔 355ml", kcal: 400, label: null, printedKcal: 180 }
+        ]);
+        assert.equal(items[0].kcal, 360);
+        assert.equal(toInputText(items), "카페라떼 2잔 (개당 180kcal)");
+    });
+
+    await t.test("개수 없이 인쇄된 값은 총 열량 그대로 적는다", () => {
+        const items = normalizeExtracted([
+            { name: "CU 닭가슴살 샐러드", amount: "1인분", kcal: 300, label: null, printedKcal: 245 }
+        ]);
+        assert.equal(toInputText(items), "CU 닭가슴살 샐러드 1인분 245kcal");
     });
 
     await t.test("눈대중으로 낸 열량은 절대 안 적는다", () => {
