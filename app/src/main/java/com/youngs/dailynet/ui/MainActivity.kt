@@ -140,13 +140,13 @@ class MainActivity : ComponentActivity() {
                 }
 
 
-                // 스플래시는 프로세스가 새로 뜬 콜드 스타트에만 보여준다.
+                // 스플래시는 SPLASH_ENABLED가 켜져 있을 때 프로세스가 새로 뜬 콜드 스타트에만 보여준다.
                 // 아무것도 기다리지 않는 순수 연출이라(로그인 상태·기록은 즉시 준비됨), 자주 나오면 성가시기만 하다.
                 //  - 뒤로가기로 나갔다가 바로 다시 켜는 경우: 프로세스가 살아 있으므로 건너뛴다 (splashShownInProcess)
                 //  - 화면 회전 등으로 액티비티만 다시 만들어지는 경우: saveable로 건너뛴다
                 //  - 위젯처럼 밖에서 특정 화면을 지정해 들어온 경우(pendingRoute가 있음): 그 화면을 바로 연다
                 var showSplash by rememberSaveable {
-                    val show = pendingRoute == null && !splashShownInProcess
+                    val show = SPLASH_ENABLED && pendingRoute == null && !splashShownInProcess
                     if (show) splashShownInProcess = true
                     mutableStateOf(show)
                 }
@@ -332,6 +332,16 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
+        /**
+         * 앱을 켤 때 Compose 스플래시 연출([SplashScreen])을 보여줄지.
+         *
+         * 2026-11-12 v1.12.3(b47)부터 끈다. 아무것도 기다리지 않는 3초짜리 연출이라 매일 켜는 기록 앱에서는
+         * 기다리는 시간만 늘렸다. 다시 켜려면 이 값을 true로 바꾸고
+         * `res/values-v31/themes.xml`에서 주석 처리한 두 항목(시스템 스플래시 배경색·투명 아이콘)을 되살리면 된다.
+         * 연출 코드 자체(SplashScreen.kt)는 그대로 둔다.
+         */
+        private const val SPLASH_ENABLED = false
+
         /**
          * 이번 프로세스에서 스플래시를 이미 보여줬는지.
          * 액티비티가 아니라 프로세스 기준이라, 앱을 뒤로가기로 닫았다가 곧바로 다시 열어도 또 나오지 않는다.

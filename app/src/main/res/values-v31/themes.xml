@@ -2,11 +2,16 @@
 <resources>
     <!--
       안드로이드 12부터 시스템이 앱을 띄우는 동안 강제로 보여주는 화면(끌 수는 없다).
-      아이콘을 투명으로 두고 배경색을 Compose 스플래시(SplashScreen.kt)의 윗부분 색과
-      맞춰서, 아이콘 없이 바로 애니메이션으로 이어지는 것처럼 보이게 한다.
+      지금은 기본대로 둔다(앱 아이콘이 잠깐 보이고 바로 메인으로 들어감).
+
+      Compose 스플래시 연출(SplashScreen.kt)을 다시 켤 때는 MainActivity의 SPLASH_ENABLED를 true로 바꾸고
+      아래 두 항목의 주석을 풀면 된다. 아이콘을 투명으로 두고 배경색을 연출의 윗부분 색과 맞춰서,
+      아이콘 없이 바로 애니메이션으로 이어지는 것처럼 보이게 하는 설정이다.
     -->
     <style name="Theme.DailyNet" parent="android:Theme.Material.Light.NoActionBar">
+        <!--
         <item name="android:windowSplashScreenBackground">#F3EEFF</item>
         <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        -->
     </style>
 </resources>
