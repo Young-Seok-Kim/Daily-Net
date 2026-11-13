@@ -6,6 +6,7 @@ import androidx.health.connect.client.HealthConnectFeatures
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.request.AggregateRequest
+import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import java.time.Instant
 import java.time.LocalDate
@@ -108,11 +109,36 @@ class HealthStepReader(private val context: Context) {
             // 오늘이면 '지금'까지만 (하루 전체를 잡으면 미래 구간이 포함된다)
             val end = day.plusDays(1).atStartOfDay(zone).toInstant().coerceAtMost(Instant.now())
             if (!start.isBefore(end)) return null // 미래 날짜
+            val range = TimeRangeFilter.between(start, end)
 
+            // 출처(앱·기기)별로 따로 더해 가장 큰 쪽을 쓴다.
+            //
+            // Health Connect 의 합계(aggregate)는 겹치는 기록 중 사용자 우선순위 목록의 출처만 센다.
+            // 삼성 폰은 시스템이 센서 값을 조각으로 넣는 출처("OO의 S26 Ultra")가 기본 1순위이고
+            // 삼성 헬스가 넣는 하루 합계는 목록에 없어 무시된다. 그런데 조각 기록이 산책을 통째로 빠뜨려
+            // 삼성 헬스 4,966걸음이 앱에서는 2,560으로 나왔다. 출처들은 같은 걸음을 각자 센 것이라
+            // 합치면 안 되고, 가장 많이 잡은 출처가 가장 완전하다. 이러면 사용자가 Health Connect
+            // 우선순위를 손대지 않아도 된다.
+            var pageToken: String? = null
+            val byOrigin = HashMap<String, Long>()
+            do {
+                val page = client.readRecords(
+                    ReadRecordsRequest(StepsRecord::class, range, pageSize = 1000, pageToken = pageToken)
+                )
+                page.records.forEach { r ->
+                    val origin = r.metadata.dataOrigin.packageName
+                    byOrigin[origin] = (byOrigin[origin] ?: 0L) + r.count
+                }
+                pageToken = page.pageToken
+            } while (pageToken != null)
+            val best = byOrigin.values.maxOrNull()
+            if (best != null) return best
+
+            // 기록을 못 읽으면(권한이 집계만 허용되는 등) 예전처럼 합계로
             val response = client.aggregate(
                 AggregateRequest(
                     metrics = setOf(StepsRecord.COUNT_TOTAL),
-                    timeRangeFilter = TimeRangeFilter.between(start, end)
+                    timeRangeFilter = range
                 )
             )
             response[StepsRecord.COUNT_TOTAL]
