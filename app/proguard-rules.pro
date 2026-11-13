@@ -54,6 +54,7 @@
 # data.model 패키지가 아니라 위의 keep 규칙에 안 걸려 따로 적는다.
 -keep class com.youngs.dailynet.data.network.CalendarResource { *; }
 -keep class com.youngs.dailynet.data.network.CalendarBody { *; }
+-keep class com.youngs.dailynet.data.network.CalendarPatch { *; }
 -keep class com.youngs.dailynet.data.network.EventListResponse { *; }
 -keep class com.youngs.dailynet.data.network.EventResource { *; }
 -keep class com.youngs.dailynet.data.network.EventBody { *; }

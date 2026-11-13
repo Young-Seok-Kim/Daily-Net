@@ -15,6 +15,7 @@ import com.google.firebase.firestore.SetOptions
 import com.youngs.dailynet.R
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.data.network.CalendarBody
+import com.youngs.dailynet.data.network.CalendarPatch
 import com.youngs.dailynet.data.network.EventBody
 import com.youngs.dailynet.data.network.EventDate
 import com.youngs.dailynet.data.network.EventResource
@@ -259,7 +260,14 @@ class GoogleCalendarSync @Inject constructor(
         while (true) {
             val calendarId = ensureCalendar(currentToken)
             try {
-                api.getCalendar(bearer(currentToken), calendarId, "id")
+                val calendar = api.getCalendar(bearer(currentToken), calendarId, "id,summary")
+                // 앱의 캘린더 이름이 바뀌었으면(예: "데일리넷 운동" → "데일리넷") 기존 사용자 것도 이름만 따라오게 한다.
+                // 캘린더는 ID 로 찾으므로 이름이 달라도 새로 만들지는 않는다.
+                val wanted = context.getString(R.string.calendar_name)
+                if (calendar.summary != null && calendar.summary != wanted) {
+                    runCatching { api.patchCalendar(bearer(currentToken), calendarId, CalendarPatch(wanted)) }
+                        .onFailure { Log.w(TAG, "calendar rename failed", it) }
+                }
                 return block(bearer(currentToken), calendarId)
             } catch (e: HttpException) {
                 when {

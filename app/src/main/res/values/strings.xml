@@ -356,14 +356,14 @@
     <!-- 설정 > 구글 캘린더 (운동 일정 등록) -->
     <string name="settings_section_calendar">Google Calendar</string>
     <string name="settings_calendar_sync">Add workouts to Google Calendar</string>
-    <string name="settings_calendar_sync_subtitle">When you log a day, the workout goes into a \"DailyNet Exercise\" calendar as an all-day event</string>
+    <string name="settings_calendar_sync_subtitle">When you log a day, the workout goes into a \"DailyNet\" calendar as an all-day event</string>
     <string name="settings_calendar_title_mode">Use the workout text as the title</string>
     <string name="settings_calendar_title_mode_on">The workout you typed becomes the event title</string>
     <string name="settings_calendar_title_mode_off">The title below is used and the workout text goes in the notes</string>
     <string name="settings_calendar_fixed_title">Event title</string>
     <string name="settings_calendar_sync_now">Sync now</string>
     <string name="settings_calendar_sync_now_subtitle">Adds missing workouts and updates existing ones to the current title style</string>
-    <string name="calendar_name">DailyNet Exercise</string>
+    <string name="calendar_name">DailyNet</string>
     <string name="calendar_default_title">Workout</string>
     <string name="calendar_title_dialog_hint">e.g. Workout</string>
     <string name="calendar_event_kcal">Burned %1$d kcal</string>

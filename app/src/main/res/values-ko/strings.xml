@@ -354,14 +354,14 @@
     <!-- 설정 > 구글 캘린더 (운동 일정 등록) -->
     <string name="settings_section_calendar">구글 캘린더</string>
     <string name="settings_calendar_sync">운동을 구글 캘린더에 등록</string>
-    <string name="settings_calendar_sync_subtitle">정산할 때 운동 내용을 \"데일리넷 운동\" 캘린더에 하루 일정으로 넣습니다</string>
+    <string name="settings_calendar_sync_subtitle">정산할 때 운동 내용을 \"데일리넷\" 캘린더에 하루 일정으로 넣습니다</string>
     <string name="settings_calendar_title_mode">운동 내용을 제목으로</string>
     <string name="settings_calendar_title_mode_on">입력한 운동 내용이 그대로 일정 제목이 됩니다</string>
     <string name="settings_calendar_title_mode_off">제목은 아래 값으로 고정하고 운동 내용은 메모에 넣습니다</string>
     <string name="settings_calendar_fixed_title">일정 제목</string>
     <string name="settings_calendar_sync_now">지금 동기화</string>
     <string name="settings_calendar_sync_now_subtitle">캘린더에 없는 운동은 추가하고, 있는 것은 지금 제목 방식에 맞게 고칩니다</string>
-    <string name="calendar_name">데일리넷 운동</string>
+    <string name="calendar_name">데일리넷</string>
     <string name="calendar_default_title">운동</string>
     <string name="calendar_title_dialog_hint">예: 운동</string>
     <string name="calendar_event_kcal">소모 열량 %1$d kcal</string>
