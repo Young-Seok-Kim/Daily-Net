@@ -36,6 +36,11 @@
     지운 직후 몇 분은 구글이 아직 정상 응답하므로 그 사이의 일정은 잃는다. 문서상 이 범위로 된다는
     `calendarList.get`(deleted 플래그 제공)은 실제로는 401 Invalid Credentials라 못 쓴다(폰·태블릿 확인)
 
+- **배포 워크플로: 내부 테스트 트랙 업로드 → 프로덕션 승격** (`.github/workflows/deploy.yml`)
+  - 번들을 `internal` 트랙에 먼저 올려 내부 테스터는 심사 없이 바로 받게 하고, 같은 번들을 Play Developer
+    API(`edits/tracks/production`)로 프로덕션에 승격한다. 재업로드가 아니라 승격이라 같은 versionCode로도 된다
+  - 승격 단계는 upload-google-play 액션에 없어 python(google-auth)으로 직접 부른다(등록정보 작업과 같은 방식)
+
 ## v1.13.1 (b49) — 2026-11-13
 
 ### 스토어 문구
