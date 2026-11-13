@@ -185,9 +185,8 @@ main_qa 에 push ──▶ ci.yml       서버·앱 유닛 테스트
                                       ▼
 main 에 push ─────▶ deploy.yml
                       ├─ functions/ hosting/ 이 바뀌었으면 → 서버 테스트 → firebase deploy
-                      ├─ versionCode 가 올랐으면 → 유닛 테스트 → bundleRelease
-                      │     → Play 내부 테스트 트랙 업로드 (테스터는 심사 없이 즉시 받음)
-                      │     → 같은 번들을 프로덕션 트랙으로 승격 (심사 뒤 일반 사용자에게 공개)
+                      ├─ versionCode 가 올랐으면 → 유닛 테스트 → bundleRelease → Play 업로드
+                      │     트랙은 app/play-track 이 정함: production(바로 출시) 또는 internal(내부 테스트만)
                       ├─ store-listing/ 이 바뀌었으면 → Play 스토어 등록정보 갱신
                       └─ 앱 업로드가 성공하면 v{versionName}-b{versionCode} 태그 + GitHub 릴리스
 ```
@@ -198,14 +197,16 @@ main 에 push ─────▶ deploy.yml
 |---|---|---|
 | `ci.yml` | main · main_qa push, PR | 서버(`node --test`)·앱(`testDebugUnitTest`) 테스트 |
 | `auto-pr.yml` | main_qa push | main_qa → main PR 생성·갱신. 본문은 main에 없는 커밋 목록 |
-| `deploy.yml` | main push | 서버 배포, AAB 빌드 → 내부 테스트 업로드 → 프로덕션 승격, 등록정보, 태그·릴리스 |
+| `deploy.yml` | main push | 서버 배포, AAB 빌드 → Play 업로드(트랙은 `app/play-track`), 등록정보, 태그·릴리스 |
+| `promote.yml` | 수동 | 내부 테스트 트랙의 번들을 프로덕션으로 승격(재업로드 없음) |
 | `preflight.yml` | 수동 · 워크플로 파일 변경 | 시크릿이 실제 쓰이는 방식대로 유효한지 검사(변경 없음) |
 
 * 앱 배포 조건이 **versionCode 변경**인 이유: 같은 versionCode를 Play에 두 번 올리면 거부되고, 버전을 안 올린 커밋이
   스토어로 가면 안 되기 때문입니다.
 * 출시 노트는 `CHANGELOG.md` 맨 위 항목의 `### 스토어 문구` 블록을 그대로 씁니다(500자 초과 시 실패).
-* 내부 테스트 트랙은 Play Console의 테스터 목록에 있는 계정만 받습니다. 프로덕션은 같은 번들을 승격한 것이라
-  심사가 끝나면 일반 사용자에게 풀립니다.
+* **어느 트랙에 올릴지는 `app/play-track` 파일**이 정합니다. `production`이면 바로 출시(심사 뒤 공개),
+  `internal`이면 내부 테스트 트랙에만 올라가 테스터 목록의 계정이 심사 없이 즉시 받습니다. 내부 테스트로 확인을
+  끝낸 빌드는 Actions의 "Play 프로덕션 승격"을 수동 실행해 같은 번들을 그대로 출시합니다.
 * `store-listing/` 폴더가 곧 Play 등록정보(앱 이름·설명·스크린샷)입니다.
 * 필요한 저장소 시크릿은 `deploy.yml` 머리 주석에 있습니다. 서명 키가 GitHub 시크릿에 있으므로 저장소 접근 권한은 최소로 유지하십시오.
 
