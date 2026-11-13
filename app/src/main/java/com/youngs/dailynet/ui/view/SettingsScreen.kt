@@ -6,6 +6,7 @@ import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
@@ -27,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.youngs.dailynet.BuildConfig
 import com.youngs.dailynet.R
+import com.youngs.dailynet.data.calendar.GoogleCalendarSync
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import com.youngs.dailynet.util.DailyReminder
 
@@ -68,6 +70,46 @@ fun SettingsScreen(
         }
     }
 
+    // ── 구글 캘린더 연동 ──────────────────────────────────────────
+    var calendarEnabled by remember { mutableStateOf(mainViewModel.isCalendarSyncEnabled()) }
+    var calendarTitleByContent by remember {
+        mutableStateOf(mainViewModel.calendarTitleMode() != GoogleCalendarSync.TITLE_MODE_FIXED)
+    }
+    var calendarFixedTitle by remember { mutableStateOf(mainViewModel.calendarFixedTitle()) }
+    var showCalendarTitleDialog by remember { mutableStateOf(false) }
+    // "지금 동기화"를 눌렀는데 동의 화면부터 거쳐야 했던 경우. 동의가 끝나면 이어서 동기화한다.
+    var syncAfterConsent by remember { mutableStateOf(false) }
+    val calendarSyncingText = stringResource(R.string.calendar_sync_in_progress)
+    val calendarConsentLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        // 동의 화면에서 뒤로 가면 꺼진 상태 그대로 둔다. 안 켜졌는데 켜진 것처럼 보이면 안 된다.
+        if (result.resultCode != android.app.Activity.RESULT_OK) {
+            syncAfterConsent = false
+            return@rememberLauncherForActivityResult
+        }
+        mainViewModel.finishCalendarConsent(result.data) { ok ->
+            calendarEnabled = ok
+            if (ok && syncAfterConsent) {
+                syncAfterConsent = false
+                loadingMessage = calendarSyncingText
+                // 방금 승인됐으므로 동의 화면이 다시 뜰 일은 없다
+                mainViewModel.syncCalendarNow(onNeedsConsent = {}, onDone = { loadingMessage = null })
+            }
+        }
+    }
+    val launchCalendarConsent: (android.app.PendingIntent) -> Unit = { pendingIntent ->
+        calendarConsentLauncher.launch(IntentSenderRequest.Builder(pendingIntent.intentSender).build())
+    }
+
+    // ViewModel이 띄운 토스트(캘린더 연결 결과 등)는 기록 화면만 보고 있어서 여기서도 받아야 보인다
+    LaunchedEffect(mainViewModel.toastMessage) {
+        mainViewModel.toastMessage?.let { message ->
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            mainViewModel.onToastShown()
+        }
+    }
+
     // 시스템 뒤로가기로 앱이 종료되지 않고 이전 화면으로 돌아가도록
     BackHandler(enabled = true) { if (loadingMessage == null) onBack() }
 
@@ -85,6 +127,36 @@ fun SettingsScreen(
                 mainViewModel.updateProfile(h, w, male, birth) { success ->
                     if (success) showProfileEditDialog = false
                 }
+            }
+        )
+    }
+
+    if (showCalendarTitleDialog) {
+        var draft by remember { mutableStateOf(calendarFixedTitle) }
+        AlertDialog(
+            onDismissRequest = { showCalendarTitleDialog = false },
+            title = { Text(stringResource(R.string.settings_calendar_fixed_title)) },
+            text = {
+                OutlinedTextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    singleLine = true,
+                    placeholder = { Text(stringResource(R.string.calendar_title_dialog_hint)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val title = draft.trim()
+                    if (title.isNotEmpty()) {
+                        mainViewModel.setCalendarFixedTitle(title)
+                        calendarFixedTitle = title
+                    }
+                    showCalendarTitleDialog = false
+                }) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCalendarTitleDialog = false }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -190,6 +262,67 @@ fun SettingsScreen(
                                 DailyReminder.setEnabled(context, true)
                                 reminderEnabled = true
                             }
+                        }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // 운동 -> 구글 캘린더. 앱이 만든 보조 캘린더에만 쓰므로 구글 심사 없이 바로 쓸 수 있다.
+                SettingsSection(stringResource(R.string.settings_section_calendar)) {
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.settings_calendar_sync),
+                        subtitle = stringResource(R.string.settings_calendar_sync_subtitle),
+                        checked = calendarEnabled,
+                        onCheckedChange = { wanted ->
+                            if (!wanted) {
+                                mainViewModel.disableCalendarSync()
+                                calendarEnabled = false
+                                return@SettingsSwitchItem
+                            }
+                            // 켜는 순간 구글 동의 화면을 띄운다. 승인이 끝나야 스위치가 켜진다.
+                            mainViewModel.connectCalendar(
+                                onNeedsConsent = launchCalendarConsent,
+                                onDone = { ok -> calendarEnabled = ok }
+                            )
+                        }
+                    )
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.settings_calendar_title_mode),
+                        subtitle = stringResource(
+                            if (calendarTitleByContent) R.string.settings_calendar_title_mode_on
+                            else R.string.settings_calendar_title_mode_off
+                        ),
+                        checked = calendarTitleByContent,
+                        onCheckedChange = { byContent ->
+                            calendarTitleByContent = byContent
+                            mainViewModel.setCalendarTitleMode(
+                                if (byContent) GoogleCalendarSync.TITLE_MODE_CONTENT
+                                else GoogleCalendarSync.TITLE_MODE_FIXED
+                            )
+                        }
+                    )
+                    if (!calendarTitleByContent) {
+                        SettingsItem(
+                            title = stringResource(R.string.settings_calendar_fixed_title),
+                            subtitle = calendarFixedTitle,
+                            onClick = { showCalendarTitleDialog = true }
+                        )
+                    }
+                    SettingsItem(
+                        title = stringResource(R.string.settings_calendar_sync_now),
+                        subtitle = stringResource(R.string.settings_calendar_sync_now_subtitle),
+                        enabled = calendarEnabled,
+                        onClick = {
+                            loadingMessage = calendarSyncingText
+                            mainViewModel.syncCalendarNow(
+                                onNeedsConsent = { pendingIntent ->
+                                    loadingMessage = null
+                                    syncAfterConsent = true
+                                    launchCalendarConsent(pendingIntent)
+                                },
+                                onDone = { loadingMessage = null }
+                            )
                         }
                     )
                 }

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>개인정보처리방침 | 데일리넷 DailyNet</title>
+<meta name="description" content="데일리넷(DailyNet) 앱의 개인정보처리방침입니다. 수집 항목, 보유 기간, 제3자 제공, 사용자 권리와 문의처를 안내합니다.">
+<link rel="canonical" href="https://dailynet.web.app/privacy.html">
+<meta name="theme-color" content="#5FE1B0">
+<link rel="icon" href="img/icon.png">
+<meta name="robots" content="index, follow">
+
+<style>
+  /*
+    index.html과 같은 색을 쓴다. 본문은 읽기용이라 폭을 좁게 잡고 줄 간격을 넉넉히 둔다.
+    구글 OAuth 브랜딩 확인과 Play 스토어 리스팅이 이 주소를 가리키므로 주소를 바꾸면 둘 다 고쳐야 한다.
+  */
+  :root { --mint: #5FE1B0; --ink: #1b2a24; --muted: #5f6f68; --line: #e3ece8; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0; background: #fff; color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+    line-height: 1.7; word-break: keep-all;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 32px 20px 64px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+  header img { width: 40px; height: 40px; border-radius: 10px; }
+  header a { color: var(--muted); text-decoration: none; font-size: 14px; }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  .meta { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+  h2 { font-size: 18px; margin: 32px 0 10px; padding-top: 18px; border-top: 1px solid var(--line); }
+  p, li { font-size: 15.5px; }
+  ul { padding-left: 20px; }
+  li { margin: 6px 0; }
+  b { color: var(--ink); }
+  .notice { background: #f2fbf7; border-left: 4px solid var(--mint); padding: 12px 16px; border-radius: 6px; font-size: 14.5px; }
+  footer { margin-top: 40px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <img src="img/icon.png" alt="데일리넷 아이콘">
+    <a href="./">데일리넷 DailyNet 홈으로</a>
+  </header>
+
+  <h1>개인정보처리방침</h1>
+  <div class="meta">공고일자 2026년 6월 18일 · 시행일자 2026년 6월 18일</div>
+
+  <p><b>DailyNet</b>(이하 '앱')은(는) 「개인정보 보호법」 제30조에 따라 정보주체의 개인정보를 보호하고
+     이와 관련한 고충을 신속하고 원활하게 처리할 수 있도록 하기 위하여 다음과 같이 개인정보처리방침을
+     수립·공개합니다.</p>
+  <p>이 개인정보처리방침은 서비스 출시 및 테스트 시작일인 <b>2026년 6월 18일</b>부터 적용됩니다.</p>
+
+  <h2>1. 개인정보의 처리 목적 및 항목</h2>
+  <p>앱은 사용자에게 맞춤형 식단/운동 분석 레포트 및 정산 기능을 제공하기 위해 최소한의 데이터만을 활용합니다.</p>
+  <ul>
+    <li><b>인증 및 계정 관리</b>: 구글 로그인(Firebase Auth)을 통해 유저를 식별하며, 구글 계정 이름 및 고유 UID를 활용합니다.</li>
+    <li><b>사용자 신체 데이터</b>: AI 분석(Gemini API) 및 기초대사량 계산을 위해 사용자가 직접 입력한
+        신장(Height), 체중(Weight), 성별(Gender), 생년월일(BirthDate) 정보를 처리합니다.</li>
+    <li><b>식단 및 운동 기록</b>: 일별 식단(아침/점심/저녁/간식) 및 운동, 비고 기록을 기반으로 AI 분석 서비스를 제공합니다.</li>
+    <li><b>구글 캘린더 연동(선택)</b>: 사용자가 설정에서 켠 경우에만, 앱이 사용자의 구글 계정에 만든
+        전용 보조 캘린더("데일리넷 운동")에 운동 기록을 일정으로 등록합니다. 앱은 이 보조 캘린더만 읽고 쓸 수 있으며,
+        사용자의 기본 캘린더나 다른 일정에는 접근하지 않습니다. 이 기능은 설정에서 언제든 끌 수 있습니다.</li>
+  </ul>
+
+  <h2>2. 개인정보의 처리 및 보유 기간</h2>
+  <p>사용자의 모든 데이터는 원칙적으로 회원 탈퇴 시 즉시 파기됩니다.</p>
+  <ul>
+    <li>사용자가 앱 내에서 <b>'회원탈퇴'</b>를 진행하는 경우, 로컬 기기(Room DB) 및 클라우드 서버(Firebase Firestore)에
+        저장된 유저 프로필과 모든 정산 기록은 <b>즉시 영구 삭제</b>됩니다.</li>
+    <li>구글 캘린더에 등록된 일정은 사용자의 구글 계정에 속한 데이터이므로 앱이 임의로 삭제하지 않습니다.
+        사용자는 구글 캘린더에서 "데일리넷 운동" 캘린더를 직접 삭제할 수 있습니다.</li>
+  </ul>
+
+  <h2>3. 개인정보의 제3자 제공 및 위탁</h2>
+  <p>앱은 사용자의 동의 없이 개인정보를 제3자에게 제공하지 않습니다. 다만, 안정적인 서비스 제공을 위해 아래와 같은
+     글로벌 인프라 및 도구를 활용하며, 이는 서비스 제공 목적 이외에 절대 사용되지 않습니다.</p>
+  <ul>
+    <li><b>Google Firebase (Auth, Firestore)</b>: 계정 인증 및 데이터 동기화/보관</li>
+    <li><b>Google Gemini API</b>: 식단 및 운동 내용의 AI 분석 처리</li>
+    <li><b>Google Calendar API</b>: 사용자가 연동을 켠 경우 운동 기록을 사용자의 구글 캘린더에 등록</li>
+  </ul>
+
+  <h2>4. 정보주체의 권리·의무 및 그 행사방법</h2>
+  <p>사용자는 언제든지 앱 내 설정을 통해 본인의 개인정보를 열람, 수정하거나 회원탈퇴를 통해 데이터 삭제를 요구할 수
+     있습니다. 앱은 이에 대해 지체 없이 조치합니다.</p>
+
+  <h2>5. 개인정보의 안전성 확보 조치</h2>
+  <p>앱은 사용자의 개인정보를 안전하게 관리하기 위해 Firebase가 제공하는 보안 규칙(Security Rules) 및 데이터 암호화
+     통신(HTTPS)을 적용하여 관리하고 있습니다.</p>
+
+  <h2>6. 개인정보 보호책임자 및 문의처</h2>
+  <p>서비스 이용 중 개인정보 보호 관련 문의, 불만 처리, 데이터 삭제 요청 등이 있으신 경우 아래의 연락처로 문의해
+     주시기 바랍니다.</p>
+  <ul>
+    <li><b>이메일</b>: youngseok1682@gmail.com</li>
+  </ul>
+
+  <p class="notice">
+    이 문서의 내용이 바뀌면 이 페이지에서 공고하며, 시행일자를 함께 갱신합니다.
+  </p>
+
+  <footer>
+    <a href="./">데일리넷 DailyNet</a> · Google Play:
+    <a href="https://play.google.com/store/apps/details?id=com.youngs.dailynet" target="_blank" rel="noopener">com.youngs.dailynet</a>
+  </footer>
+
+</div>
+</body>
+</html>

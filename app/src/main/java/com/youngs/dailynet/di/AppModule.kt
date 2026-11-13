@@ -66,6 +66,25 @@ object AppModule {
         return retrofit.create(DailyNetApiService::class.java)
     }
 
+    /**
+     * 구글 캘린더 API. 분석 서버와 주소가 달라 Retrofit을 따로 만든다.
+     * 캘린더는 금방 답하므로 분석 서버용 120초 대신 30초로 끊는다.
+     */
+    @Provides
+    @Singleton
+    fun provideGoogleCalendarApi(okHttpClient: OkHttpClient): com.youngs.dailynet.data.network.GoogleCalendarApi {
+        val client = okHttpClient.newBuilder()
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
+        return Retrofit.Builder()
+            .baseUrl("https://www.googleapis.com/calendar/v3/")
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(com.youngs.dailynet.data.network.GoogleCalendarApi::class.java)
+    }
+
     @Provides
     @Singleton
     fun provideAppCheck(@ApplicationContext context: Context): FirebaseAppCheck {

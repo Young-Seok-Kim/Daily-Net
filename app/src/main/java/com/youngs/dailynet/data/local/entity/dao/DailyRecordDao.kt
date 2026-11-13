@@ -31,6 +31,10 @@ interface DailyRecordDao {
     @Query("SELECT COUNT(*) FROM daily_records")
     suspend fun getCount(): Int
 
+    /** 운동을 적은 날만 오래된 순으로. 구글 캘린더 일괄 동기화가 쓴다. */
+    @Query("SELECT * FROM daily_records WHERE TRIM(exercise) != '' ORDER BY date ASC")
+    suspend fun getAllWithExercise(): List<DailyRecordModel>
+
     @Query("SELECT weight FROM daily_records WHERE weight > 0.0 ORDER BY date DESC LIMIT 1")
     suspend fun getLatestWeight(): Float?
 

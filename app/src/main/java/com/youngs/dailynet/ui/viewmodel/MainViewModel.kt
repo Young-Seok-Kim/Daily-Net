@@ -57,6 +57,7 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import androidx.annotation.StringRes
 import com.youngs.dailynet.R
+import com.youngs.dailynet.data.calendar.GoogleCalendarSync
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.Calendar
 import java.util.Date
@@ -87,7 +88,8 @@ class MainViewModel @Inject constructor(
     private val adminManager: com.youngs.dailynet.util.AdminManager, // 무제한 사용자 판별
     private val geminiManager: GeminiManager, // 음식 사진 → 메뉴 텍스트 변환
     // 구독 여부는 앱이 정하지 않고 서버가 Play에 확인해서 정한다
-    private val subscriptionVerifier: com.youngs.dailynet.data.network.SubscriptionVerifier
+    private val subscriptionVerifier: com.youngs.dailynet.data.network.SubscriptionVerifier,
+    private val calendarSync: GoogleCalendarSync // 운동 기록을 구글 캘린더에 넣는다 (설정에서 켠 경우만)
 ) : BaseViewModel() {
 
     private val UNINITIALIZED = -1 // 오늘 횟수 가져오는데 실패하면 _todayCount를 -1로 셋팅해서 다시 시도하도록 유도함
@@ -1036,6 +1038,7 @@ class MainViewModel @Inject constructor(
                     dailyRecordDao.clearAllDailyRecord()
                     userProfileDao.clearProfile()
                     inbodyRepository.clearLocal()
+                    calendarSync.clear()
                     // 로그아웃과 같은 이유로 직접 부른다.
                     // 탈퇴한 계정의 기록이 홈 화면에 남는 것은 관찰에 맡길 문제가 아니다.
                     TodayWidget.refresh(context)
@@ -1219,6 +1222,8 @@ class MainViewModel @Inject constructor(
                 DailyReminder.markRecorded(context, analyzedData.date)
                 // 이번 결과에 나온 메뉴·운동을 즐겨찾기 횟수에 더한다
                 favoriteRepository.recordAnalysis(analyzedData.analysisDetail)
+                // 운동을 적었으면 구글 캘린더에도 넣는다 (설정에서 켠 경우만, 실패해도 정산은 끝난 것)
+                mirrorToCalendar(analyzedData)
                 // 홈 화면 위젯은 observeTodayRecordForWidget()이 Room 변경을 보고 알아서 갱신한다
 
                 onSuccess(usage)
@@ -1260,6 +1265,8 @@ class MainViewModel @Inject constructor(
             repository.saveRecord(updated)
             _uiState.value = updated
             toast(R.string.toast_result_edited)
+            // 소모 열량이 바뀌었으면 캘린더 메모의 열량도 맞춘다
+            mirrorToCalendar(updated)
         } catch (e: Exception) {
             toast(R.string.toast_result_edit_failed, e.message.orEmpty())
         }
@@ -1286,6 +1293,110 @@ class MainViewModel @Inject constructor(
         )
     }
 
+    // ── 구글 캘린더 연동 ──────────────────────────────────────────
+
+    fun isCalendarSyncEnabled(): Boolean = calendarSync.isEnabled()
+    fun calendarTitleMode(): String = calendarSync.titleMode()
+    fun calendarFixedTitle(): String = calendarSync.fixedTitle()
+    fun setCalendarTitleMode(mode: String) = calendarSync.setTitleMode(mode)
+    fun setCalendarFixedTitle(title: String) = calendarSync.setFixedTitle(title)
+    fun disableCalendarSync() = calendarSync.setEnabled(false)
+
+    /** 정산 저장 뒤 캘린더에 반영. 실패는 [GoogleCalendarSync.mirror] 안에서 삼키므로 정산 흐름을 막지 않는다. */
+    private fun mirrorToCalendar(record: DailyRecordModel) {
+        if (!calendarSync.isEnabled()) return
+        viewModelScope.launch { calendarSync.mirror(record) }
+    }
+
+    /**
+     * 설정에서 토글을 켤 때. 이미 승인된 계정이면 바로 켜고 보조 캘린더를 만든다.
+     * 동의 화면이 필요하면 [onNeedsConsent]로 PendingIntent를 넘기고, 화면이 닫힌 뒤
+     * [finishCalendarConsent]가 이어받는다.
+     */
+    fun connectCalendar(
+        onNeedsConsent: (android.app.PendingIntent) -> Unit,
+        onDone: (Boolean) -> Unit
+    ) {
+        viewModelScope.launch {
+            when (val access = calendarSync.requestAccess()) {
+                is GoogleCalendarSync.Access.Granted -> onDone(enableCalendar(access.token, onNeedsConsent))
+                is GoogleCalendarSync.Access.NeedsConsent -> onNeedsConsent(access.pendingIntent)
+                is GoogleCalendarSync.Access.Failed -> {
+                    toast(R.string.calendar_connect_failed, access.error.message.orEmpty())
+                    onDone(false)
+                }
+            }
+        }
+    }
+
+    /** 동의 화면이 닫힌 뒤. 취소했으면 조용히 꺼진 채로 둔다. */
+    fun finishCalendarConsent(data: android.content.Intent?, onDone: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            when (val access = calendarSync.accessFromConsent(data)) {
+                // 방금 동의했으니 또 동의가 필요할 일은 없다. 그래도 요구하면 그냥 꺼진 채로 둔다.
+                is GoogleCalendarSync.Access.Granted -> onDone(enableCalendar(access.token, onNeedsConsent = {}))
+                else -> onDone(false)
+            }
+        }
+    }
+
+    /**
+     * 캘린더를 준비하고 실제로 읽어 본 뒤에야 켠다.
+     * 캐시된 토큰이 죽어 있으면 [onNeedsConsent]로 동의 화면을 띄우고, 이번엔 켜지 않는다.
+     */
+    private suspend fun enableCalendar(
+        token: String,
+        onNeedsConsent: (android.app.PendingIntent) -> Unit
+    ): Boolean {
+        return try {
+            calendarSync.verifyCalendar(token)
+            calendarSync.setEnabled(true)
+            toast(R.string.calendar_connected)
+            true
+        } catch (e: GoogleCalendarSync.ConsentRequiredException) {
+            onNeedsConsent(e.pendingIntent)
+            false
+        } catch (e: Exception) {
+            val body = (e as? retrofit2.HttpException)?.response()?.errorBody()?.string()
+            Log.w("GoogleCalendarSync", "enableCalendar failed: ${e.message} ${body.orEmpty()}", e)
+            toast(R.string.calendar_connect_failed, e.message.orEmpty())
+            false
+        }
+    }
+
+    /**
+     * 지금까지 기록한 운동 중 캘린더에 없는 날짜를 전부 넣는다. 결과는 토스트로 알린다.
+     * 로컬에 없는 과거 기록도 포함하려고 먼저 Firestore 전체를 받아 둔다.
+     */
+    fun syncCalendarNow(
+        onNeedsConsent: (android.app.PendingIntent) -> Unit,
+        onDone: () -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                when (val access = calendarSync.requestAccess()) {
+                    is GoogleCalendarSync.Access.Granted -> {
+                        repository.fetchAllFromFirebase()
+                        val result = calendarSync.syncAll(access.token, dailyRecordDao.getAllWithExercise())
+                        if (result.added == 0 && result.updated == 0) toast(R.string.calendar_sync_nothing)
+                        else toast(R.string.calendar_sync_done, result.added, result.updated)
+                    }
+                    is GoogleCalendarSync.Access.NeedsConsent -> onNeedsConsent(access.pendingIntent)
+                    is GoogleCalendarSync.Access.Failed ->
+                        toast(R.string.calendar_sync_failed, access.error.message.orEmpty())
+                }
+            } catch (e: GoogleCalendarSync.ConsentRequiredException) {
+                // 캐시된 토큰이 죽어 있던 경우. 동의가 끝나면 화면이 동기화를 다시 부른다.
+                onNeedsConsent(e.pendingIntent)
+            } catch (e: Exception) {
+                val body = (e as? retrofit2.HttpException)?.response()?.errorBody()?.string()
+                Log.w("GoogleCalendarSync", "sync failed: ${e.message} ${body.orEmpty()}", e)
+                toast(R.string.calendar_sync_failed, e.message.orEmpty())
+            }
+            onDone()
+        }
+    }
+
     fun logout(context: Context, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
             try {
@@ -1306,6 +1417,8 @@ class MainViewModel @Inject constructor(
                 withContext(Dispatchers.IO) {
                     repository.clearAllLocalData()
                 }
+                // 다음 계정이 이 계정의 캘린더에 쓰지 않도록 연동 설정도 지운다
+                calendarSync.clear()
                 // 여기만 observeTodayRecordForWidget()에 맡기지 않고 직접 부른다.
                 // 로그아웃 직후에는 화면이 넘어가면서 ViewModel이 정리될 수 있어,
                 // Room 변경 통지가 도착하기 전에 관찰이 끊기면 이전 사용자의 순칼로리가
