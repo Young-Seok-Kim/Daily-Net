@@ -239,11 +239,12 @@ class GoogleCalendarSync @Inject constructor(
     }
 
     /**
-     * 토큰·캘린더 ID를 준비하고, 캘린더가 사용자 목록에 아직 있는지 확인한 뒤 [block]을 돌린다.
-     * 401이면 캐시된 토큰을 버리고 한 번 더, 캘린더가 지워졌으면(404 또는 deleted) 다시 만들고 한 번 더.
+     * 토큰·캘린더 ID를 준비하고, 캘린더가 아직 있는지 한 번 읽어 본 뒤 [block]을 돌린다.
+     * 401이면 캐시된 토큰을 버리고 한 번 더, 404(캘린더가 지워짐)면 다시 만들고 한 번 더.
      *
-     * 매번 목록 항목을 한 번 더 읽는 비용이 들지만, 지워진 캘린더에 조용히 쓰는 것보다 낫다.
-     * 그렇게 쓴 일정은 사용자 눈에 영영 안 보인다.
+     * 매번 한 번 더 읽는 비용이 들지만, 지워진 캘린더에 조용히 쓰는 것보다 낫다.
+     * 그렇게 쓴 일정은 사용자 눈에 영영 안 보인다. 단, 지운 직후 몇 분은 구글이 아직 살아 있다고
+     * 답하므로 그 사이에 쓴 일정은 잃는다. 더 정확한 calendarList.get은 이 범위로 401이 나서 못 쓴다.
      */
     private suspend fun <T> withCalendar(
         token: String,
@@ -255,14 +256,7 @@ class GoogleCalendarSync @Inject constructor(
         while (true) {
             val calendarId = ensureCalendar(currentToken)
             try {
-                val entry = api.getCalendarListEntry(bearer(currentToken), calendarId, "id,deleted")
-                if (entry.deleted == true) {
-                    if (retriedCalendar) throw IllegalStateException("calendar deleted")
-                    Log.w(TAG, "calendar was deleted by user; recreating")
-                    retriedCalendar = true
-                    forgetCalendarId()
-                    continue
-                }
+                api.getCalendar(bearer(currentToken), calendarId, "id")
                 return block(bearer(currentToken), calendarId)
             } catch (e: HttpException) {
                 when {
@@ -276,6 +270,7 @@ class GoogleCalendarSync @Inject constructor(
                         }
                     }
                     e.code() == 404 && !retriedCalendar -> {
+                        Log.w(TAG, "calendar not found; recreating")
                         retriedCalendar = true
                         forgetCalendarId()
                     }

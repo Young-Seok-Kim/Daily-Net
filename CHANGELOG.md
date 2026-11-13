@@ -32,8 +32,9 @@
 - **사용자가 지운 캘린더에 계속 쓰던 문제** (`GoogleCalendarApi.kt`, `GoogleCalendarSync.kt`)
   - 웹에서 "데일리넷 운동" 캘린더를 지워도 구글 API는 그 ID로 `calendars.get`과 일정 추가를 한동안 받아
     준다. 그래서 앱은 살아 있다고 믿고 지워진 캘린더에 29건을 넣었고 사용자 목록에는 아무것도 안 보였다
-  - 작업 전마다 `calendarList.get`(이 범위로 허용됨)으로 목록 항목을 읽어 404이거나 `deleted=true`면
-    기기·Firestore의 ID를 비우고 새로 만든다. 지워진 캘린더에 들어간 일정은 되살리지 않는다
+  - 작업 전마다 `calendars.get`으로 캘린더를 한 번 읽어 404면 기기·Firestore의 ID를 비우고 새로 만든다.
+    지운 직후 몇 분은 구글이 아직 정상 응답하므로 그 사이의 일정은 잃는다. 문서상 이 범위로 된다는
+    `calendarList.get`(deleted 플래그 제공)은 실제로는 401 Invalid Credentials라 못 쓴다(폰·태블릿 확인)
 
 ## v1.13.1 (b49) — 2026-11-13
 
