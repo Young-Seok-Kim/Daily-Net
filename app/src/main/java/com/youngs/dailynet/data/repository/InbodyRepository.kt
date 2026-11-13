@@ -1,6 +1,7 @@
 package com.youngs.dailynet.data.repository
 
 import android.util.Log
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -10,6 +11,7 @@ import com.youngs.dailynet.data.local.entity.dao.InbodyDao
 import com.youngs.dailynet.data.model.InbodyData
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.tasks.await
+import java.util.Date
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -54,6 +56,12 @@ class InbodyRepository @Inject constructor(
             val cloud = snapshot.documents.mapNotNull { d ->
                 InbodyData.fromMap(d.data)?.takeIf { it.measuredAt.isNotBlank() }
             }
+            // 예전 앱이 createdAt 을 밀리초 숫자로 넣어 콘솔에서 날짜로 안 읽힌다. 보이는 김에 Timestamp 로 바꿔 둔다.
+            snapshot.documents.forEach { d ->
+                (d.get("createdAt") as? Number)?.let { ms ->
+                    d.reference.update("createdAt", Timestamp(Date(ms.toLong()))).await()
+                }
+            }
             val legacy = doc.get().await().get("inbody")
             if (cloud.isNotEmpty()) {
                 cloud.forEach { inbodyDao.upsert(InbodyRecordEntity.fromData(it)) }
@@ -88,10 +96,12 @@ class InbodyRepository @Inject constructor(
         val toSave = if (sameValues) data.copy(analysis = existing!!.analysis, analyzedAt = existing.analyzedAt)
         else data.copy(analysis = "", analyzedAt = "")
 
+        val createdAt = existing?.createdAt ?: System.currentTimeMillis()
+        // 콘솔에서 날짜로 읽히도록 숫자가 아니라 Timestamp 로 넣는다. 앱은 이 값을 읽지 않는다(기기에는 Long 으로 둔다)
         doc.collection("inbody").document(data.measuredAt)
-            .set(toSave.toMap() + mapOf("createdAt" to (existing?.createdAt ?: System.currentTimeMillis())))
+            .set(toSave.toMap() + mapOf("createdAt" to Timestamp(Date(createdAt))))
             .await()
-        inbodyDao.upsert(InbodyRecordEntity.fromData(toSave, existing?.createdAt ?: System.currentTimeMillis()))
+        inbodyDao.upsert(InbodyRecordEntity.fromData(toSave, createdAt))
     }
 
     suspend fun delete(measuredAt: String) {
