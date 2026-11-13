@@ -47,3 +47,16 @@
 # Crashlytics 스택 트레이스에 줄 번호가 남도록. 매핑 파일은 Crashlytics 플러그인이 올린다.
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
+
+# 구글 캘린더 API JSON 모델 (data/network/GoogleCalendarApi.kt).
+# Gson이 필드 이름을 그대로 JSON 키로 쓰므로 난독화되면 "summary" 대신 "a"가 나가고
+# 구글이 400 "Missing summary."로 거절한다 (b48 스토어 빌드에서 실제로 났다).
+# data.model 패키지가 아니라 위의 keep 규칙에 안 걸려 따로 적는다.
+-keep class com.youngs.dailynet.data.network.CalendarResource { *; }
+-keep class com.youngs.dailynet.data.network.CalendarBody { *; }
+-keep class com.youngs.dailynet.data.network.EventListResponse { *; }
+-keep class com.youngs.dailynet.data.network.EventResource { *; }
+-keep class com.youngs.dailynet.data.network.EventBody { *; }
+-keep class com.youngs.dailynet.data.network.EventDate { *; }
+-keep class com.youngs.dailynet.data.network.Reminders { *; }
+-keep class com.youngs.dailynet.data.network.ExtendedProperties { *; }
