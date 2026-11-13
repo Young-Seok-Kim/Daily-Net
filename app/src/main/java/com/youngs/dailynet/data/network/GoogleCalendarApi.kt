@@ -26,7 +26,13 @@ import retrofit2.http.Query
  */
 interface GoogleCalendarApi {
 
-    /** 캘린더가 아직 있는지(그리고 토큰이 살아 있는지) 확인하는 용도. 404면 사용자가 지운 것 */
+    /**
+     * 캘린더가 아직 있는지(그리고 토큰이 살아 있는지) 확인하는 용도. 지워졌으면 404.
+     *
+     * 사용자가 웹에서 지운 직후 몇 분은 이 호출도, 일정 추가도 정상 응답한다(삭제 전파가 느리다).
+     * 더 정확한 `users/me/calendarList/{id}`(calendarList.get)는 문서에는 이 범위로 된다고 돼 있지만
+     * 실제로는 401 Invalid Credentials가 난다(b50 폰·태블릿 모두 확인). 그래서 이걸로 간다.
+     */
     @GET("calendars/{calendarId}")
     suspend fun getCalendar(
         @Header("Authorization") auth: String,

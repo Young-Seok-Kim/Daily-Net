@@ -81,6 +81,7 @@ fun SettingsScreen(
     // "지금 동기화"를 눌렀는데 동의 화면부터 거쳐야 했던 경우. 동의가 끝나면 이어서 동기화한다.
     var syncAfterConsent by remember { mutableStateOf(false) }
     val calendarSyncingText = stringResource(R.string.calendar_sync_in_progress)
+    val calendarConnectingText = stringResource(R.string.calendar_connecting)
     val calendarConsentLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
@@ -89,7 +90,10 @@ fun SettingsScreen(
             syncAfterConsent = false
             return@rememberLauncherForActivityResult
         }
+        // 동의 뒤 캘린더를 만들고 확인하는 몇 초 동안 화면을 잠근다. 연달아 누르면 캘린더가 여러 개 생긴다.
+        loadingMessage = calendarConnectingText
         mainViewModel.finishCalendarConsent(result.data) { ok ->
+            loadingMessage = null
             calendarEnabled = ok
             if (ok && syncAfterConsent) {
                 syncAfterConsent = false
@@ -282,9 +286,17 @@ fun SettingsScreen(
                                 return@SettingsSwitchItem
                             }
                             // 켜는 순간 구글 동의 화면을 띄운다. 승인이 끝나야 스위치가 켜진다.
+                            // 연결되는 몇 초 동안은 화면을 잠가 두 번 눌리지 않게 한다.
+                            loadingMessage = calendarConnectingText
                             mainViewModel.connectCalendar(
-                                onNeedsConsent = launchCalendarConsent,
-                                onDone = { ok -> calendarEnabled = ok }
+                                onNeedsConsent = { pendingIntent ->
+                                    loadingMessage = null
+                                    launchCalendarConsent(pendingIntent)
+                                },
+                                onDone = { ok ->
+                                    loadingMessage = null
+                                    calendarEnabled = ok
+                                }
                             )
                         }
                     )

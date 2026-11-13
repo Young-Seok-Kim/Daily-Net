@@ -23,6 +23,8 @@ import com.youngs.dailynet.data.network.GoogleCalendarApi
 import com.youngs.dailynet.util.Constants
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import java.io.IOException
 import retrofit2.HttpException
@@ -91,6 +93,13 @@ class GoogleCalendarSync @Inject constructor(
 
     private val prefs
         get() = context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
+
+    /**
+     * 캘린더 ID를 찾거나 만드는 구간은 한 번에 하나만.
+     * 토글을 연달아 누르면 연결이 여러 개 동시에 돌고, 각자 "ID가 없네" 하고 캘린더를 하나씩 만든다
+     * (b49 태블릿에서 1.4초 간격 세 번 눌러 캘린더 3개가 생겼다).
+     */
+    private val calendarMutex = Mutex()
 
     // ── 설정 ──────────────────────────────────────────────────────
 
@@ -189,8 +198,8 @@ class GoogleCalendarSync @Inject constructor(
      * 적어 두고, 재설치나 기기 교체 뒤에는 거기서 가져온다. 안 그러면 켤 때마다 캘린더가 하나씩 늘어난다.
      * 켜자마자 불러서 사용자가 구글 캘린더 앱에서 바로 확인할 수 있게 한다.
      */
-    suspend fun ensureCalendar(token: String): String {
-        prefs.getString(Constants.KEY_CALENDAR_ID, null)?.let { return it }
+    suspend fun ensureCalendar(token: String): String = calendarMutex.withLock {
+        prefs.getString(Constants.KEY_CALENDAR_ID, null)?.let { return@withLock it }
 
         val cloudId = runCatching { cloudDoc()?.get()?.await()?.getString(CLOUD_FIELD) }
             .onFailure { Log.w(TAG, "cloud calendarId read failed", it) }
@@ -198,7 +207,7 @@ class GoogleCalendarSync @Inject constructor(
         if (!cloudId.isNullOrBlank()) {
             Log.d(TAG, "calendarId from cloud")
             prefs.edit().putString(Constants.KEY_CALENDAR_ID, cloudId).apply()
-            return cloudId
+            return@withLock cloudId
         }
 
         val id = api.createCalendar(
@@ -210,7 +219,7 @@ class GoogleCalendarSync @Inject constructor(
         ).id
         Log.d(TAG, "calendar created")
         saveCalendarId(id)
-        return id
+        id
     }
 
     private fun cloudDoc() = auth.currentUser?.uid?.let { uid ->
@@ -230,8 +239,12 @@ class GoogleCalendarSync @Inject constructor(
     }
 
     /**
-     * 토큰·캘린더 ID를 준비해 [block]을 돌린다.
-     * 401이면 캐시된 토큰을 버리고 한 번 더, 404면 캘린더가 지워진 것이니 다시 만들고 한 번 더.
+     * 토큰·캘린더 ID를 준비하고, 캘린더가 아직 있는지 한 번 읽어 본 뒤 [block]을 돌린다.
+     * 401이면 캐시된 토큰을 버리고 한 번 더, 404(캘린더가 지워짐)면 다시 만들고 한 번 더.
+     *
+     * 매번 한 번 더 읽는 비용이 들지만, 지워진 캘린더에 조용히 쓰는 것보다 낫다.
+     * 그렇게 쓴 일정은 사용자 눈에 영영 안 보인다. 단, 지운 직후 몇 분은 구글이 아직 살아 있다고
+     * 답하므로 그 사이에 쓴 일정은 잃는다. 더 정확한 calendarList.get은 이 범위로 401이 나서 못 쓴다.
      */
     private suspend fun <T> withCalendar(
         token: String,
@@ -243,6 +256,7 @@ class GoogleCalendarSync @Inject constructor(
         while (true) {
             val calendarId = ensureCalendar(currentToken)
             try {
+                api.getCalendar(bearer(currentToken), calendarId, "id")
                 return block(bearer(currentToken), calendarId)
             } catch (e: HttpException) {
                 when {
@@ -256,6 +270,7 @@ class GoogleCalendarSync @Inject constructor(
                         }
                     }
                     e.code() == 404 && !retriedCalendar -> {
+                        Log.w(TAG, "calendar not found; recreating")
                         retriedCalendar = true
                         forgetCalendarId()
                     }
@@ -266,14 +281,11 @@ class GoogleCalendarSync @Inject constructor(
     }
 
     /**
-     * 토글을 켤 때. 캘린더를 준비하고 실제로 한 번 읽어 본다.
-     * 기억해 둔 ID만 믿고 "연결됨"이라고 하면 토큰이 죽어 있어도 켜진 것처럼 보인다.
+     * 토글을 켤 때. 캘린더를 준비하고 사용자 목록에 실제로 있는지 확인한다([withCalendar]가 한다).
+     * 기억해 둔 ID만 믿고 "연결됨"이라고 하면 토큰이 죽었거나 캘린더가 지워져도 켜진 것처럼 보인다.
      */
     suspend fun verifyCalendar(token: String): String =
-        withCalendar(token) { bearer, calendarId ->
-            api.getCalendar(bearer, calendarId, "id")
-            calendarId
-        }
+        withCalendar(token) { _, calendarId -> calendarId }
 
     // ── 일정 ──────────────────────────────────────────────────────
 
