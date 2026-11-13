@@ -22,7 +22,9 @@ import com.youngs.dailynet.data.network.ExtendedProperties
 import com.youngs.dailynet.data.network.GoogleCalendarApi
 import com.youngs.dailynet.util.Constants
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.tasks.await
+import java.io.IOException
 import retrofit2.HttpException
 import java.time.LocalDate
 import java.util.TimeZone
@@ -332,11 +334,11 @@ class GoogleCalendarSync @Inject constructor(
                 val event = existing[record.date]
                 when {
                     event == null -> {
-                        api.insertEvent(bearer, calendarId, body)
+                        retryOnNetworkError { api.insertEvent(bearer, calendarId, body) }
                         added++
                     }
                     event.summary != body.summary || event.description.orEmpty() != body.description.orEmpty() -> {
-                        api.patchEvent(bearer, calendarId, event.id, body)
+                        retryOnNetworkError { api.patchEvent(bearer, calendarId, event.id, body) }
                         updated++
                     }
                 }
@@ -344,6 +346,24 @@ class GoogleCalendarSync @Inject constructor(
             Log.d(TAG, "syncAll: added=$added updated=$updated")
             SyncResult(added = added, updated = updated, total = targets.size)
         }
+    }
+
+    /**
+     * 수십 건을 연달아 보내는 동안 회선이 잠깐 끊기면(Wi-Fi↔LTE 전환 등) DNS 오류로 전체가 실패한다.
+     * 네트워크 오류(IOException)에 한해 잠깐 쉬고 두 번까지 더 시도한다. HTTP 오류는 재시도하지 않는다.
+     */
+    private suspend fun <T> retryOnNetworkError(block: suspend () -> T): T {
+        var lastError: IOException? = null
+        repeat(3) { attempt ->
+            try {
+                return block()
+            } catch (e: IOException) {
+                lastError = e
+                Log.w(TAG, "network error (attempt ${attempt + 1}): ${e.message}")
+                delay(1500L * (attempt + 1))
+            }
+        }
+        throw lastError!!
     }
 
     private fun eventBody(record: DailyRecordModel): EventBody {
