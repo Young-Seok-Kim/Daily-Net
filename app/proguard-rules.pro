@@ -53,6 +53,7 @@
 # 구글이 400 "Missing summary."로 거절한다 (b48 스토어 빌드에서 실제로 났다).
 # data.model 패키지가 아니라 위의 keep 규칙에 안 걸려 따로 적는다.
 -keep class com.youngs.dailynet.data.network.CalendarResource { *; }
+-keep class com.youngs.dailynet.data.network.CalendarListEntry { *; }
 -keep class com.youngs.dailynet.data.network.CalendarBody { *; }
 -keep class com.youngs.dailynet.data.network.EventListResponse { *; }
 -keep class com.youngs.dailynet.data.network.EventResource { *; }

@@ -26,13 +26,20 @@ import retrofit2.http.Query
  */
 interface GoogleCalendarApi {
 
-    /** 캘린더가 아직 있는지(그리고 토큰이 살아 있는지) 확인하는 용도. 404면 사용자가 지운 것 */
-    @GET("calendars/{calendarId}")
-    suspend fun getCalendar(
+    /**
+     * 캘린더가 사용자 목록에 아직 있는지 확인하는 용도.
+     *
+     * `calendars/{id}`(calendars.get)로는 안 된다. 사용자가 웹에서 캘린더를 지워도 그 호출은 한동안 정상 응답하고
+     * 일정 추가까지 받아 준다(b49 태블릿에서 지운 캘린더에 29건이 들어갔다). 목록 항목(calendarList.get)은
+     * 지우면 404가 나거나 `deleted=true`로 온다. 이 호출은 `calendar.app.created` 범위로 허용된다
+     * (목록 전체 조회 calendarList.list만 403이다).
+     */
+    @GET("users/me/calendarList/{calendarId}")
+    suspend fun getCalendarListEntry(
         @Header("Authorization") auth: String,
         @Path("calendarId") calendarId: String,
         @Query("fields") fields: String
-    ): CalendarResource
+    ): CalendarListEntry
 
     @POST("calendars")
     suspend fun createCalendar(
@@ -74,6 +81,9 @@ interface GoogleCalendarApi {
 }
 
 data class CalendarResource(val id: String = "", val summary: String? = null)
+
+/** 사용자 캘린더 목록의 한 줄. 지운 캘린더는 `deleted`가 true로 올 수 있다 */
+data class CalendarListEntry(val id: String = "", val deleted: Boolean? = null)
 
 data class CalendarBody(val summary: String, val timeZone: String)
 

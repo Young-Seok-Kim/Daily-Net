@@ -239,8 +239,11 @@ class GoogleCalendarSync @Inject constructor(
     }
 
     /**
-     * 토큰·캘린더 ID를 준비해 [block]을 돌린다.
-     * 401이면 캐시된 토큰을 버리고 한 번 더, 404면 캘린더가 지워진 것이니 다시 만들고 한 번 더.
+     * 토큰·캘린더 ID를 준비하고, 캘린더가 사용자 목록에 아직 있는지 확인한 뒤 [block]을 돌린다.
+     * 401이면 캐시된 토큰을 버리고 한 번 더, 캘린더가 지워졌으면(404 또는 deleted) 다시 만들고 한 번 더.
+     *
+     * 매번 목록 항목을 한 번 더 읽는 비용이 들지만, 지워진 캘린더에 조용히 쓰는 것보다 낫다.
+     * 그렇게 쓴 일정은 사용자 눈에 영영 안 보인다.
      */
     private suspend fun <T> withCalendar(
         token: String,
@@ -252,6 +255,14 @@ class GoogleCalendarSync @Inject constructor(
         while (true) {
             val calendarId = ensureCalendar(currentToken)
             try {
+                val entry = api.getCalendarListEntry(bearer(currentToken), calendarId, "id,deleted")
+                if (entry.deleted == true) {
+                    if (retriedCalendar) throw IllegalStateException("calendar deleted")
+                    Log.w(TAG, "calendar was deleted by user; recreating")
+                    retriedCalendar = true
+                    forgetCalendarId()
+                    continue
+                }
                 return block(bearer(currentToken), calendarId)
             } catch (e: HttpException) {
                 when {
@@ -275,14 +286,11 @@ class GoogleCalendarSync @Inject constructor(
     }
 
     /**
-     * 토글을 켤 때. 캘린더를 준비하고 실제로 한 번 읽어 본다.
-     * 기억해 둔 ID만 믿고 "연결됨"이라고 하면 토큰이 죽어 있어도 켜진 것처럼 보인다.
+     * 토글을 켤 때. 캘린더를 준비하고 사용자 목록에 실제로 있는지 확인한다([withCalendar]가 한다).
+     * 기억해 둔 ID만 믿고 "연결됨"이라고 하면 토큰이 죽었거나 캘린더가 지워져도 켜진 것처럼 보인다.
      */
     suspend fun verifyCalendar(token: String): String =
-        withCalendar(token) { bearer, calendarId ->
-            api.getCalendar(bearer, calendarId, "id")
-            calendarId
-        }
+        withCalendar(token) { _, calendarId -> calendarId }
 
     // ── 일정 ──────────────────────────────────────────────────────
 
