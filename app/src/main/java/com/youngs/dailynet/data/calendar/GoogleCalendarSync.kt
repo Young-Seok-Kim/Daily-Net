@@ -201,9 +201,12 @@ class GoogleCalendarSync @Inject constructor(
     suspend fun ensureCalendar(token: String): String = calendarMutex.withLock {
         prefs.getString(Constants.KEY_CALENDAR_ID, null)?.let { return@withLock it }
 
-        val cloudId = runCatching { cloudDoc()?.get()?.await()?.getString(CLOUD_FIELD) }
-            .onFailure { Log.w(TAG, "cloud calendarId read failed", it) }
-            .getOrNull()
+        // 로그인이 안 돼 있으면 Firestore 의 캘린더 ID를 못 읽는다. 그 상태에서 새로 만들면
+        // 같은 계정에 "데일리넷 운동"이 하나 더 생긴다(실제로 났다). 만들지 않고 멈춘다.
+        if (auth.currentUser == null) throw IllegalStateException(context.getString(R.string.calendar_not_signed_in))
+
+        // Firestore 읽기가 실패하면(오프라인·권한 오류) 모른다는 뜻이지 없다는 뜻이 아니다. 만들지 않는다.
+        val cloudId = cloudDoc()!!.get().await().getString(CLOUD_FIELD)
         if (!cloudId.isNullOrBlank()) {
             Log.d(TAG, "calendarId from cloud")
             prefs.edit().putString(Constants.KEY_CALENDAR_ID, cloudId).apply()

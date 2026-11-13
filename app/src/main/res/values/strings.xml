@@ -369,6 +369,7 @@
     <string name="calendar_event_kcal">Burned %1$d kcal</string>
     <string name="calendar_connected">Connected to Google Calendar</string>
     <string name="calendar_connect_failed">Could not connect to Google Calendar: %1$s</string>
+    <string name="calendar_not_signed_in">Sign in again before connecting the calendar</string>
     <string name="calendar_connecting">Connecting to Google Calendar...</string>
     <string name="calendar_sync_in_progress">Adding workouts to the calendar...</string>
     <string name="calendar_sync_done">Calendar updated: %1$d added, %2$d changed</string>

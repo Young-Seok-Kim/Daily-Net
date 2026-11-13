@@ -367,6 +367,7 @@
     <string name="calendar_event_kcal">소모 열량 %1$d kcal</string>
     <string name="calendar_connected">구글 캘린더에 연결됐습니다</string>
     <string name="calendar_connect_failed">구글 캘린더 연결에 실패했습니다: %1$s</string>
+    <string name="calendar_not_signed_in">로그인이 풀려 있습니다. 다시 로그인한 뒤 켜 주세요</string>
     <string name="calendar_connecting">구글 캘린더에 연결하는 중...</string>
     <string name="calendar_sync_in_progress">캘린더에 운동을 추가하는 중...</string>
     <string name="calendar_sync_done">캘린더에 %1$d건 추가, %2$d건 갱신했습니다</string>
