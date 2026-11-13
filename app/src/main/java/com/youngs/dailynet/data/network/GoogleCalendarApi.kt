@@ -40,6 +40,14 @@ interface GoogleCalendarApi {
         @Query("fields") fields: String
     ): CalendarResource
 
+    /** 캘린더 이름(summary)만 고친다. 앱의 캘린더 이름을 바꿨을 때 기존 사용자 것도 따라오게 */
+    @PATCH("calendars/{calendarId}")
+    suspend fun patchCalendar(
+        @Header("Authorization") auth: String,
+        @Path("calendarId") calendarId: String,
+        @Body body: CalendarPatch
+    ): CalendarResource
+
     @POST("calendars")
     suspend fun createCalendar(
         @Header("Authorization") auth: String,
@@ -82,6 +90,8 @@ interface GoogleCalendarApi {
 data class CalendarResource(val id: String = "", val summary: String? = null)
 
 data class CalendarBody(val summary: String, val timeZone: String)
+
+data class CalendarPatch(val summary: String)
 
 data class EventListResponse(
     val items: List<EventResource> = emptyList(),

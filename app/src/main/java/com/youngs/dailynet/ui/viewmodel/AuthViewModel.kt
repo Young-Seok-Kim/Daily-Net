@@ -27,6 +27,22 @@ class AuthViewModel @Inject constructor(
     private val _user = MutableStateFlow(auth.currentUser)
     val user = _user.asStateFlow()
 
+    /**
+     * Firebase 쪽에서 세션이 끊기면(만료된 세션이 백업에서 복원됐다가 거부되는 경우 등) 화면도 따라가야 한다.
+     * 이 리스너가 없으면 앱은 로그인된 것처럼 보이는데 Firestore는 전부 PERMISSION_DENIED 가 난다.
+     * 실제로 재설치 뒤 그 상태에서 구글 캘린더를 켜 저장된 캘린더 ID를 못 읽고 캘린더가 하나 더 생겼다.
+     */
+    private val authStateListener = FirebaseAuth.AuthStateListener { _user.value = it.currentUser }
+
+    init {
+        auth.addAuthStateListener(authStateListener)
+    }
+
+    override fun onCleared() {
+        auth.removeAuthStateListener(authStateListener)
+        super.onCleared()
+    }
+
     fun signIn(context: Context, onResult: (Boolean) -> Unit) {
         val credentialManager = CredentialManager.create(context)
         // "Sign in with Google" 버튼 클릭용 옵션 → 항상 계정 선택 UI가 뜬다.

@@ -15,6 +15,7 @@ import com.google.firebase.firestore.SetOptions
 import com.youngs.dailynet.R
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.data.network.CalendarBody
+import com.youngs.dailynet.data.network.CalendarPatch
 import com.youngs.dailynet.data.network.EventBody
 import com.youngs.dailynet.data.network.EventDate
 import com.youngs.dailynet.data.network.EventResource
@@ -201,9 +202,12 @@ class GoogleCalendarSync @Inject constructor(
     suspend fun ensureCalendar(token: String): String = calendarMutex.withLock {
         prefs.getString(Constants.KEY_CALENDAR_ID, null)?.let { return@withLock it }
 
-        val cloudId = runCatching { cloudDoc()?.get()?.await()?.getString(CLOUD_FIELD) }
-            .onFailure { Log.w(TAG, "cloud calendarId read failed", it) }
-            .getOrNull()
+        // 로그인이 안 돼 있으면 Firestore 의 캘린더 ID를 못 읽는다. 그 상태에서 새로 만들면
+        // 같은 계정에 "데일리넷 운동"이 하나 더 생긴다(실제로 났다). 만들지 않고 멈춘다.
+        if (auth.currentUser == null) throw IllegalStateException(context.getString(R.string.calendar_not_signed_in))
+
+        // Firestore 읽기가 실패하면(오프라인·권한 오류) 모른다는 뜻이지 없다는 뜻이 아니다. 만들지 않는다.
+        val cloudId = cloudDoc()!!.get().await().getString(CLOUD_FIELD)
         if (!cloudId.isNullOrBlank()) {
             Log.d(TAG, "calendarId from cloud")
             prefs.edit().putString(Constants.KEY_CALENDAR_ID, cloudId).apply()
@@ -256,7 +260,14 @@ class GoogleCalendarSync @Inject constructor(
         while (true) {
             val calendarId = ensureCalendar(currentToken)
             try {
-                api.getCalendar(bearer(currentToken), calendarId, "id")
+                val calendar = api.getCalendar(bearer(currentToken), calendarId, "id,summary")
+                // 앱의 캘린더 이름이 바뀌었으면(예: "데일리넷 운동" → "데일리넷") 기존 사용자 것도 이름만 따라오게 한다.
+                // 캘린더는 ID 로 찾으므로 이름이 달라도 새로 만들지는 않는다.
+                val wanted = context.getString(R.string.calendar_name)
+                if (calendar.summary != null && calendar.summary != wanted) {
+                    runCatching { api.patchCalendar(bearer(currentToken), calendarId, CalendarPatch(wanted)) }
+                        .onFailure { Log.w(TAG, "calendar rename failed", it) }
+                }
                 return block(bearer(currentToken), calendarId)
             } catch (e: HttpException) {
                 when {
