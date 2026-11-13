@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -313,6 +314,7 @@ fun SettingsScreen(
                         title = stringResource(R.string.settings_calendar_sync_now),
                         subtitle = stringResource(R.string.settings_calendar_sync_now_subtitle),
                         enabled = calendarEnabled,
+                        trailingIcon = Icons.Filled.Refresh,
                         onClick = {
                             loadingMessage = calendarSyncingText
                             mainViewModel.syncCalendarNow(
@@ -437,34 +439,50 @@ private fun SettingsSwitchItem(
     }
 }
 
-/** 설정 한 줄. onClick이 null이면 정보 표시용(누를 수 없음)으로 동작한다. */
+/**
+ * 설정 한 줄. onClick이 null이면 정보 표시용(누를 수 없음)으로 동작한다.
+ * [trailingIcon]을 주면 오른쪽 끝에 아이콘을 놓는다(동기화처럼 "누르면 뭔가 한다"는 걸 보여줄 때).
+ */
 @Composable
 private fun SettingsItem(
     title: String,
     subtitle: String? = null,
     titleColor: Color = MaterialTheme.colorScheme.onSurface,
     enabled: Boolean = true,
+    trailingIcon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     onClick: (() -> Unit)?
 ) {
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .let {
                 if (onClick != null && enabled) it.clickable(onClick = onClick) else it
             }
-            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyLarge,
-            color = if (enabled) titleColor else titleColor.copy(alpha = 0.5f)
-        )
-        subtitle?.let {
-            Spacer(modifier = Modifier.height(2.dp))
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = it,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (enabled) titleColor else titleColor.copy(alpha = 0.5f)
+            )
+            subtitle?.let {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        trailingIcon?.let {
+            Spacer(modifier = Modifier.width(12.dp))
+            Icon(
+                imageVector = it,
+                contentDescription = null,
+                tint = if (enabled) MaterialTheme.colorScheme.primary
+                       else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )
         }
     }
