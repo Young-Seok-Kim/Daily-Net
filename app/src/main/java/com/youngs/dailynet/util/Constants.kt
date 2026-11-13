@@ -82,4 +82,20 @@ object Constants {
      * 로컬 데이터를 지울 때 함께 지워서 다음 로그인 뒤 다시 받는다.
      */
     const val KEY_FAVORITES_PULLED = "favorites_pulled"
+
+    // ── 구글 캘린더 연동 ──────────────────────────────────────────
+    /** 운동을 구글 캘린더에 넣을지 */
+    const val KEY_CALENDAR_SYNC_ENABLED = "calendar_sync_enabled"
+
+    /** 일정 제목 방식. "content"면 운동 내용이 제목, "fixed"면 고정 제목 + 내용은 메모 */
+    const val KEY_CALENDAR_TITLE_MODE = "calendar_title_mode"
+
+    /** 제목 방식이 fixed일 때 쓸 제목. 비어 있으면 기본값(운동) */
+    const val KEY_CALENDAR_FIXED_TITLE = "calendar_fixed_title"
+
+    /**
+     * 앱이 만든 보조 캘린더의 ID. 매번 목록을 뒤지지 않으려고 기억해 둔다.
+     * 사용자가 캘린더를 지워 404가 나면 비우고 다시 만든다.
+     */
+    const val KEY_CALENDAR_ID = "calendar_id"
 }
