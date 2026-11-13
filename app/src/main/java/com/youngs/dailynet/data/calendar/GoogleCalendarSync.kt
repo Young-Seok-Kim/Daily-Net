@@ -23,6 +23,8 @@ import com.youngs.dailynet.data.network.GoogleCalendarApi
 import com.youngs.dailynet.util.Constants
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import java.io.IOException
 import retrofit2.HttpException
@@ -91,6 +93,13 @@ class GoogleCalendarSync @Inject constructor(
 
     private val prefs
         get() = context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
+
+    /**
+     * 캘린더 ID를 찾거나 만드는 구간은 한 번에 하나만.
+     * 토글을 연달아 누르면 연결이 여러 개 동시에 돌고, 각자 "ID가 없네" 하고 캘린더를 하나씩 만든다
+     * (b49 태블릿에서 1.4초 간격 세 번 눌러 캘린더 3개가 생겼다).
+     */
+    private val calendarMutex = Mutex()
 
     // ── 설정 ──────────────────────────────────────────────────────
 
@@ -189,8 +198,8 @@ class GoogleCalendarSync @Inject constructor(
      * 적어 두고, 재설치나 기기 교체 뒤에는 거기서 가져온다. 안 그러면 켤 때마다 캘린더가 하나씩 늘어난다.
      * 켜자마자 불러서 사용자가 구글 캘린더 앱에서 바로 확인할 수 있게 한다.
      */
-    suspend fun ensureCalendar(token: String): String {
-        prefs.getString(Constants.KEY_CALENDAR_ID, null)?.let { return it }
+    suspend fun ensureCalendar(token: String): String = calendarMutex.withLock {
+        prefs.getString(Constants.KEY_CALENDAR_ID, null)?.let { return@withLock it }
 
         val cloudId = runCatching { cloudDoc()?.get()?.await()?.getString(CLOUD_FIELD) }
             .onFailure { Log.w(TAG, "cloud calendarId read failed", it) }
@@ -198,7 +207,7 @@ class GoogleCalendarSync @Inject constructor(
         if (!cloudId.isNullOrBlank()) {
             Log.d(TAG, "calendarId from cloud")
             prefs.edit().putString(Constants.KEY_CALENDAR_ID, cloudId).apply()
-            return cloudId
+            return@withLock cloudId
         }
 
         val id = api.createCalendar(
@@ -210,7 +219,7 @@ class GoogleCalendarSync @Inject constructor(
         ).id
         Log.d(TAG, "calendar created")
         saveCalendarId(id)
-        return id
+        id
     }
 
     private fun cloudDoc() = auth.currentUser?.uid?.let { uid ->
