@@ -36,10 +36,12 @@
     지운 직후 몇 분은 구글이 아직 정상 응답하므로 그 사이의 일정은 잃는다. 문서상 이 범위로 된다는
     `calendarList.get`(deleted 플래그 제공)은 실제로는 401 Invalid Credentials라 못 쓴다(폰·태블릿 확인)
 
-- **배포 워크플로: 내부 테스트 트랙 업로드 → 프로덕션 승격** (`.github/workflows/deploy.yml`)
-  - 번들을 `internal` 트랙에 먼저 올려 내부 테스터는 심사 없이 바로 받게 하고, 같은 번들을 Play Developer
-    API(`edits/tracks/production`)로 프로덕션에 승격한다. 재업로드가 아니라 승격이라 같은 versionCode로도 된다
-  - 승격 단계는 upload-google-play 액션에 없어 python(google-auth)으로 직접 부른다(등록정보 작업과 같은 방식)
+- **배포 트랙을 파일로 고른다** (`app/play-track`, `.github/workflows/deploy.yml`, `promote.yml`)
+  - `app/play-track`이 `production`이면 바로 출시, `internal`이면 내부 테스트 트랙에만 올린다(테스터는 심사 없이
+    즉시). 내부 테스트로 올린 빌드는 "Play 프로덕션 승격" 워크플로를 수동 실행해 같은 번들을 출시한다
+  - 첫 시도는 "내부 테스트 업로드 뒤 자동 승격"이었는데 승격의 마지막 호출 주소를 `/commit`으로 적어 404가 났다
+    (구글 API는 `edits/{id}:commit`). 그래서 b50은 내부 테스트 트랙에만 올라갔고, 그 김에 자동 승격 대신
+    파일로 고르는 방식으로 바꿨다. 승격 워크플로는 내부 트랙에 그 versionCode가 있는지 먼저 확인한다
 
 ## v1.13.1 (b49) — 2026-11-13
 

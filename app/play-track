@@ -1,0 +1,5 @@
+# 이 버전을 Play 의 어느 트랙에 올릴지. deploy.yml 이 main 머지 때 읽는다.
+#   production : 바로 출시 (구글 심사 뒤 일반 사용자에게 공개)
+#   internal   : 내부 테스트만 (테스터 목록의 계정은 심사 없이 즉시 받음)
+# internal 로 올린 빌드를 출시하려면 Actions 의 "Play 프로덕션 승격" 워크플로를 수동 실행한다.
+production

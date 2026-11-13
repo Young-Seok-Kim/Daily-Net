@@ -3,8 +3,9 @@
 #   서버: functions/ · hosting/ · firebase.json · firestore.rules 가 바뀐 커밋에서만
 #         → 서버 테스트 통과 후 firebase deploy --only functions,hosting
 #   앱:   app/build.gradle.kts 의 versionCode 가 오른 커밋에서만
-#         → 유닛 테스트 → bundleRelease → Play Console 내부 테스트 트랙 업로드 → 프로덕션 트랙으로 승격
-#         (내부 테스터는 심사 없이 바로 받고, 일반 사용자는 심사 뒤에 받는다. 번들은 같은 파일 하나)
+#         → 유닛 테스트 → bundleRelease → Play Console 업로드
+#         트랙은 app/play-track 파일이 정한다: production(바로 출시, 심사 뒤 공개) 또는 internal(내부 테스트만,
+#         테스터는 심사 없이 즉시). internal 로 올린 빌드를 나중에 출시하려면 promote.yml 을 수동 실행한다
 #   등록정보: store-listing/ 이 바뀐 커밋에서만
 #         → Play Console 스토어 등록정보(앱 이름·간단한 설명·자세한 설명) 갱신
 #   태그:   앱 업로드가 성공한 커밋에 v{versionName}-b{versionCode} 태그와 GitHub 릴리스를 만든다
@@ -126,9 +127,11 @@ jobs:
             --force
 
   play:
-    name: 앱 배포 (Play 프로덕션)
+    name: 앱 배포 (Play)
     needs: changes
     if: needs.changes.outputs.app == 'true'
+    outputs:
+      track: ${{ steps.track.outputs.track }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -214,6 +217,19 @@ jobs:
           echo "--- v$name (b$code) 출시 노트 (${len}자) ---"
           cat "$RUNNER_TEMP/whatsnew/whatsnew-ko-KR"
 
+      # app/play-track 의 첫 줄(주석·빈 줄 제외)이 트랙 이름. 파일이 없거나 비어 있으면 production.
+      - name: 트랙 결정
+        id: track
+        run: |
+          track="$(grep -vE '^\s*(#|$)' app/play-track 2>/dev/null | head -1 | tr -d '[:space:]')"
+          track="${track:-production}"
+          case "$track" in
+            production|internal) ;;
+            *) echo "::error::app/play-track 값이 '$track' 이다. production 또는 internal 만 된다"; exit 1 ;;
+          esac
+          echo "track=$track" >> "$GITHUB_OUTPUT"
+          echo "Play 트랙: $track"
+
       - name: Play Console 업로드
         uses: r0adkll/upload-google-play@v1
         with:
@@ -222,60 +238,10 @@ jobs:
           releaseFiles: app/build/outputs/bundle/release/DailyNet_v${{ steps.meta.outputs.name }}_b${{ steps.meta.outputs.code }}-release.aab
           # R8 매핑. Play Console 의 비정상 종료 스택이 난독화된 채로 보이지 않게 한다.
           mappingFile: app/build/outputs/mapping/release/mapping.txt
-          # 먼저 내부 테스트 트랙. 테스터 목록(Play Console > 테스트 > 내부 테스트)에 있는 계정은
-          # 심사를 기다리지 않고 스토어에서 바로 이 버전을 받는다.
-          tracks: internal
+          tracks: ${{ steps.track.outputs.track }}
           status: completed
           whatsNewDirectory: ${{ runner.temp }}/whatsnew
           releaseName: v${{ steps.meta.outputs.name }} (b${{ steps.meta.outputs.code }})
-
-      # 같은 번들을 프로덕션으로 승격한다. 다시 올리지 않는다(같은 versionCode 재업로드는 거부됨).
-      # upload-google-play 액션에는 승격 기능이 없어 Play Developer API 를 직접 부른다.
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - run: pip install --quiet google-auth requests
-
-      - name: 프로덕션 트랙으로 승격
-        env:
-          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          VERSION_CODE: ${{ steps.meta.outputs.code }}
-          RELEASE_NAME: v${{ steps.meta.outputs.name }} (b${{ steps.meta.outputs.code }})
-          WHATSNEW_FILE: ${{ runner.temp }}/whatsnew/whatsnew-ko-KR
-        run: |
-          printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/play.json"
-          python - <<'PY'
-          import os, json, requests
-          from google.oauth2 import service_account
-          from google.auth.transport.requests import AuthorizedSession
-
-          pkg = "com.youngs.dailynet"
-          code = int(os.environ["VERSION_CODE"])
-          creds = service_account.Credentials.from_service_account_file(
-              os.path.join(os.environ["RUNNER_TEMP"], "play.json"),
-              scopes=["https://www.googleapis.com/auth/androidpublisher"])
-          s = AuthorizedSession(creds)
-          base = f"https://androidpublisher.googleapis.com/androidpublisher/v3/applications/{pkg}"
-
-          r = s.post(f"{base}/edits"); r.raise_for_status()
-          edit = r.json()["id"]
-
-          notes = open(os.environ["WHATSNEW_FILE"], encoding="utf-8").read().strip()
-          body = {"releases": [{
-              "name": os.environ["RELEASE_NAME"],
-              "versionCodes": [str(code)],
-              "status": "completed",
-              "releaseNotes": [{"language": "ko-KR", "text": notes}],
-          }]}
-          r = s.put(f"{base}/edits/{edit}/tracks/production", json=body)
-          if not r.ok:
-              print(r.text); r.raise_for_status()
-          r = s.post(f"{base}/edits/{edit}/commit"); 
-          if not r.ok:
-              print(r.text); r.raise_for_status()
-          print(f"b{code} 를 프로덕션 트랙으로 승격했다 (edit {edit})")
-          PY
 
       # 로컬에서 만든 것과 같은 파일을 남겨 둔다. Play 쪽에 문제가 있어도 여기서 받아 올릴 수 있다.
       - name: AAB 보관
@@ -326,10 +292,12 @@ jobs:
       - name: 태그와 릴리스 만들기
         env:
           GH_TOKEN: ${{ github.token }}
+          TRACK: ${{ needs.play.outputs.track }}
         run: |
           code="$(grep -E '^\s*versionCode\s*=' app/build.gradle.kts | grep -oE '[0-9]+')"
           name="$(grep -E '^\s*versionName\s*=' app/build.gradle.kts | grep -oE '"[^"]+"' | tr -d '"')"
           tag="v${name}-b${code}"
+          suffix=""; [ "$TRACK" = "internal" ] && suffix=" (내부 테스트)"
 
           # 같은 커밋을 다시 돌렸거나(re-run) 버전을 안 올리고 두 번 머지한 경우. 덮어쓰지 않는다.
           if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
@@ -352,6 +320,6 @@ jobs:
           git push origin "$tag"
 
           gh release create "$tag" --verify-tag \
-            --title "v$name (b$code)" \
+            --title "v$name (b$code)$suffix" \
             --notes-file "$RUNNER_TEMP/notes.md"
           echo "릴리스 $tag 생성: $(gh release view "$tag" --json url --jq .url)"

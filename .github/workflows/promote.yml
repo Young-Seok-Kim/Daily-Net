@@ -1,0 +1,61 @@
+# 내부 테스트 트랙에 올라가 있는 번들을 프로덕션 트랙으로 승격한다. 다시 빌드하거나 올리지 않는다.
+#
+# 언제 쓰나: app/play-track 을 internal 로 두고 머지해 테스터만 받던 빌드를 확인 끝내고 출시할 때.
+# Actions 탭 → "Play 프로덕션 승격" → Run workflow. versionCode 를 비우면 main 의 현재 값을 쓴다.
+# 출시 노트는 CHANGELOG.md 에서 그 버전(b{code}) 항목의 "### 스토어 문구" 블록을 쓴다.
+#
+# upload-google-play 액션에는 승격 기능이 없어 Play Developer API 를 직접 부른다.
+# 마지막 커밋 호출은 edits/{id}:commit 이다 (/commit 이 아니다. 그걸로 404 난 적 있다).
+name: Play 프로덕션 승격
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: "승격할 versionCode (비우면 main 의 현재 값)"
+        required: false
+        default: ""
+
+jobs:
+  promote:
+    name: 내부 테스트 → 프로덕션
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install --quiet google-auth requests
+
+      - name: 출시 노트 추출
+        id: meta
+        env:
+          INPUT_CODE: ${{ github.event.inputs.version_code }}
+        run: |
+          code="${INPUT_CODE:-$(grep -E '^\s*versionCode\s*=' app/build.gradle.kts | grep -oE '[0-9]+')}"
+          name="$(grep -E "^## v[0-9.]+ \(b$code\)" CHANGELOG.md | head -1 | grep -oE 'v[0-9.]+' | head -1)"
+          [ -n "$name" ] || { echo "::error::CHANGELOG.md 에 (b$code) 항목이 없다"; exit 1; }
+          awk -v code="$code" '
+            /^## v/ { if (seen) exit; if (index($0, "(b" code ")")) seen = 1; next }
+            seen && /^### 스토어 문구/ { grab = 1; next }
+            seen && grab && /^### / { exit }
+            grab { print }
+          ' CHANGELOG.md | sed -e '/./,$!d' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > "$RUNNER_TEMP/notes.txt"
+          [ -s "$RUNNER_TEMP/notes.txt" ] || { echo "::error::CHANGELOG.md 의 b$code 항목에 '### 스토어 문구'가 없다"; exit 1; }
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "승격 대상: $name (b$code)"; cat "$RUNNER_TEMP/notes.txt"
+
+      - name: 승격
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          CODE: ${{ steps.meta.outputs.code }}
+          NAME: ${{ steps.meta.outputs.name }}
+        run: |
+          [ -n "$PLAY_SERVICE_ACCOUNT_JSON" ] || { echo "::error::PLAY_SERVICE_ACCOUNT_JSON 시크릿이 없다"; exit 1; }
+          printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/play.json"
+          python .github/scripts/play_promote.py
