@@ -828,92 +828,107 @@ private fun MonthWeightCard(records: List<DailyRecordModel>) {
         val lineColor = net.deficit
         val dotFill = MaterialTheme.colorScheme.surface
         val gridColor = MaterialTheme.colorScheme.outlineVariant
-        val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-        val textMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
-        val labelStyle = MaterialTheme.typography.labelSmall.tabular()
+        val axisTextColor = MaterialTheme.colorScheme.onSurfaceVariant
         val maxIdx = points.indexOfFirst { it.weight == maxWeight }
         val minIdx = points.indexOfLast { it.weight == minWeight }
 
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(CHART_HEIGHT)
-        ) {
-            val w = size.width
-            val topY = CHART_OVERSHOOT.toPx()
-            val bottomY = size.height - CHART_OVERSHOOT.toPx()
-            // 양 끝 점이 잘리지 않게 좌우 6dp 안쪽에서 그린다
-            val inset = 6.dp.toPx()
-
-            fun px(day: Int) = inset + (day - firstDay).toFloat() / daySpan * (w - inset * 2)
-            fun py(kg: Float) =
-                bottomY - (kg - axisBottom) / (axisTop - axisBottom) * (bottomY - topY)
-
-            // 가운데 기준선 하나만 옅게
-            drawLine(
-                color = gridColor,
-                start = Offset(0f, (topY + bottomY) / 2f),
-                end = Offset(w, (topY + bottomY) / 2f),
-                strokeWidth = 1.dp.toPx(),
-                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
-            )
-
-            val coords = points.map { p -> Offset(px(p.date.takeLast(2).toInt()), py(p.weight)) }
-
-            // 선 아래 민트 그라데이션 영역
-            val area = Path().apply {
-                moveTo(coords.first().x, size.height)
-                coords.forEach { lineTo(it.x, it.y) }
-                lineTo(coords.last().x, size.height)
-                close()
-            }
-            drawPath(
-                path = area,
-                brush = Brush.verticalGradient(
-                    colors = listOf(net.mint.copy(alpha = 0.35f), net.mint.copy(alpha = 0f)),
-                    startY = coords.minOf { it.y },
-                    endY = size.height
+        Row(modifier = Modifier.fillMaxWidth()) {
+            // 왼쪽 눈금 숫자. 일별 차트와 같은 자리·같은 방식이라 두 그래프를 같은 눈으로 읽는다.
+            // 위·아래 선에 실제 최고·최저 체중이 걸린다
+            Box(
+                modifier = Modifier
+                    .width(AXIS_LABEL_WIDTH)
+                    .height(CHART_HEIGHT)
+            ) {
+                AxisLabel(
+                    text = String.format(Locale.getDefault(), "%.1f", axisTop),
+                    y = CHART_OVERSHOOT,
+                    color = axisTextColor
                 )
-            )
+                AxisLabel(
+                    text = String.format(Locale.getDefault(), "%.1f", center),
+                    y = CHART_HEIGHT / 2,
+                    color = axisTextColor
+                )
+                AxisLabel(
+                    text = String.format(Locale.getDefault(), "%.1f", axisBottom),
+                    y = CHART_HEIGHT - CHART_OVERSHOOT,
+                    color = axisTextColor
+                )
+            }
 
-            val line = Path().apply {
-                moveTo(coords.first().x, coords.first().y)
-                coords.drop(1).forEach { lineTo(it.x, it.y) }
-            }
-            drawPath(
-                path = line,
-                color = lineColor,
-                style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
-            )
+            Canvas(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(CHART_HEIGHT)
+            ) {
+                val w = size.width
+                val topY = CHART_OVERSHOOT.toPx()
+                val bottomY = size.height - CHART_OVERSHOOT.toPx()
+                // 양 끝 점이 잘리지 않게 좌우 6dp 안쪽에서 그린다
+                val inset = 6.dp.toPx()
 
-            // 점은 최고·최저·마지막에만. 라벨은 최고·최저에만 (전부 찍으면 숫자가 선을 가린다)
-            fun dot(c: Offset, filled: Boolean) {
-                drawCircle(color = if (filled) lineColor else dotFill, radius = 4.dp.toPx(), center = c)
-                drawCircle(color = lineColor, radius = 4.dp.toPx(), center = c, style = Stroke(width = 2.dp.toPx()))
+                fun px(day: Int) = inset + (day - firstDay).toFloat() / daySpan * (w - inset * 2)
+                fun py(kg: Float) =
+                    bottomY - (kg - axisBottom) / (axisTop - axisBottom) * (bottomY - topY)
+
+                // 눈금선 세 줄 (왼쪽 숫자와 같은 높이)
+                val dash = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
+                listOf(topY, (topY + bottomY) / 2f, bottomY).forEach { y ->
+                    drawLine(
+                        color = gridColor,
+                        start = Offset(0f, y),
+                        end = Offset(w, y),
+                        strokeWidth = 1.dp.toPx(),
+                        pathEffect = dash
+                    )
+                }
+
+                val coords = points.map { p -> Offset(px(p.date.takeLast(2).toInt()), py(p.weight)) }
+
+                // 선 아래 민트 그라데이션 영역
+                val area = Path().apply {
+                    moveTo(coords.first().x, bottomY)
+                    coords.forEach { lineTo(it.x, it.y) }
+                    lineTo(coords.last().x, bottomY)
+                    close()
+                }
+                drawPath(
+                    path = area,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(net.mint.copy(alpha = 0.35f), net.mint.copy(alpha = 0f)),
+                        startY = coords.minOf { it.y },
+                        endY = bottomY
+                    )
+                )
+
+                val line = Path().apply {
+                    moveTo(coords.first().x, coords.first().y)
+                    coords.drop(1).forEach { lineTo(it.x, it.y) }
+                }
+                drawPath(
+                    path = line,
+                    color = lineColor,
+                    style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
+                )
+
+                // 점은 최고·최저·마지막에만. 값은 왼쪽 눈금으로 읽는다 (점마다 숫자를 찍으면 한 달치는 겹쳐서 못 읽는다)
+                fun dot(c: Offset, filled: Boolean) {
+                    drawCircle(color = if (filled) lineColor else dotFill, radius = 4.dp.toPx(), center = c)
+                    drawCircle(color = lineColor, radius = 4.dp.toPx(), center = c, style = Stroke(width = 2.dp.toPx()))
+                }
+                val lastIdx = coords.lastIndex
+                if (maxIdx >= 0) dot(coords[maxIdx], filled = false)
+                if (minIdx >= 0 && minIdx != maxIdx) dot(coords[minIdx], filled = false)
+                if (lastIdx != maxIdx && lastIdx != minIdx) dot(coords[lastIdx], filled = true)
             }
-            fun label(c: Offset, text: String, above: Boolean) {
-                val layout = textMeasurer.measure(text, labelStyle)
-                val x = (c.x - layout.size.width / 2f).coerceIn(0f, w - layout.size.width)
-                val y = if (above) c.y - layout.size.height - 6.dp.toPx() else c.y + 6.dp.toPx()
-                drawText(layout, color = labelColor, topLeft = Offset(x, y))
-            }
-            if (maxIdx >= 0) {
-                dot(coords[maxIdx], filled = false)
-                label(coords[maxIdx], String.format(Locale.getDefault(), "%.1f", maxWeight), above = true)
-            }
-            if (minIdx >= 0 && minIdx != maxIdx) {
-                dot(coords[minIdx], filled = false)
-                label(coords[minIdx], String.format(Locale.getDefault(), "%.1f", minWeight), above = false)
-            }
-            val lastIdx = coords.lastIndex
-            if (lastIdx != maxIdx && lastIdx != minIdx) dot(coords[lastIdx], filled = true)
         }
 
-        // 양 끝 날짜
+        // 양 끝 날짜. 눈금 숫자 자리만큼 밀어야 곡선과 맞는다
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 6.dp)
+                .padding(start = AXIS_LABEL_WIDTH, top = 6.dp)
         ) {
             Text(
                 text = shortMonthDay(points.first().date),
