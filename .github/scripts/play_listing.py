@@ -38,6 +38,23 @@ def read_listing(folder: Path) -> dict:
     return body
 
 
+def upload_single_image(s: AuthorizedSession, edit_id: str, lang: str, path: Path, image_type: str) -> int:
+    """
+    한 장짜리 이미지 칸(icon / featureGraphic)을 바꾼다. 기존 것을 지우고 새 파일을 올린다.
+    icon 은 512×512 PNG, featureGraphic 은 1024×500 PNG 여야 한다 (크기가 다르면 API 가 400 으로 거절한다).
+    """
+    r = s.delete(f"{BASE}/{edit_id}/listings/{lang}/{image_type}")
+    if r.status_code not in (200, 204):
+        sys.exit(f"::error::{lang} {image_type} 기존 이미지 삭제 실패 {r.status_code}: {r.text[:300]}")
+    upload = (f"https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/{PACKAGE}"
+              f"/edits/{edit_id}/listings/{lang}/{image_type}?uploadType=media")
+    r = s.post(upload, data=path.read_bytes(), headers={"Content-Type": "image/png"})
+    if r.status_code != 200:
+        sys.exit(f"::error::{path.name} 업로드 실패 {r.status_code}: {r.text[:300]}")
+    print(f"  올림 [{image_type}]: {path.name} ({path.stat().st_size // 1024}KB)")
+    return 1
+
+
 def upload_screenshots(s: AuthorizedSession, edit_id: str, lang: str, shots: list, image_type: str) -> int:
     """
     *.png 를 파일명 순서대로 image_type(phoneScreenshots / sevenInchScreenshots / tenInchScreenshots) 칸에 올린다.
@@ -97,9 +114,18 @@ def main() -> None:
                   f"자세한 설명 {len(body['fullDescription'])}자 {'(변경 없음)' if same else '(변경됨)'}")
             shots = sorted((folder / "screenshots").glob("*.png")) if (folder / "screenshots").is_dir() else []
             tablet = sorted((folder / "screenshots-tablet").glob("*.png")) if (folder / "screenshots-tablet").is_dir() else []
-            print(f"[{lang}] 휴대전화 스크린샷 {len(shots)}장 / 태블릿 {len(tablet)}장")
+            icon = folder / "icon.png"
+            feature = folder / "feature-graphic.png"
+            print(f"[{lang}] 휴대전화 스크린샷 {len(shots)}장 / 태블릿 {len(tablet)}장 / "
+                  f"아이콘 {'있음' if icon.exists() else '없음'} / 그래픽 {'있음' if feature.exists() else '없음'}")
             if check_only:
                 continue
+            # 앱 아이콘(512)·그래픽 이미지(1024×500). 파일이 있을 때만 바꾼다.
+            # 아이콘은 tools/make_icons.py 가 앱 안의 벡터와 같은 원본에서 뽑아 둔다.
+            if icon.exists():
+                changed += upload_single_image(s, edit_id, lang, icon, "icon")
+            if feature.exists():
+                changed += upload_single_image(s, edit_id, lang, feature, "featureGraphic")
             if not same:
                 body["language"] = lang
                 r = s.put(f"{BASE}/{edit_id}/listings/{lang}", json=body)

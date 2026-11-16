@@ -70,3 +70,6 @@ app/release/
 *.keystore
 key.properties
 keystore.properties
+
+# 스토어 스크린샷 원본 캡처 (개인 기록 포함). 합성 결과만 store-listing/ 에 커밋한다
+tools/store-captures/*.png
