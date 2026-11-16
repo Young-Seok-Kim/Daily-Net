@@ -5,6 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>데일리넷 DailyNet | AI 식단 기록과 칼로리 계산 앱</title>
 <meta name="description" content="데일리넷(DailyNet)은 음식 사진과 텍스트로 식단을 기록하고 AI로 칼로리와 탄단지를 추정하는 안드로이드 앱입니다. 운동과 걸음 수를 반영한 순칼로리, 체중 기록과 월간 리포트로 다이어트 식단을 돌아보세요.">
+<!--
+  검색엔진 소유확인. 네이버 서치어드바이저(2026-11-16 등록)와 구글 서치 콘솔(2026-11-16 속성 추가)이
+  배포된 이 페이지의 head 에서 이 두 줄을 읽어 소유권을 확인한다. 지우면 확인이 풀린다.
+-->
+<meta name="naver-site-verification" content="8e2cbb4b63312a8ac7564cc7321f8becb2b68386">
+<meta name="google-site-verification" content="WDJ9mzBcdT36VnVMCMBGmXrHK7uLXVY2Th3sMYVeTBY">
+<!--
+  keywords 는 구글·네이버 순위에 쓰이지 않는다 (구글은 2009년부터 무시).
+  이 앱을 어떤 낱말로 설명하는지 남겨 두는 용도로만 둔다. 채우지 말고 늘리지도 말 것.
+-->
+<meta name="keywords" content="AI 식단, 칼로리 계산기, 음식 사진 칼로리, 탄단지 분석, 다이어트 식단 기록, 순칼로리, 걸음 수 연동, 체중 기록">
+<meta name="application-name" content="데일리넷 DailyNet">
 <link rel="canonical" href="https://dailynet.web.app/">
 <meta name="theme-color" content="#5FE1B0">
 <link rel="icon" href="img/icon.png">
@@ -16,7 +28,22 @@
 <meta property="og:locale" content="ko_KR">
 <meta property="og:site_name" content="데일리넷 DailyNet">
 <meta property="og:image" content="https://dailynet.web.app/img/main.webp">
+<!-- 실제 파일이 480x991 webp 라 크기를 적어 둔다. 카카오톡·페이스북이 읽기 전에 비율을 안다 -->
+<meta property="og:image:type" content="image/webp">
+<meta property="og:image:width" content="480">
+<meta property="og:image:height" content="991">
+<meta property="og:image:alt" content="데일리넷 홈 화면. 누적 칼로리 결산과 최근 순칼로리 추이 그래프">
 <meta property="og:url" content="https://dailynet.web.app/">
+
+<!--
+  X(트위터) 카드. 큰 이미지(screen_large_image)는 1.91:1 로 잘리는데
+  가진 이미지가 세로로 긴 폰 캡처뿐이라 가운데만 남는다. 그래서 정사각 아이콘을 쓰는 summary 로 둔다.
+-->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="데일리넷 DailyNet | AI 식단 기록과 칼로리 계산 앱">
+<meta name="twitter:description" content="음식 사진으로 식단을 기록하고 칼로리와 탄단지를 확인하세요. 운동·걸음 수를 반영한 순칼로리와 월간 리포트를 제공합니다.">
+<meta name="twitter:image" content="https://dailynet.web.app/img/icon.png">
+<meta name="twitter:image:alt" content="데일리넷 앱 아이콘">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -25,11 +52,35 @@
   "alternateName": "데일리넷",
   "url": "https://dailynet.web.app/",
   "applicationCategory": "HealthApplication",
+  "applicationSubCategory": "다이어트 · 식단 기록",
   "operatingSystem": "Android",
   "inLanguage": ["ko", "en"],
-  "description": "음식 사진과 텍스트를 이용한 AI 식단 기록, 칼로리 추정, 운동 기록과 월간 리포트 앱",
+  "description": "음식 사진과 텍스트로 식단을 기록하고 AI가 칼로리와 탄단지를 추정하는 앱. 운동·걸음 수를 반영한 순칼로리 정산과 체중 기록, 월간 리포트를 제공한다.",
   "installUrl": "https://play.google.com/store/apps/details?id=com.youngs.dailynet",
-  "image": "https://dailynet.web.app/img/icon.png"
+  "image": "https://dailynet.web.app/img/icon.png",
+  "screenshot": [
+    "https://dailynet.web.app/img/main.webp",
+    "https://dailynet.web.app/img/report.webp",
+    "https://dailynet.web.app/img/month.webp"
+  ],
+  "featureList": [
+    "음식 사진으로 식단 기록",
+    "AI 칼로리·탄단지 추정",
+    "운동·걸음 수를 반영한 순칼로리 정산",
+    "체중 기록과 월간 리포트",
+    "홈 화면 위젯과 정산 알림"
+  ],
+  "author": {
+    "@type": "Organization",
+    "name": "Youngs Dev",
+    "url": "https://play.google.com/store/apps/dev?id=7008422140815965562"
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "KRW",
+    "availability": "https://schema.org/InStock"
+  }
 }
 </script>
 
