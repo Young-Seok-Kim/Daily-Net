@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      다크 + 안드로이드 12 이상. night 한정자가 v31 보다 우선이라 values-v31 만으로는 다크에서
+      스플래시 배경이 빠진다. 같은 내용을 다크 바탕으로 한 번 더 둔다.
+    -->
+    <style name="Theme.DailyNet" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#0B2A33</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowSplashScreenBackground">@color/brand_ink</item>
+    </style>
+</resources>

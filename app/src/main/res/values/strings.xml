@@ -156,8 +156,8 @@
     <string name="macro_carb">C</string>
     <string name="macro_protein">P</string>
     <string name="macro_fat">F</string>
-    <string name="has_exercise">Exercise logged 💪</string>
-    <string name="rest_day">Rest 😴</string>
+    <string name="has_exercise">Exercise logged</string>
+    <string name="rest_day">Rest day</string>
 
     <!-- Profile dialog -->
     <string name="profile_input_title">Enter your body info</string>
@@ -239,8 +239,8 @@
     <string name="photo_filled">Menu filled in from the photo. Edit it if anything is off.</string>
     <string name="analyze_today">Analyze today</string>
     <string name="analyze_again">Analyze again</string>
-    <string name="ai_report_title">🤖 AI analysis report</string>
-    <string name="badge_just_done">✅ Just finished</string>
+    <string name="ai_report_title">AI analysis report</string>
+    <string name="badge_just_done">Just finished</string>
     <string name="analyzing_wait">Analysis in progress. Please wait a moment</string>
     <string name="analyzing_title">🤖 AI is analyzing</string>
     <string name="analyzing_inline">AI is analyzing</string>
@@ -298,33 +298,33 @@
     <string name="widget_not_recorded_hint">Not logged yet</string>
 
     <!-- Analysis report (same wording as the server text; from b33 the app renders it from structured data) -->
-    <string name="report_breakfast">🍳 Breakfast</string>
-    <string name="report_lunch">🍳 Lunch</string>
-    <string name="report_dinner">🍳 Dinner</string>
-    <string name="report_snack">🍰 Snack</string>
+    <string name="report_breakfast">Breakfast</string>
+    <string name="report_lunch">Lunch</string>
+    <string name="report_dinner">Dinner</string>
+    <string name="report_snack">Snack</string>
     <string name="report_total">total</string>
     <string name="kcal_value">%1$d kcal</string>
     <string name="report_no_info">No data</string>
     <string name="report_macro_line">[C %1$sg | P %2$sg | F %3$sg]</string>
-    <string name="report_exercise_title">🔥 Calories Burned by Activity</string>
+    <string name="report_exercise_title">Calories burned by activity</string>
     <string name="report_exercise_total">(total -%1$d kcal)</string>
     <string name="report_no_exercise">No activity recorded</string>
-    <string name="report_goal_title">🎯 Recommended Daily Targets</string>
+    <string name="report_goal_title">Recommended daily targets</string>
     <string name="report_goal_intake">• Recommended intake: %1$d kcal</string>
     <string name="report_goal_macro">• Recommended macros: C %1$dg | P %2$dg | F %3$dg</string>
     <string name="report_my_intake">• Your intake today: %1$d kcal (%2$s)</string>
-    <string name="report_over">⚠️ Over target</string>
-    <string name="report_under">✅ Within target</string>
-    <string name="report_macro_title">📊 Your Macros Today</string>
+    <string name="report_over">Over target</string>
+    <string name="report_under">Within target</string>
+    <string name="report_macro_title">Your macros today</string>
     <string name="report_carb_full">• Carbs: %1$sg / %2$dg</string>
     <string name="report_protein_full">• Protein: %1$sg / %2$dg</string>
     <string name="report_fat_full">• Fat: %1$sg / %2$dg</string>
-    <string name="report_in">🍎 IN: +%1$d kcal</string>
-    <string name="report_out">🏃 OUT: -%1$d kcal (includes BMR %2$d)</string>
-    <string name="report_out_inbody">🏃 OUT: -%1$d kcal (includes InBody BMR %2$d)</string>
-    <string name="report_net">📉 Net: %1$d kcal</string>
-    <string name="report_eval_title">💡 Expert Summary</string>
-    <string name="report_edited_badge">✏️ Edited</string>
+    <string name="report_in">IN: +%1$d kcal</string>
+    <string name="report_out">OUT: -%1$d kcal (includes BMR %2$d)</string>
+    <string name="report_out_inbody">OUT: -%1$d kcal (includes InBody BMR %2$d)</string>
+    <string name="report_net">Net: %1$d kcal</string>
+    <string name="report_eval_title">Expert summary</string>
+    <string name="report_edited_badge">Edited</string>
     <string name="report_edit_hint">Tap an item to correct its calories</string>
     <string name="report_ai_kcal">AI estimate %1$d kcal</string>
     <string name="edit_kcal_title">Edit calories</string>
@@ -375,4 +375,31 @@
     <string name="calendar_sync_done">Calendar updated: %1$d added, %2$d changed</string>
     <string name="calendar_sync_nothing">Nothing to change. The calendar already matches your records</string>
     <string name="calendar_sync_failed">Sync failed: %1$s</string>
+
+    <!-- 리디자인(b53)에서 추가: 홈 히어로·추이·월 정산·AI 리포트 카드 -->
+    <string name="hero_badge_today">Today %1$d</string>
+    <string name="hero_badge_yesterday">Yesterday %1$d</string>
+    <string name="trend_week_avg">7-day avg %1$d</string>
+    <string name="trend_goal">Daily goal %1$d</string>
+    <string name="exercise_chip">Exercise</string>
+    <string name="month_report_balance_days">%1$d deficit · %2$d surplus</string>
+    <string name="month_report_go_record">Log this month</string>
+    <string name="month_report_of_days">of %1$d logged</string>
+    <string name="macro_carb_full">Carbs</string>
+    <string name="macro_protein_full">Protein</string>
+    <string name="macro_fat_full">Fat</string>
+    <string name="report_summary_in">IN</string>
+    <string name="report_summary_out">OUT</string>
+    <string name="report_summary_net">NET</string>
+    <string name="report_intake_vs">vs. recommended %1$d kcal</string>
+    <string name="report_goal_guide">Target guide</string>
+    <string name="report_vs_recommended">vs. recommended intake</string>
+    <string name="report_exercise_sum">total %1$d kcal</string>
+    <string name="report_exercise_mets">%1$s METs</string>
+    <string name="unit_hour">h</string>
+    <string name="unit_minute">m</string>
+    <string name="report_bmr_note">includes BMR %1$d</string>
+    <string name="report_bmr_note_inbody">includes InBody BMR %1$d</string>
+    <string name="report_legacy_note">This record is in the older format, so it is shown as text.</string>
+    <string name="report_edit_snackbar">AI estimate %1$d → %2$d kcal</string>
 </resources>

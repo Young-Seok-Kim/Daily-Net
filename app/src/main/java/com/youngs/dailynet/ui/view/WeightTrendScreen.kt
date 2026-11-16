@@ -25,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.youngs.dailynet.R
+import com.youngs.dailynet.ui.theme.DnTheme
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import java.util.Locale
@@ -263,8 +264,8 @@ private fun WeightSummaryCard(shown: List<DailyRecordModel>) {
                             text = String.format(Locale.getDefault(), "%+.1f kg", diff),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            // 감량(음수)이 초록, 증량(양수)이 빨강 — 칼로리 차트와 같은 규칙
-                            color = if (diff <= 0f) Color(0xFF4CAF50) else Color(0xFFF44336)
+                            // 감량(음수)이 적자색, 증량(양수)이 흑자색 — 칼로리 차트와 같은 규칙
+                            color = DnTheme.net.of(diff)
                         )
                         Text(
                             text = stringResource(
@@ -454,7 +455,7 @@ private fun WeightLineChart(
 
                     Spacer(modifier = Modifier.height(6.dp))
                     // 일요일=빨강, 토요일=파랑, 평일=기본색 (칼로리 차트와 동일 규칙)
-                    val dayColor = weekdayColor(r.date, emptySet())
+                    val dayColor = weekdayColor(r.date, emptySet(), DnTheme.net)
                     Text(
                         text = r.date.takeLast(2),
                         style = MaterialTheme.typography.labelSmall,

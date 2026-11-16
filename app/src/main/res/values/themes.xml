@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.DailyNet" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+      부모는 플랫폼 테마 그대로다 (앱에 com.google.android.material 의존성이 없어 Theme.Material3.* 는 못 쓴다).
+      Compose 가 그리기 전 잠깐 보이는 창 배경을 브랜드 캔버스 색으로 맞춘다. 다크는 values-night/themes.xml.
+    -->
+    <style name="Theme.DailyNet" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/brand_canvas</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
 </resources>

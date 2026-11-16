@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- 브랜드 팔레트. Compose 쪽(ui/theme/Color.kt)과 같은 값이어야 한다 -->
+    <color name="brand_ink">#06303F</color>
+    <color name="brand_mint">#5FE1B0</color>
+    <color name="brand_coral">#FF4D2E</color>
+    <color name="brand_canvas">#F6FAF8</color>
 
     <!--
       홈 화면 위젯 색 (라이트). 다크는 values-night/colors.xml 에 같은 이름으로 있다.
@@ -14,14 +15,14 @@
       Glance 1.1.1에는 day/night를 코드로 지정하는 ColorProvider가 없어서
       리소스 한정자로 처리한다. 위젯이 그려질 때 시스템 테마에 맞는 쪽이 선택된다.
     -->
-    <color name="widget_background">#FFFBFE</color>
-    <color name="widget_sub_text">#6E6A75</color>
-    <!-- 정산 전 안내에 쓰는 강조색. 앱 테마의 primary(Purple40)와 같다. -->
-    <color name="widget_accent">#6650A4</color>
+    <color name="widget_background">#F6FAF8</color>
+    <color name="widget_sub_text">#245C6C</color>
+    <!-- 정산 전 안내에 쓰는 강조색. 앱 테마의 primary(Ink)와 같다. -->
+    <color name="widget_accent">#06303F</color>
     <!--
-      순칼로리 색. 정산 화면(DailyRecordScreen)의 기준과 같아야 한다.
+      순칼로리 색. Compose 의 NetColors(deficit/surplus)와 같아야 한다.
       한쪽만 바꾸면 위젯과 화면이 같은 날을 다른 색으로 보여준다.
     -->
-    <color name="widget_deficit">#2E7D32</color>
-    <color name="widget_surplus">#C62828</color>
+    <color name="widget_deficit">#0E7A5A</color>
+    <color name="widget_surplus">#CE3A1B</color>
 </resources>

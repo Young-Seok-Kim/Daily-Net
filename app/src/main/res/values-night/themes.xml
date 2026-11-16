@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 다크 창 배경. Compose 의 CanvasDark(#0B2A33)와 같다 -->
+    <style name="Theme.DailyNet" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#0B2A33</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

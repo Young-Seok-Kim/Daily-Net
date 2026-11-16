@@ -33,6 +33,14 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import com.youngs.dailynet.R
+import com.youngs.dailynet.ui.theme.DnDimens
+import com.youngs.dailynet.ui.theme.DnTheme
+import com.youngs.dailynet.ui.theme.NetColors
+import com.youngs.dailynet.ui.theme.tabular
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -146,18 +154,19 @@ fun getMonthText(dateString: String): String {
 }
 
 /**
- * 날짜별 표시 색상: 일요일·공휴일=빨강, 토요일=파랑, 평일=null(기본색).
+ * 날짜별 표시 색상: 일요일·공휴일=흑자색(붉은 계열), 토요일=파랑, 평일=null(기본색).
  * 공휴일은 기기 캘린더(구글 '대한민국의 휴일' 등)에서 읽어온 날짜 집합을 사용한다.
+ * 색은 테마(NetColors)에서 받아 라이트·다크에 맞춘다.
  */
-fun weekdayColor(dateString: String, calendarHolidays: Set<String>): Color? {
+fun weekdayColor(dateString: String, calendarHolidays: Set<String>, net: NetColors): Color? {
     return try {
         val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateString)
             ?: return null
         val cal = Calendar.getInstance().apply { time = date }
         val dow = cal.get(Calendar.DAY_OF_WEEK)
         when {
-            dow == Calendar.SUNDAY || calendarHolidays.contains(dateString) -> Color(0xFFF44336)
-            dow == Calendar.SATURDAY -> Color(0xFF2196F3)
+            dow == Calendar.SUNDAY || calendarHolidays.contains(dateString) -> net.sunday
+            dow == Calendar.SATURDAY -> net.saturday
             else -> null
         }
     } catch (e: Exception) {
@@ -280,33 +289,54 @@ fun MainScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
             topBar = {
                 TopAppBar(
-                    title = { Text("DailyNet") },
+                    title = {
+                        Text(
+                            text = "DailyNet",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground
+                    ),
                     actions = {
                         // 1. 프로필 아이콘 (사용자 아바타)
-                        IconButton(onClick = { showSheet = true }) {
+                        RoundIconButton(onClick = { showSheet = true }) {
                             Icon(
                                 Icons.Default.AccountCircle,
                                 contentDescription = stringResource(R.string.cd_profile)
                             )
                         }
+                        Spacer(modifier = Modifier.width(8.dp))
                         // 2. 설정 (회원탈퇴 등 위험한 항목은 이 안쪽에 둔다)
-                        IconButton(onClick = onNavigateToSettings) {
+                        RoundIconButton(onClick = onNavigateToSettings) {
                             Icon(
                                 painter = painterResource(R.drawable.ic_settings_gear),
                                 contentDescription = stringResource(R.string.settings_title)
                             )
                         }
+                        Spacer(modifier = Modifier.width(8.dp))
                     }
                 )
             },
             floatingActionButton = {
+                // 행동 버튼은 화면에서 유일하게 코랄을 쓴다. 다른 어디에도 같은 색이 없어야 눈에 띈다
                 ExtendedFloatingActionButton(
                     onClick = onNavigateToInput,
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text(stringResource(R.string.today_record)) },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                    text = {
+                        Text(
+                            text = stringResource(R.string.today_record),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    },
+                    shape = RoundedCornerShape(DnDimens.RadiusHero),
+                    containerColor = DnTheme.net.coral,
+                    contentColor = Color.White
                 )
             }
         ) { padding ->
@@ -316,16 +346,17 @@ fun MainScreen(
                     .fillMaxSize()
                     .padding(padding),
                 state = mainViewModel.mainListState,
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 item {
                     SummaryHeaderCard(
                         totalCalories = totalCalories,
                         latestDate = dailyRecords.firstOrNull()?.date
                             ?: stringResource(R.string.no_records),
-                        records = dailyRecords
+                        records = dailyRecords,
+                        today = mainViewModel.todayDate
                     )
+                    Spacer(modifier = Modifier.height(DnDimens.SpaceMd))
                 }
 
                 // 최근 추이 미니 바 차트
@@ -340,17 +371,18 @@ fun MainScreen(
                             // 아직 마지막 페이지가 아니면 더 과거가 서버에 남아 있다는 뜻.
                             // (isPagingLoading을 이 화면이 이미 구독하고 있어 로딩이 끝나면 여기도 다시 계산된다)
                             canFetchOlder = !mainViewModel.isLastPageReached,
-                            onLoadOlder = mainViewModel::expandTrendChart
+                            onLoadOlder = mainViewModel::expandTrendChart,
+                            today = mainViewModel.todayDate
                         )
+                        Spacer(modifier = Modifier.height(DnDimens.SpaceMd))
                     }
                 }
 
                 item {
                     Text(
                         text = stringResource(R.string.record_list_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(top = 12.dp, bottom = 10.dp, start = 4.dp)
                     )
                 }
 
@@ -366,7 +398,8 @@ fun MainScreen(
                     // 달이 바뀌는 자리에 월 구분선을 먼저 깐다. 주차 구분선보다 한 단계 위 계층이라
                     // 같은 날 둘 다 나오면 월 → 주 순서로 쌓인다.
                     val currentMonth = item.date.take(7)
-                    if (index == 0 || currentMonth != dailyRecords[index - 1].date.take(7)) {
+                    val isMonthHead = index == 0 || currentMonth != dailyRecords[index - 1].date.take(7)
+                    if (isMonthHead) {
                         val monthSummary = monthSummaries[currentMonth]
                         MonthDivider(
                             headerText = getMonthHeaderText(item.date),
@@ -387,7 +420,8 @@ fun MainScreen(
                         )
                     }
 
-                    if (index == 0 || currentWeekId != getWeekIdentifier(dailyRecords[index - 1].date)) {
+                    val isWeekHead = index == 0 || currentWeekId != getWeekIdentifier(dailyRecords[index - 1].date)
+                    if (isWeekHead) {
                         WeekDivider(
                             headerText = weekDisplayText,
                             weeklyCalories = totalWeeklyNet,
@@ -408,6 +442,8 @@ fun MainScreen(
 
                     DailyRecordHistoryItem(
                         item = item,
+                        // 구분선 바로 아래 첫 줄에는 위 선을 긋지 않는다 (구분선과 겹쳐 두 줄이 된다)
+                        showTopLine = !isWeekHead,
                         onClick = { onNavigateToDetail(item.date) },
                         onLongClick = { selectedDateToDelete = item.date }
                     )
@@ -426,7 +462,7 @@ fun MainScreen(
                     }
                 }
                 item {
-                    Spacer(modifier = Modifier.height(80.dp))
+                    Spacer(modifier = Modifier.height(96.dp))
                 }
             }
 
@@ -490,17 +526,15 @@ fun MainScreen(
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             Spacer(modifier = Modifier.height(14.dp))
                             Row(modifier = Modifier.fillMaxWidth()) {
-                                HeroStat(
-                                    stringResource(R.string.profile_height),
-                                    String.format(Locale.getDefault(), "%.1f cm", p.height),
-                                    MaterialTheme.colorScheme.onSurface,
-                                    Modifier.weight(1f)
+                                StatCell(
+                                    label = stringResource(R.string.profile_height),
+                                    value = String.format(Locale.getDefault(), "%.1f cm", p.height),
+                                    modifier = Modifier.weight(1f)
                                 )
-                                HeroStat(
-                                    stringResource(R.string.profile_start_weight),
-                                    String.format(Locale.getDefault(), "%.1f kg", p.initialWeight),
-                                    MaterialTheme.colorScheme.onSurface,
-                                    Modifier.weight(1f)
+                                StatCell(
+                                    label = stringResource(R.string.profile_start_weight),
+                                    value = String.format(Locale.getDefault(), "%.1f kg", p.initialWeight),
+                                    modifier = Modifier.weight(1f)
                                 )
                             }
                         }
@@ -584,7 +618,10 @@ fun MonthDivider(
 /**
  * 주·월 구분선의 공통 몸통.
  *
- * @param emphasized 월 구분선처럼 한 단계 위 계층일 때. 선을 두껍게, 제목을 진하게 준다.
+ * 월은 surfaceVariant 띠(좌측 제목 · 우측 합계 · 셰브론)로, 주는 띠 없이 작은 글자 한 줄로 그린다.
+ * 예전의 "선-글자-선" 모양은 카드 테두리·펼침 패널과 겹쳐 한 화면에 선이 네 겹으로 쌓였다.
+ *
+ * @param emphasized 월 구분선처럼 한 단계 위 계층일 때.
  * @param panel 펼쳤을 때 아래에 붙는 요약. 접혀 있으면 아예 호출하지 않는다.
  */
 @Composable
@@ -596,69 +633,62 @@ private fun SectionDivider(
     onToggle: (() -> Unit)?,
     panel: @Composable () -> Unit
 ) {
-    val lineColor = if (emphasized) MaterialTheme.colorScheme.primary
-    else MaterialTheme.colorScheme.onSurfaceVariant
-    val lineThickness = if (emphasized) 2.dp else 1.dp
-
+    val shape = RoundedCornerShape(DnDimens.RadiusTile)
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .let { if (onToggle != null) it.clickable(onClick = onToggle) else it }
-            // 구분선 자체는 얇아서 누를 곳이 좁다. 위아래 여백까지 눌리게 해 손가락으로 맞추기 쉽게 한다.
-            .padding(vertical = 14.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(top = if (emphasized) 10.dp else 6.dp, bottom = 4.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                // 월은 진한 띠, 주는 옅은 띠. 주에 아무 바탕도 없으면 기록 줄과 구분이 안 됐다
+                .background(
+                    if (emphasized) MaterialTheme.colorScheme.surfaceVariant
+                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                )
+                .let { if (onToggle != null) it.clickable(onClick = onToggle) else it }
+                .padding(
+                    horizontal = if (emphasized) 16.dp else 14.dp,
+                    vertical = if (emphasized) 14.dp else 10.dp
+                )
         ) {
-            // 주별 구분선: 두께는 얇게, 대신 일별 테두리보다 진한 색으로 구분
-            // 월별은 한 단계 위라 더 두껍고 진하게 (emphasized)
-            HorizontalDivider(
-                modifier = Modifier.weight(1f),
-                thickness = lineThickness,
-                color = lineColor
-            )
             Text(
-                text = "$headerText ",
-                style = if (emphasized) MaterialTheme.typography.titleSmall
-                else MaterialTheme.typography.labelMedium,
-                fontWeight = if (emphasized) FontWeight.Bold else FontWeight.Normal,
+                text = headerText,
+                style = if (emphasized) MaterialTheme.typography.titleMedium
+                else MaterialTheme.typography.labelLarge,
                 color = if (emphasized) MaterialTheme.colorScheme.onSurface
                 else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 4.dp)
+                modifier = Modifier.weight(1f)
             )
-            Text(
-                text = "(${calories} kcal)",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (emphasized) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (calories <= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+            KcalValue(
+                value = calories,
+                style = if (emphasized) MaterialTheme.typography.titleSmall
+                else MaterialTheme.typography.labelMedium,
+                withUnit = emphasized,
+                unitStyle = MaterialTheme.typography.labelMedium
             )
 
             if (onToggle != null) {
-                // 텍스트 화살표(▾)는 너무 작고 흐려서 눈에 안 띄었다.
-                // 누를 수 있다는 걸 알려야 하는 자리라 아이콘 + 강조색으로 바꿨다.
                 Icon(
                     imageVector = if (expanded) Icons.Default.KeyboardArrowUp
                     else Icons.Default.KeyboardArrowDown,
                     contentDescription = stringResource(
                         if (expanded) R.string.cd_collapse else R.string.cd_expand
                     ),
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
-                        .padding(start = 2.dp)
-                        .size(22.dp)
+                        .padding(start = 6.dp)
+                        .size(20.dp)
                 )
             }
-
-            HorizontalDivider(
-                modifier = Modifier.weight(1f),
-                thickness = lineThickness,
-                color = lineColor
-            )
         }
 
-        if (expanded) panel()
+        if (expanded) {
+            Box(modifier = Modifier.padding(horizontal = if (emphasized) 8.dp else 0.dp)) { panel() }
+        }
     }
 }
 
@@ -926,8 +956,17 @@ fun ProfileEditDialog(
     )
 }
 
+/**
+ * 맨 위 히어로 카드. 짙은 바탕(딥틸)에 누적 결산을 크게, 우측 상단에 최근 하루 배지, 아래 3지표.
+ * 색은 기기 벽지와 무관하게 고정이다 (동적 색을 쓰지 않는다).
+ */
 @Composable
-fun SummaryHeaderCard(totalCalories: Int, latestDate: String, records: List<DailyRecordModel>) {
+fun SummaryHeaderCard(
+    totalCalories: Int,
+    latestDate: String,
+    records: List<DailyRecordModel>,
+    today: String
+) {
     // 7700kcal 기준 예상 체중 변동량 (적자면 감소)
     val expectedWeightChange = -totalCalories / 7700f
     val weightText = if (expectedWeightChange <= 0) {
@@ -938,180 +977,126 @@ fun SummaryHeaderCard(totalCalories: Int, latestDate: String, records: List<Dail
     val recordDays = records.size
     val avgNet = if (records.isNotEmpty()) records.sumOf { it.netCalories } / records.size else 0
 
-    val onPrimary = MaterialTheme.colorScheme.onPrimary
+    val net = DnTheme.net
+    val onHero = net.onHero
+    val latest = records.firstOrNull()
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(DnDimens.RadiusHero),
+        colors = CardDefaults.cardColors(containerColor = net.heroBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 24.dp, vertical = 22.dp)
         ) {
-            Text(
-                text = stringResource(R.string.total_calories_title),
-                style = MaterialTheme.typography.labelLarge,
-                color = onPrimary.copy(alpha = 0.85f)
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "$totalCalories",
-                style = MaterialTheme.typography.displaySmall,
-                fontWeight = FontWeight.Bold,
-                color = onPrimary
-            )
-            Text(
-                text = "kcal",
-                style = MaterialTheme.typography.labelLarge,
-                color = onPrimary.copy(alpha = 0.8f)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Surface(
-                color = onPrimary.copy(alpha = 0.15f),
-                shape = RoundedCornerShape(50)
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = stringResource(R.string.last_updated, latestDate),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = onPrimary,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                    text = stringResource(R.string.total_calories_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = net.mint,
+                    modifier = Modifier.weight(1f)
                 )
+                latest?.let { r ->
+                    val label = when (r.date) {
+                        today -> stringResource(R.string.hero_badge_today, r.netCalories)
+                        shiftDate(today, -1) -> stringResource(R.string.hero_badge_yesterday, r.netCalories)
+                        else -> "${getDayLabelText(r.date)} ${String.format(Locale.getDefault(), "%,d", r.netCalories)}"
+                    }
+                    NetDeltaBadge(text = label, onHero = true)
+                }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider(color = onPrimary.copy(alpha = 0.2f))
             Spacer(modifier = Modifier.height(14.dp))
-            // 카드 하단에 3개 지표
+            KcalValue(
+                value = totalCalories,
+                style = MaterialTheme.typography.displaySmall.copy(fontSize = 40.sp, lineHeight = 46.sp),
+                color = onHero,
+                withUnit = true,
+                unitStyle = MaterialTheme.typography.titleMedium
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = stringResource(R.string.last_updated, latestDate),
+                style = MaterialTheme.typography.labelMedium,
+                color = onHero.copy(alpha = 0.7f)
+            )
+
+            Spacer(modifier = Modifier.height(22.dp))
+            // 카드 하단에 3개 지표. 세로 구분선 없이 간격으로만 나눈다
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                HeroStat(
-                    stringResource(R.string.stat_est_weight),
-                    weightText,
-                    onPrimary,
-                    Modifier.weight(1f)
+                StatCell(
+                    label = stringResource(R.string.stat_est_weight),
+                    value = weightText,
+                    labelColor = net.mint.copy(alpha = 0.8f),
+                    valueColor = onHero,
+                    modifier = Modifier.weight(1f)
                 )
-                VerticalDivider(
-                    modifier = Modifier.height(30.dp),
-                    color = onPrimary.copy(alpha = 0.2f)
+                StatCell(
+                    label = stringResource(R.string.stat_record_days),
+                    value = stringResource(R.string.weight_stat_days_value, recordDays),
+                    labelColor = net.mint.copy(alpha = 0.8f),
+                    valueColor = onHero,
+                    modifier = Modifier.weight(1f)
                 )
-                HeroStat(
-                    stringResource(R.string.stat_record_days),
-                    stringResource(R.string.weight_stat_days_value, recordDays),
-                    onPrimary,
-                    Modifier.weight(1f)
-                )
-                VerticalDivider(
-                    modifier = Modifier.height(30.dp),
-                    color = onPrimary.copy(alpha = 0.2f)
-                )
-                HeroStat(
-                    stringResource(R.string.stat_avg_net),
-                    "$avgNet",
-                    onPrimary,
-                    Modifier.weight(1f)
+                StatCell(
+                    label = stringResource(R.string.stat_avg_net),
+                    value = String.format(Locale.getDefault(), "%,d", avgNet),
+                    labelColor = net.mint.copy(alpha = 0.8f),
+                    valueColor = onHero,
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
     }
 }
 
+/** 상단바의 동그란 아이콘 버튼 (옅은 바탕) */
 @Composable
-private fun HeroStat(label: String, value: String, color: Color, modifier: Modifier) {
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = color,
-            maxLines = 1
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = color.copy(alpha = 0.75f)
-        )
+private fun RoundIconButton(onClick: () -> Unit, content: @Composable () -> Unit) {
+    FilledTonalIconButton(
+        onClick = onClick,
+        colors = IconButtonDefaults.filledTonalIconButtonColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ),
+        content = content
+    )
+}
+
+/** "yyyy-MM-dd" 에서 days 만큼 더한 날짜. 파싱이 안 되면 그대로 돌려준다 */
+private fun shiftDate(date: String, days: Int): String {
+    return try {
+        val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val cal = Calendar.getInstance().apply { time = fmt.parse(date) ?: return date }
+        cal.add(Calendar.DAY_OF_MONTH, days)
+        fmt.format(cal.time)
+    } catch (e: Exception) {
+        date
     }
 }
 
-@Composable
-fun StatTilesRow(records: List<DailyRecordModel>, totalCalories: Int) {
-    val expectedWeightChange = -totalCalories / 7700f
-    val weightText = if (expectedWeightChange <= 0)
-        String.format(Locale.getDefault(), "%.1f kg", expectedWeightChange)
-    else
-        String.format(Locale.getDefault(), "-%.1f kg", expectedWeightChange)
-    val recordDays = records.size
-    val avgNet = if (records.isNotEmpty()) records.sumOf { it.netCalories } / records.size else 0
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        StatTile(
-            Modifier.weight(1f),
-            stringResource(R.string.stat_est_weight),
-            weightText,
-            MaterialTheme.colorScheme.primary
-        )
-        StatTile(
-            Modifier.weight(1f),
-            stringResource(R.string.stat_record_days),
-            stringResource(R.string.weight_stat_days_value, recordDays),
-            MaterialTheme.colorScheme.onSurface
-        )
-        StatTile(
-            Modifier.weight(1f),
-            stringResource(R.string.stat_avg_net),
-            "$avgNet",
-            if (avgNet <= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
-        )
-    }
-}
-
-@Composable
-fun StatTile(modifier: Modifier, label: String, value: String, valueColor: Color) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 14.dp, horizontal = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = valueColor,
-                maxLines = 1
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
+/** 추이 차트 막대 영역 높이. 목표선·막대·툴팁이 이 안에서 같은 기준을 본다 */
+private val TREND_BAR_AREA = 110.dp
+/** 툴팁(숫자) 자리 높이 */
+private val TREND_TIP_AREA = 24.dp
+/** 날짜 라벨 자리 높이 */
+private val TREND_LABEL_AREA = 22.dp
+/** 하루 목표 순칼로리. 선 하나로만 쓰여서 상수로 둔다 */
+private const val DAILY_GOAL_KCAL = 500
 
 /**
  * 최근 순칼로리 미니 바 차트.
  *
  * 처음에는 이번 달만 보여주고, 왼쪽(과거)으로 끝까지 밀 때마다 한 달치씩 이어 붙인다.
  * 불러오는 단위가 "달"이라 어느 달이든 1일부터 말일까지 통째로 들어온다.
+ *
+ * 막대 위에 그날 순칼로리를 항상 적는다. 누르면 그날 정산이 열린다.
+ * 달이 바뀌는 첫 칸은 요일 대신 "11월 1" 처럼 월을 적어 어느 달인지 보이게 한다.
  *
  * @param monthsBack 지금 몇 달 전까지 펼쳐져 있는지 (0이면 이번 달만)
  * @param canFetchOlder 로컬에 없더라도 서버에서 더 받아올 기록이 남아 있는지
@@ -1124,7 +1109,8 @@ fun RecentTrendChart(
     scrollState: LazyListState,
     monthsBack: Int,
     canFetchOlder: Boolean,
-    onLoadOlder: () -> Unit
+    onLoadOlder: () -> Unit,
+    today: String
 ) {
     val context = LocalContext.current
     val prefs = remember {
@@ -1195,117 +1181,195 @@ fun RecentTrendChart(
         if (lastVisibleIndex >= 0 && lastVisibleIndex >= shown.size - 3 && hasOlder) onLoadOlder()
     }
 
-    // 이상치로 막대가 뭉개지지 않도록 90퍼센타일 기준으로 정규화
+    // 이상치로 막대가 뭉개지지 않도록 90퍼센타일 기준으로 정규화.
+    // 목표선(-500)이 항상 영역 안에 들어오도록 최소값도 목표로 잡는다
     val absList = shown.map { kotlin.math.abs(it.netCalories) }.sorted()
     val maxAbs = (
         if (absList.isEmpty()) 1
         else absList[(absList.size * 9 / 10).coerceAtMost(absList.size - 1)]
-    ).coerceAtLeast(1)
+    ).coerceAtLeast(DAILY_GOAL_KCAL)
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            // 헤더: 클릭하면 열기/닫기 (상태는 저장됨)
-            Row(
+    // 최근 7일 평균 (기록이 있는 날 기준)
+    val weekAvg = remember(records) {
+        val last7 = records.take(7)
+        if (last7.isEmpty()) 0 else last7.sumOf { it.netCalories } / last7.size
+    }
+
+    val net = DnTheme.net
+    val goalLineColor = MaterialTheme.colorScheme.outline
+    val monthLineColor = MaterialTheme.colorScheme.outlineVariant
+    val chartHeight = TREND_TIP_AREA + TREND_BAR_AREA + TREND_LABEL_AREA
+
+    DnCard(contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp)) {
+        // 헤더: 클릭하면 열기/닫기 (상태는 저장됨)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(DnDimens.RadiusChip))
+                .clickable {
+                    expanded = !expanded
+                    prefs.edit { putBoolean(Constants.KEY_TREND_EXPANDED, expanded) }
+                }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = stringResource(R.string.recent_trend),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = stringResource(R.string.trend_week_avg, weekAvg),
+                style = MaterialTheme.typography.labelLarge.tabular(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = stringResource(
+                    if (expanded) R.string.cd_collapse else R.string.cd_expand
+                ),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+        }
+
+        if (expanded) {
+            Spacer(modifier = Modifier.height(10.dp))
+            // 목표선 라벨. 선은 아래 Canvas 가 막대 뒤에 긋는다
+            Text(
+                text = stringResource(R.string.trend_goal, -DAILY_GOAL_KCAL),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+
+            val goalFrac = DAILY_GOAL_KCAL.toFloat() / maxAbs
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .clickable {
-                        expanded = !expanded
-                        prefs.edit { putBoolean(Constants.KEY_TREND_EXPANDED, expanded) }
-                    }
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .height(chartHeight)
             ) {
-                Text(
-                    text = stringResource(R.string.recent_trend),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Icon(
-                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = stringResource(
-                        if (expanded) R.string.cd_collapse else R.string.cd_expand
-                    ),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    // 목표선: 막대 영역의 아래에서 goalFrac 만큼 올라온 자리
+                    val areaBottom = (TREND_TIP_AREA + TREND_BAR_AREA).toPx()
+                    val y = areaBottom - goalFrac * TREND_BAR_AREA.toPx()
+                    drawLine(
+                        color = goalLineColor.copy(alpha = 0.6f),
+                        start = Offset(0f, y),
+                        end = Offset(size.width, y),
+                        strokeWidth = 1.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))
+                    )
+                }
 
-            if (expanded) {
-                Spacer(modifier = Modifier.height(14.dp))
                 // 가로 스크롤: 최신이 오른쪽, 왼쪽으로 드래그하면 과거 날짜까지 확인 (보이는 막대만 렌더 → 가벼움)
                 LazyRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(165.dp),
+                    modifier = Modifier.fillMaxSize(),
                     state = scrollState,
                     reverseLayout = true,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
                     verticalAlignment = Alignment.Bottom
                 ) {
                     itemsIndexed(shown, key = { _, r -> r.date }) { index, r ->
                         // 달이 바뀌는 자리(그 달의 가장 이른 기록)에만 월 표기를 붙인다.
-                        // 여러 달이 이어 붙으니 지금 보는 게 몇 월인지 알 수 있어야 한다.
                         // reverseLayout이라 index+1이 화면 왼쪽(더 과거)이다.
                         val isMonthHead = index == shown.lastIndex ||
                                 shown[index + 1].date.take(7) != r.date.take(7)
-                        val frac = kotlin.math.abs(r.netCalories).toFloat() / maxAbs
-                        val barHeight = (frac * 80).dp.coerceAtLeast(6.dp)
-                        val barColor = if (r.netCalories <= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
-                        Column(
-                            modifier = Modifier
-                                .width(44.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { onDayClick(r.date) },
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Bottom
-                        ) {
-                            // 막대 위 값 숫자
-                            Text(
-                                text = "${r.netCalories}",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = barColor,
-                                maxLines = 1
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            // 얇은 고정폭 막대
-                            Box(
+                        val frac = (kotlin.math.abs(r.netCalories).toFloat() / maxAbs).coerceAtMost(1f)
+                        val barHeight = (TREND_BAR_AREA * frac).coerceAtLeast(10.dp)
+                        val barColor = net.of(r.netCalories)
+                        val isToday = r.date == today
+                        val dayColor = weekdayColor(r.date, calendarHolidays, net)
+
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            // 달이 바뀌는 지점: 세로선 (왼쪽, 즉 과거 쪽 경계). 가장 오래된 달에는 긋지 않는다
+                            if (isMonthHead && index != shown.lastIndex) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(1.dp)
+                                        .height(chartHeight)
+                                        .background(monthLineColor)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                            }
+                            Column(
                                 modifier = Modifier
-                                    .width(14.dp)
-                                    .height(barHeight)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(barColor)
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            // 일요일·공휴일=빨강, 토요일=파랑, 평일=기본색
-                            val dayColor = weekdayColor(r.date, calendarHolidays)
-                            Text(
-                                text = r.date.takeLast(2),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = dayColor ?: MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            // 요일 표시 (예: 월, 화)
-                            Text(
-                                text = getDayOfWeekText(r.date).trim('(', ')'),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = dayColor
-                                    ?: MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                            )
-                            // 월 표기. 해당 없는 날도 빈 줄로 자리를 잡아둬야
-                            // 막대들이 같은 높이에서 시작한다(Arrangement.Bottom 기준선 유지)
-                            Text(
-                                text = if (isMonthHead) getMonthText(r.date) else "",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                                maxLines = 1
-                            )
+                                    .width(40.dp)
+                                    .clip(RoundedCornerShape(DnDimens.RadiusChip))
+                                    .clickable { onDayClick(r.date) },
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Bottom
+                            ) {
+                                // 막대 위 숫자. 칸(40dp)보다 길어도 잘리지 않게 unbounded 로 그린다.
+                                // (처음엔 고른 날에만 말풍선으로 띄웠는데 칸 폭에 잘려 "-1,677" 이 안 보였다)
+                                Box(
+                                    modifier = Modifier.height(TREND_TIP_AREA),
+                                    contentAlignment = Alignment.BottomCenter
+                                ) {
+                                    Text(
+                                        text = String.format(Locale.getDefault(), "%,d", r.netCalories),
+                                        style = MaterialTheme.typography.labelSmall.tabular(),
+                                        fontWeight = if (isToday) FontWeight.Bold else FontWeight.Medium,
+                                        color = barColor,
+                                        maxLines = 1,
+                                        modifier = Modifier
+                                            .wrapContentWidth(unbounded = true)
+                                            .padding(bottom = 3.dp)
+                                    )
+                                }
+                                // 막대. 오늘은 민트 외곽선(바깥 캡슐)으로 표시
+                                Box(
+                                    modifier = Modifier.height(TREND_BAR_AREA),
+                                    contentAlignment = Alignment.BottomCenter
+                                ) {
+                                    if (isToday) {
+                                        Box(
+                                            modifier = Modifier
+                                                .width(16.dp)
+                                                .height(barHeight + 6.dp)
+                                                .clip(RoundedCornerShape(50))
+                                                .background(net.mint),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .width(10.dp)
+                                                    .height(barHeight)
+                                                    .clip(RoundedCornerShape(50))
+                                                    .background(barColor)
+                                            )
+                                        }
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .width(10.dp)
+                                                .height(barHeight)
+                                                .clip(RoundedCornerShape(50))
+                                                .background(barColor)
+                                        )
+                                    }
+                                }
+                                // "28 화" 한 줄. 일요일·공휴일/토요일은 색으로 구분
+                                Box(
+                                    modifier = Modifier.height(TREND_LABEL_AREA),
+                                    contentAlignment = Alignment.BottomCenter
+                                ) {
+                                    Text(
+                                        text = if (isMonthHead) {
+                                            getMonthText(r.date) + " " + r.date.takeLast(2).trimStart('0')
+                                        } else {
+                                            r.date.takeLast(2) + " " + getDayOfWeekText(r.date).trim('(', ')')
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = if (isToday || isMonthHead) FontWeight.Bold else FontWeight.Medium,
+                                        color = dayColor
+                                            ?: if (isToday) MaterialTheme.colorScheme.onSurface
+                                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        modifier = Modifier.wrapContentWidth(unbounded = true)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -1314,78 +1378,68 @@ fun RecentTrendChart(
     }
 }
 
+/**
+ * 정산 기록 한 줄. 카드 대신 행이다 — 좌측 4dp 색 바(적자/흑자), 날짜, 운동 칩, 우측 kcal.
+ * 행 사이는 1dp 선으로만 나눈다. 카드 안에 카드가 들어가던 "겹침"을 없애기 위함이다.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DailyRecordHistoryItem(
     item: DailyRecordModel,
+    showTopLine: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-
     val dayOfWeekText = getDayOfWeekText(item.date)
-    val dayNum = item.date.takeLast(2)
+    val net = DnTheme.net
+    val color = net.of(item.netCalories)
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            ),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    ) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        if (showTopLine) {
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                modifier = Modifier.padding(horizontal = 12.dp)
+            )
+        }
         Row(
             modifier = Modifier
-                .padding(14.dp)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(DnDimens.RadiusChip))
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                .padding(horizontal = 4.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 날짜(일) 원형 뱃지
             Box(
                 modifier = Modifier
-                    .size(46.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = dayNum,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-
+                    .width(4.dp)
+                    .height(26.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(color)
+            )
             Spacer(modifier = Modifier.width(14.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "${item.date} $dayOfWeekText",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Medium
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = stringResource(
-                        if (item.hasExercise) R.string.has_exercise else R.string.rest_day
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
             Text(
-                text = "${item.netCalories} kcal",
+                text = "${monthDayText(item.date)} $dayOfWeekText",
+                style = MaterialTheme.typography.titleMedium.tabular(),
+                modifier = Modifier.weight(1f)
+            )
+            if (item.hasExercise) {
+                DnChip(text = stringResource(R.string.exercise_chip))
+                Spacer(modifier = Modifier.width(12.dp))
+            }
+            KcalValue(
+                value = item.netCalories,
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = if (item.netCalories <= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                color = color
             )
         }
     }
+}
 
-
+/** "8. 3" 식 월.일 표기. 목록에서 연도는 월 띠가 이미 말해주므로 뺀다 */
+private fun monthDayText(dateString: String): String {
+    val parts = dateString.split("-")
+    if (parts.size != 3) return dateString
+    val m = parts[1].toIntOrNull() ?: return dateString
+    val d = parts[2].toIntOrNull() ?: return dateString
+    return "$m. $d"
 }
