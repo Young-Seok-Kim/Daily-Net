@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 테마 아이콘(안드로이드 13+). 시스템이 한 색으로 물들이므로 모양만 둔다. 좌표는 ic_launcher_foreground.xml 과 같다 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M79.11,47.27 A26,26 0 1 1 60.73,28.89"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M73.4,34.6 m-3.6,0 a3.6,3.6 0 1 1 7.2,0 a3.6,3.6 0 1 1 -7.2,0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M54,34 C58,42 67,47 67,58 C67,68 61,74 54,76 C47,74 41,68 41,58 C41,47 50,42 54,34 Z M55.5,46 C59.5,52 61.5,56.5 60.5,62.5 C59.5,67.5 56.5,70.5 54,72.5 C55,68 56,63.5 54.2,58.5 C52.8,54.5 54,50 55.5,46 Z" />
+</vector>
