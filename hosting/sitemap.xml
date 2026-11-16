@@ -1,9 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  lastmod 는 그 페이지 파일을 실제로 고친 날짜다. 배포 날짜를 적지 않는다.
+  index.html 을 고치면 여기 index 의 lastmod 도 같이 고친다 (아래 주석 참고).
+  priority 는 구글이 무시하고 네이버가 참고하는 정도라, 순서 힌트로만 쓴다.
+-->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://dailynet.web.app/</loc>
+    <!-- 2026-11-16: 검색 소유확인·OG·트위터 카드·구조화 데이터 보강 -->
+    <lastmod>2026-11-16</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
   </url>
   <url>
     <loc>https://dailynet.web.app/privacy.html</loc>
+    <!-- 마지막 수정: 2026-11-13 -->
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
   </url>
 </urlset>
