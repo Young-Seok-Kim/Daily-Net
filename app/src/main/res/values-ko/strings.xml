@@ -154,8 +154,8 @@
     <string name="macro_carb">탄</string>
     <string name="macro_protein">단</string>
     <string name="macro_fat">지</string>
-    <string name="has_exercise">운동 기록 있음 💪</string>
-    <string name="rest_day">휴식 😴</string>
+    <string name="has_exercise">운동 기록 있음</string>
+    <string name="rest_day">휴식</string>
 
     <!-- 프로필 다이얼로그 -->
     <string name="profile_input_title">신체 정보 입력</string>
@@ -237,8 +237,8 @@
     <string name="photo_filled">사진에서 메뉴를 채웠어요. 틀린 게 있으면 고쳐주세요.</string>
     <string name="analyze_today">오늘의 정산 분석하기</string>
     <string name="analyze_again">다시 분석하기</string>
-    <string name="ai_report_title">🤖 AI 분석 레포트</string>
-    <string name="badge_just_done">✅ 방금 완료</string>
+    <string name="ai_report_title">AI 분석 레포트</string>
+    <string name="badge_just_done">방금 완료</string>
     <string name="analyzing_wait">분석 중이에요. 잠시만 기다려주세요</string>
     <string name="analyzing_title">🤖 AI가 분석 중이에요</string>
     <string name="analyzing_inline">AI가 분석 중이에요</string>
@@ -296,33 +296,33 @@
     <string name="widget_not_recorded_hint">아직 정산 전이에요</string>
 
     <!-- 분석 리포트 (서버 텍스트와 같은 문구. b33부터 앱이 구조에서 직접 그린다) -->
-    <string name="report_breakfast">🍳 아침</string>
-    <string name="report_lunch">🍳 점심</string>
-    <string name="report_dinner">🍳 저녁</string>
-    <string name="report_snack">🍰 간식</string>
+    <string name="report_breakfast">아침</string>
+    <string name="report_lunch">점심</string>
+    <string name="report_dinner">저녁</string>
+    <string name="report_snack">간식</string>
     <string name="report_total">합계</string>
     <string name="kcal_value">%1$d kcal</string>
     <string name="report_no_info">정보 없음</string>
     <string name="report_macro_line">[탄 %1$sg | 단 %2$sg | 지 %3$sg]</string>
-    <string name="report_exercise_title">🔥 운동별 소모 칼로리</string>
+    <string name="report_exercise_title">운동별 소모 칼로리</string>
     <string name="report_exercise_total">(총 -%1$d kcal)</string>
     <string name="report_no_exercise">기록된 운동이 없습니다</string>
-    <string name="report_goal_title">🎯 다이어트 권장 목표 가이드</string>
+    <string name="report_goal_title">다이어트 권장 목표 가이드</string>
     <string name="report_goal_intake">• 하루 권장 섭취량: %1$d kcal</string>
     <string name="report_goal_macro">• 추천 탄단지: 탄 %1$dg | 단 %2$dg | 지 %3$dg</string>
     <string name="report_my_intake">• 나의 오늘 섭취량: %1$d kcal (%2$s)</string>
-    <string name="report_over">⚠️ 권장 초과</string>
-    <string name="report_under">✅ 권장 이내</string>
-    <string name="report_macro_title">📊 나의 오늘 실제 탄단지 총합</string>
+    <string name="report_over">권장 초과</string>
+    <string name="report_under">권장 이내</string>
+    <string name="report_macro_title">나의 오늘 실제 탄단지 총합</string>
     <string name="report_carb_full">• 탄수화물: %1$sg / %2$dg</string>
     <string name="report_protein_full">• 단백질: %1$sg / %2$dg</string>
     <string name="report_fat_full">• 지방: %1$sg / %2$dg</string>
-    <string name="report_in">🍎 인입 (IN): +%1$d kcal</string>
-    <string name="report_out">🏃 배출 (OUT): -%1$d kcal (기초대사 %2$d 포함)</string>
-    <string name="report_out_inbody">🏃 배출 (OUT): -%1$d kcal (인바디 기초대사 %2$d 포함)</string>
-    <string name="report_net">📉 최종 결산: %1$d kcal</string>
-    <string name="report_eval_title">💡 전문가 총평</string>
-    <string name="report_edited_badge">✏️ 수정됨</string>
+    <string name="report_in">인입 (IN): +%1$d kcal</string>
+    <string name="report_out">배출 (OUT): -%1$d kcal (기초대사 %2$d 포함)</string>
+    <string name="report_out_inbody">배출 (OUT): -%1$d kcal (인바디 기초대사 %2$d 포함)</string>
+    <string name="report_net">최종 결산: %1$d kcal</string>
+    <string name="report_eval_title">전문가 총평</string>
+    <string name="report_edited_badge">수정됨</string>
     <string name="report_edit_hint">항목을 누르면 칼로리를 고칠 수 있어요</string>
     <string name="report_ai_kcal">AI 추정 %1$d kcal</string>
     <string name="edit_kcal_title">칼로리 수정</string>
@@ -373,4 +373,31 @@
     <string name="calendar_sync_done">캘린더에 %1$d건 추가, %2$d건 갱신했습니다</string>
     <string name="calendar_sync_nothing">바꿀 것이 없습니다. 캘린더가 기록과 이미 같습니다</string>
     <string name="calendar_sync_failed">동기화에 실패했습니다: %1$s</string>
+
+    <!-- 리디자인(b53)에서 추가: 홈 히어로·추이·월 정산·AI 리포트 카드 -->
+    <string name="hero_badge_today">오늘 %1$d</string>
+    <string name="hero_badge_yesterday">어제 %1$d</string>
+    <string name="trend_week_avg">7일 평균 %1$d</string>
+    <string name="trend_goal">하루 목표 %1$d</string>
+    <string name="exercise_chip">운동</string>
+    <string name="month_report_balance_days">적자 %1$d일 · 흑자 %2$d일</string>
+    <string name="month_report_go_record">이번 달 기록하러 가기</string>
+    <string name="month_report_of_days">기록 %1$d일 중</string>
+    <string name="macro_carb_full">탄수화물</string>
+    <string name="macro_protein_full">단백질</string>
+    <string name="macro_fat_full">지방</string>
+    <string name="report_summary_in">IN</string>
+    <string name="report_summary_out">OUT</string>
+    <string name="report_summary_net">NET</string>
+    <string name="report_intake_vs">권장 %1$d kcal 대비</string>
+    <string name="report_goal_guide">목표 가이드</string>
+    <string name="report_vs_recommended">권장 섭취량 대비</string>
+    <string name="report_exercise_sum">합계 %1$d kcal</string>
+    <string name="report_exercise_mets">%1$s METs</string>
+    <string name="unit_hour">시간</string>
+    <string name="unit_minute">분</string>
+    <string name="report_bmr_note">기초대사 %1$d 포함</string>
+    <string name="report_bmr_note_inbody">인바디 기초대사 %1$d 포함</string>
+    <string name="report_legacy_note">이전 형식의 기록이라 글로만 보여드려요.</string>
+    <string name="report_edit_snackbar">AI 추정 %1$d → %2$d kcal</string>
 </resources>

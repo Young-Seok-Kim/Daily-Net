@@ -38,10 +38,10 @@ data class GaugeSegment(val label: String, val from: Float, val to: Float)
 
 /** 심한 정도 순서의 다섯 색. 구간이 넷이면 앞 넷을 쓴다 */
 private val LIGHT_COLORS = listOf(
-    Color(0xFF4A86E8), Color(0xFF2E9E5B), Color(0xFFC9971E), Color(0xFFC43C3C), Color(0xFF8E44AD)
+    Color(0xFF4A86E8), Color(0xFF2E9E5B), Color(0xFFC9971E), Color(0xFFC43C3C), Color(0xFF7A5CA8)
 )
 private val DARK_COLORS = listOf(
-    Color(0xFF5B93F0), Color(0xFF35A862), Color(0xFFB8891A), Color(0xFFC43C3C), Color(0xFF9A55BF)
+    Color(0xFF5B93F0), Color(0xFF35A862), Color(0xFFB8891A), Color(0xFFC43C3C), Color(0xFFA07CC9)
 )
 
 @Composable

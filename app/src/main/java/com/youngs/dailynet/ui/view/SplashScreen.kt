@@ -52,20 +52,20 @@ import kotlin.math.sin
  * 라이트/다크 어느 쪽에서 켜도 같은 첫 화면이 나오게 하려는 것.
  * 배경은 밝게, 링·막대·글자는 진하게 해서 대비를 준다.
  */
-private val SplashTop = Color(0xFFF3EEFF)
-private val SplashMid = Color(0xFFE2D8FF)
-private val SplashBottom = Color(0xFFC4B3F5)
+private val SplashTop = Color(0xFFEAF9F3)
+private val SplashMid = Color(0xFFC9F2E3)
+private val SplashBottom = Color(0xFF8FE6C6)
 /** 배경에 떠다니는 빛 덩어리 색 (연한 배경 위라 조금 진하게) */
-private val Lavender = Color(0xFFA890FF)
-private val Mint = Color(0xFF6FDCC0)
-private val Rose = Color(0xFFF7A9C4)
+private val Lavender = Color(0xFF5FE1B0)
+private val Mint = Color(0xFF9FB8B3)
+private val Rose = Color(0xFFFF8A6B)
 /** 링·막대에 쓰는 진한 색 */
-private val DeepMint = Color(0xFF2FBF9A)
-private val DeepPurple = Color(0xFF7C5CF2)
-private val DeepRose = Color(0xFFEE6F9B)
+private val DeepMint = Color(0xFF0E7A5A)
+private val DeepPurple = Color(0xFF245C6C)
+private val DeepRose = Color(0xFFFF4D2E)
 /** 글자색 */
-private val Ink = Color(0xFF2A1B5E)
-private val InkSoft = Color(0xFF6650A4)
+private val Ink = Color(0xFF06303F)
+private val InkSoft = Color(0xFF245C6C)
 
 /** 반짝이 별 위치(화면 비율)와 깜빡임 위상 */
 private val Stars = listOf(

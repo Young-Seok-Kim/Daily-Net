@@ -1264,7 +1264,7 @@ class MainViewModel @Inject constructor(
         try {
             repository.saveRecord(updated)
             _uiState.value = updated
-            toast(R.string.toast_result_edited)
+            // 알림은 화면(DailyRecordScreen)이 스낵바로 "AI 추정 ○○ → ○○ kcal" 을 띄운다. 여기서 토스트까지 내면 두 번 뜬다
             // 소모 열량이 바뀌었으면 캘린더 메모의 열량도 맞춘다
             mirrorToCalendar(updated)
         } catch (e: Exception) {

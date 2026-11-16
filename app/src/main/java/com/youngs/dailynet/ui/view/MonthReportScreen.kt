@@ -28,15 +28,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.youngs.dailynet.R
+import com.youngs.dailynet.ui.theme.DnDimens
+import com.youngs.dailynet.ui.theme.DnTheme
+import com.youngs.dailynet.ui.theme.tabular
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.text.drawText
+import androidx.compose.material3.FilledTonalButton
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.Locale
-
-/** 적자(감량 방향)는 초록, 흑자는 빨강 — 앱 전체 규칙 */
-private val GOOD = Color(0xFF4CAF50)
-private val BAD = Color(0xFFF44336)
 
 /**
  * 일별 차트 치수. 눈금 숫자를 막대와 같은 높이에 맞춰야 해서
@@ -53,7 +56,7 @@ private val CHART_OVERSHOOT = 18.dp
  * 이만큼이 막대에서 빠진다. 하루 칸이 31개라 한 칸이 8dp 남짓으로 줄어드는데,
  * 크기를 못 읽는 막대는 있으나 마나라 눈금 쪽을 택했다.
  */
-private val AXIS_LABEL_WIDTH = 38.dp
+private val AXIS_LABEL_WIDTH = 44.dp
 
 /**
  * 한 달 정산을 한 화면에 펼쳐 보는 화면.
@@ -120,9 +123,18 @@ fun MonthReportScreen(
         val canGoNext = pagerState.currentPage < months.lastIndex
 
         Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
             topBar = {
                 TopAppBar(
-                    title = { Text(monthTitleOf(currentMonth)) },
+                    title = {
+                        Text(
+                            text = monthTitleOf(currentMonth),
+                            style = MaterialTheme.typography.headlineSmall
+                        )
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background
+                    ),
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(
@@ -173,6 +185,7 @@ fun MonthReportScreen(
                     mainViewModel = mainViewModel,
                     yearMonth = month,
                     allRecords = allRecords,
+                    today = mainViewModel.todayDate,
                     // 달마다 스크롤 위치를 따로 둔다. 옆 달로 갔다 돌아와도 보던 자리가 남는다.
                     scrollState = mainViewModel.monthReportScrollStates.getOrPut(month) { ScrollState(0) },
                     onNavigateToDetail = onNavigateToDetail
@@ -224,6 +237,7 @@ private fun MonthReportPage(
     mainViewModel: MainViewModel,
     yearMonth: String,
     allRecords: List<DailyRecordModel>,
+    today: String,
     scrollState: ScrollState,
     onNavigateToDetail: (String) -> Unit
 ) {
@@ -250,11 +264,20 @@ private fun MonthReportPage(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = stringResource(R.string.month_report_empty),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = stringResource(R.string.month_report_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                // 이번 달이 비어 있으면 바로 기록하러 갈 수 있게 한다. 지난 달은 채울 수 없으니 글만 둔다
+                if (today.take(7) == yearMonth) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    FilledTonalButton(onClick = { onNavigateToDetail(today) }) {
+                        Text(stringResource(R.string.month_report_go_record))
+                    }
+                }
+            }
         }
         return
     }
@@ -292,94 +315,74 @@ private fun MonthReportPage(
 /** 화면 제목 "2026년 8월". 그 달 1일을 만들어 기존 표기 함수를 그대로 쓴다. */
 private fun monthTitleOf(yearMonth: String): String = getMonthHeaderText("$yearMonth-01")
 
-/** 맨 위 큰 숫자 카드: 월 합계 / 하루 평균 / 체중 변화 / 기록·운동 일수 */
+/** 맨 위 큰 숫자 카드: 월 합계 / 체중 변화 / 기록·운동 일수·평균 */
 @Composable
 private fun MonthHeadlineCard(summary: PeriodSummary) {
+    val net = DnTheme.net
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        shape = RoundedCornerShape(DnDimens.RadiusHero),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                Column {
-                    Text(
-                        text = String.format(Locale.getDefault(), "%,d kcal", summary.netTotal),
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = if (summary.netTotal <= 0) GOOD else BAD
-                    )
+        Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 22.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = stringResource(R.string.month_summary_total),
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    KcalValue(
+                        value = summary.netTotal,
+                        style = MaterialTheme.typography.displaySmall,
+                        withUnit = true,
+                        unitStyle = MaterialTheme.typography.titleMedium
+                    )
                 }
-                Spacer(modifier = Modifier.weight(1f))
                 summary.weightDiff?.let { diff ->
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
                             text = String.format(Locale.getDefault(), "%+.1f kg", diff),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = if (diff <= 0f) GOOD else BAD
+                            style = MaterialTheme.typography.titleLarge.tabular(),
+                            color = net.of(diff)
                         )
                         Text(
                             text = stringResource(R.string.month_summary_weight),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(18.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            Row(modifier = Modifier.fillMaxWidth()) {
-                WeightStatCell(
-                    stringResource(R.string.stat_record_days),
-                    stringResource(R.string.weight_stat_days_value, summary.recordDays),
-                    Modifier.weight(1f)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                StatCell(
+                    label = stringResource(R.string.stat_record_days),
+                    value = stringResource(R.string.weight_stat_days_value, summary.recordDays),
+                    modifier = Modifier.weight(1f)
                 )
-                WeightStatCell(
-                    stringResource(R.string.month_report_exercise_days),
-                    stringResource(R.string.weight_stat_days_value, summary.exerciseDays),
-                    Modifier.weight(1f)
+                StatCell(
+                    label = stringResource(R.string.month_report_exercise_days),
+                    value = stringResource(R.string.weight_stat_days_value, summary.exerciseDays),
+                    modifier = Modifier.weight(1f)
                 )
-                WeightStatCell(
-                    stringResource(R.string.stat_avg_net),
-                    String.format(Locale.getDefault(), "%,d", summary.netAverage),
-                    Modifier.weight(1f),
-                    valueColor = if (summary.netAverage <= 0) GOOD else BAD
+                StatCell(
+                    label = stringResource(R.string.stat_avg_net),
+                    value = String.format(Locale.getDefault(), "%,d", summary.netAverage),
+                    valueColor = net.of(summary.netAverage),
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun WeightStatCell(
-    label: String,
-    value: String,
-    modifier: Modifier,
-    valueColor: Color = MaterialTheme.colorScheme.onSurface
-) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = valueColor,
-            maxLines = 1
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 
@@ -415,13 +418,27 @@ private fun DailyNetChartCard(
         niceCeil(p90)
     }
 
+    val net = DnTheme.net
     val gridColor = MaterialTheme.colorScheme.outlineVariant
-    val emptyColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+    val zeroColor = MaterialTheme.colorScheme.onSurface
+    val emptyColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
     val highlight = MaterialTheme.colorScheme.primary
     val axisTextColor = MaterialTheme.colorScheme.onSurfaceVariant
 
-    SectionCard(title = stringResource(R.string.month_report_daily_title)) {
-        // 선택한 날 정보. 아무것도 안 골랐을 때도 높이가 변하지 않도록 안내 문구로 자리를 채운다.
+    val deficitDays = records.count { it.netCalories <= 0 }
+    val surplusDays = records.size - deficitDays
+
+    DnCard {
+        SectionHeader(title = stringResource(R.string.month_report_daily_title)) {
+            Text(
+                text = stringResource(R.string.month_report_balance_days, deficitDays, surplusDays),
+                style = MaterialTheme.typography.labelLarge.tabular(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 선택한 날 툴팁. 아무것도 안 골랐을 때도 높이가 변하지 않도록 안내 문구로 자리를 채운다.
         SelectedDayBar(record = selectedDate?.let { byDay[it] }, selectedDate = selectedDate)
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -457,32 +474,36 @@ private fun DailyNetChartCard(
                     val half = zeroY - CHART_OVERSHOOT.toPx()
                     listOf(zeroY - half, zeroY + half).forEach { y ->
                         drawLine(
-                            color = gridColor.copy(alpha = 0.6f),
+                            color = gridColor,
                             start = Offset(0f, y),
                             end = Offset(size.width, y),
-                            strokeWidth = 1.dp.toPx()
+                            strokeWidth = 1.dp.toPx(),
+                            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
                         )
                     }
-                    // 0선은 기준이라 더 또렷하게
+                    // 0선은 기준이라 굵고 또렷하게
                     drawLine(
-                        color = gridColor,
+                        color = zeroColor,
                         start = Offset(0f, zeroY),
                         end = Offset(size.width, zeroY),
-                        strokeWidth = 1.dp.toPx()
+                        strokeWidth = 2.dp.toPx(),
+                        cap = StrokeCap.Round
                     )
                 }
 
                 Row(modifier = Modifier.fillMaxSize()) {
-                    days.forEach { date ->
+                    days.forEachIndexed { i, date ->
                         val r = byDay[date]
                         val isSelected = date == selectedDate
+                        // 주가 시작하는 날(월요일) 앞에 틈을 둬 주 단위가 읽히게 한다
+                        if (i > 0 && isMonday(date)) Spacer(modifier = Modifier.width(5.dp))
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(3.dp))
                                 .background(
-                                    if (isSelected) highlight.copy(alpha = 0.18f)
+                                    if (isSelected) highlight.copy(alpha = 0.12f)
                                     else Color.Transparent
                                 )
                                 .clickable { onDayClick(date) }
@@ -491,7 +512,7 @@ private fun DailyNetChartCard(
                                 val w = size.width
                                 val zeroY = size.height / 2f
                                 val half = zeroY - CHART_OVERSHOOT.toPx()
-                                val barW = (w * 0.6f).coerceAtMost(8.dp.toPx())
+                                val barW = (w * 0.7f).coerceAtMost(6.dp.toPx())
                                 val left = (w - barW) / 2f
 
                                 if (r == null) {
@@ -504,17 +525,17 @@ private fun DailyNetChartCard(
                                     return@Canvas
                                 }
 
-                                val net = r.netCalories
+                                val netValue = r.netCalories
                                 // 눈금을 넘는 날은 선 위로 넘치되 카드 밖으로는 나가지 않게 막는다
-                                val barH = (kotlin.math.abs(net).toFloat() / axisMax * half)
-                                    .coerceIn(2.dp.toPx(), zeroY)
+                                val barH = (kotlin.math.abs(netValue).toFloat() / axisMax * half)
+                                    .coerceIn(3.dp.toPx(), zeroY)
                                 // 적자(음수)는 아래로, 흑자(양수)는 위로
-                                val top = if (net <= 0) zeroY else zeroY - barH
+                                val top = if (netValue <= 0) zeroY else zeroY - barH
                                 drawRoundRect(
-                                    color = if (net <= 0) GOOD else BAD,
+                                    color = net.of(netValue),
                                     topLeft = Offset(left, top),
                                     size = androidx.compose.ui.geometry.Size(barW, barH),
-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(barW / 2f)
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx())
                                 )
                             }
                         }
@@ -529,10 +550,11 @@ private fun DailyNetChartCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = AXIS_LABEL_WIDTH)
+                .padding(start = AXIS_LABEL_WIDTH, top = 6.dp)
         ) {
-            days.forEach { date ->
+            days.forEachIndexed { i, date ->
                 val day = date.takeLast(2).toIntOrNull() ?: 0
+                if (i > 0 && isMonday(date)) Spacer(modifier = Modifier.width(5.dp))
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     if (day in tickDays) {
                         Text(
@@ -553,9 +575,16 @@ private fun DailyNetChartCard(
             text = stringResource(R.string.month_report_daily_hint),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 8.dp)
+            modifier = Modifier.padding(top = 10.dp)
         )
     }
+}
+
+/** "yyyy-MM-dd"가 월요일인지. 주 시작 틈을 둘 때 쓴다 */
+private fun isMonday(date: String): Boolean {
+    val parsed = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(date) ?: return false
+    val cal = Calendar.getInstance().apply { time = parsed }
+    return cal.get(Calendar.DAY_OF_WEEK) == Calendar.MONDAY
 }
 
 /**
@@ -605,58 +634,63 @@ private fun niceCeil(value: Int): Int {
     return (value + 999) / 1000 * 1000
 }
 
-/** 그날 정보 줄. 고른 날에 기록이 없으면 "기록 없음"으로 알린다. */
+/**
+ * 그날 정보 pill (짙은 바탕에 흰 글자). 고른 날에 기록이 없으면 "기록 없음"으로 알린다.
+ * 아무것도 안 골랐을 때는 옅은 안내 pill 로 같은 높이를 차지한다.
+ */
 @Composable
 private fun SelectedDayBar(record: DailyRecordModel?, selectedDate: String?) {
-    Surface(
+    val net = DnTheme.net
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(44.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = if (selectedDate != null) MaterialTheme.colorScheme.primaryContainer
-        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            .height(40.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (selectedDate == null) {
+        if (selectedDate == null) {
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.surfaceVariant
+            ) {
                 Text(
                     text = stringResource(R.string.month_report_tap_day),
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                 )
-                return@Row
             }
+            return@Box
+        }
 
-            Text(
-                text = "${getDayLabelText(selectedDate)} ${getDayOfWeekText(selectedDate)}".trim(),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            if (record == null) {
+        val dateText = "${getDayLabelText(selectedDate)} ${getDayOfWeekText(selectedDate)}".trim()
+        val body = when {
+            record == null -> "$dateText · ${stringResource(R.string.month_report_no_record)}"
+            record.hasExercise -> "$dateText · ${String.format(Locale.getDefault(), "%,d kcal", record.netCalories)} · ${stringResource(R.string.exercise_chip)}"
+            else -> "$dateText · ${String.format(Locale.getDefault(), "%,d kcal", record.netCalories)}"
+        }
+        Surface(
+            shape = RoundedCornerShape(50),
+            color = net.heroBackground
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = stringResource(R.string.month_report_no_record),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    text = body,
+                    style = MaterialTheme.typography.labelLarge.tabular(),
+                    color = net.onHero,
+                    maxLines = 1
                 )
-            } else {
-                Text(
-                    text = String.format(Locale.getDefault(), "%,d kcal", record.netCalories),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = if (record.netCalories <= 0) GOOD else BAD
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    text = stringResource(R.string.weight_trend_tap_again),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                )
+                if (record != null) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.weight_trend_tap_again),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = net.onHero.copy(alpha = 0.6f),
+                        maxLines = 1
+                    )
+                }
             }
         }
     }
@@ -674,63 +708,74 @@ private fun SelectedDayBar(record: DailyRecordModel?, selectedDate: String?) {
  */
 @Composable
 private fun WeeklyCompareCard(records: List<DailyRecordModel>) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    // 주차 → (표기, 순칼로리 합). 오래된 주가 위로 오도록 날짜순으로 세운다.
+    val net = DnTheme.net
+    // 주차 → (그 주의 이 달 안 첫날, 마지막 날, 순칼로리 합). 오래된 주가 위로 오도록 날짜순으로 세운다.
     val weeks = remember(records) {
         records.groupBy { getWeekIdentifier(it.date) }
             .entries
             .sortedBy { it.value.minOf { r -> r.date } }
             .map { (_, rows) ->
-                val oldest = rows.minByOrNull { it.date }?.date ?: ""
-                oldest to rows.sumOf { it.netCalories }
+                val oldest = rows.minOf { it.date }
+                val newest = rows.maxOf { it.date }
+                Triple(oldest, newest, rows.sumOf { it.netCalories })
             }
     }
     if (weeks.isEmpty()) return
 
-    val maxAbs = weeks.maxOf { kotlin.math.abs(it.second) }.coerceAtLeast(1)
+    val maxAbs = weeks.maxOf { kotlin.math.abs(it.third) }.coerceAtLeast(1)
 
-    SectionCard(title = stringResource(R.string.month_report_weekly_title)) {
-        weeks.forEach { (dateInWeek, net) ->
+    DnCard {
+        SectionHeader(title = stringResource(R.string.month_report_weekly_title))
+        Spacer(modifier = Modifier.height(6.dp))
+        weeks.forEach { (from, to, netValue) ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 5.dp),
+                    .padding(vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // "7/1–7/7" 처럼 실제 기간. "7월 1주" 는 어느 날부터인지 알 수 없었다
                 Text(
-                    text = getWeekOfMonthText(context, dateInWeek),
-                    style = MaterialTheme.typography.labelSmall,
+                    text = "${shortMonthDay(from)}–${shortMonthDay(to)}",
+                    style = MaterialTheme.typography.labelMedium.tabular(),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    modifier = Modifier.width(88.dp)
+                    modifier = Modifier.width(84.dp)
                 )
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(10.dp)
-                        .clip(RoundedCornerShape(5.dp))
+                        .height(DnDimens.BarThick)
+                        .clip(RoundedCornerShape(6.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(kotlin.math.abs(net).toFloat() / maxAbs)
+                            .fillMaxWidth(kotlin.math.abs(netValue).toFloat() / maxAbs)
                             .fillMaxHeight()
-                            .clip(RoundedCornerShape(5.dp))
-                            .background(if (net <= 0) GOOD else BAD)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (netValue <= 0) net.mint else net.coral)
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 Text(
-                    text = String.format(Locale.getDefault(), "%,d", net),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (net <= 0) GOOD else BAD,
+                    text = String.format(Locale.getDefault(), "%,d", netValue),
+                    style = MaterialTheme.typography.titleSmall.tabular(),
+                    color = net.of(netValue),
                     maxLines = 1,
-                    modifier = Modifier.width(56.dp)
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                    modifier = Modifier.width(60.dp)
                 )
             }
         }
     }
+}
+
+/** "7/1" 식 짧은 월/일 */
+private fun shortMonthDay(date: String): String {
+    val parts = date.split("-")
+    if (parts.size != 3) return date
+    return "${parts[1].toIntOrNull() ?: parts[1]}/${parts[2].toIntOrNull() ?: parts[2]}"
 }
 
 /**
@@ -741,25 +786,34 @@ private fun WeeklyCompareCard(records: List<DailyRecordModel>) {
  */
 @Composable
 private fun MonthWeightCard(records: List<DailyRecordModel>) {
+    val net = DnTheme.net
     val points = remember(records) {
         records.filter { it.weight > 0f }.sortedBy { it.date }
     }
+    val diff = if (points.size >= 2) points.last().weight - points.first().weight else null
 
-    SectionCard(title = stringResource(R.string.month_report_weight_title)) {
+    DnCard {
+        SectionHeader(title = stringResource(R.string.month_report_weight_title)) {
+            diff?.let {
+                Text(
+                    text = String.format(Locale.getDefault(), "%+.1f kg", it),
+                    style = MaterialTheme.typography.titleMedium.tabular(),
+                    color = net.of(it)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(10.dp))
         if (points.size < 2) {
             Text(
                 text = stringResource(R.string.month_report_weight_empty),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            return@SectionCard
+            return@DnCard
         }
 
         // 눈금 범위. 위·아래 선에 실제 최고·최저 체중이 걸리도록 잡는다.
-        //
-        // 폭이 너무 좁으면(하루 사이 0.1kg 같은) 곡선이 위아래로 요동쳐 보이므로
-        // 최소 0.5kg은 벌려둔다. 그 경우 눈금 숫자도 벌어진 값으로 적어야
-        // "선에 걸린 값"과 "적힌 값"이 어긋나지 않는다.
+        // 폭이 너무 좁으면(하루 사이 0.1kg 같은) 곡선이 위아래로 요동쳐 보이므로 최소 0.5kg은 벌려둔다.
         val minWeight = points.minOf { it.weight }
         val maxWeight = points.maxOf { it.weight }
         val center = (minWeight + maxWeight) / 2f
@@ -771,105 +825,104 @@ private fun MonthWeightCard(records: List<DailyRecordModel>) {
         val lastDay = points.last().date.takeLast(2).toInt()
         val daySpan = (lastDay - firstDay).coerceAtLeast(1)
 
-        val lineColor = MaterialTheme.colorScheme.primary
+        val lineColor = net.deficit
         val dotFill = MaterialTheme.colorScheme.surface
         val gridColor = MaterialTheme.colorScheme.outlineVariant
-        val axisTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+        val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+        val textMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
+        val labelStyle = MaterialTheme.typography.labelSmall.tabular()
+        val maxIdx = points.indexOfFirst { it.weight == maxWeight }
+        val minIdx = points.indexOfLast { it.weight == minWeight }
 
-        Row(modifier = Modifier.fillMaxWidth()) {
-            // 왼쪽 눈금 숫자. 일별 차트와 같은 자리·같은 방식이라 두 그래프를 같은 눈으로 읽는다.
-            Box(
-                modifier = Modifier
-                    .width(AXIS_LABEL_WIDTH)
-                    .height(CHART_HEIGHT)
-            ) {
-                AxisLabel(
-                    text = String.format(Locale.getDefault(), "%.1f", axisTop),
-                    y = CHART_OVERSHOOT,
-                    color = axisTextColor
-                )
-                AxisLabel(
-                    text = String.format(Locale.getDefault(), "%.1f", center),
-                    y = CHART_HEIGHT / 2,
-                    color = axisTextColor
-                )
-                AxisLabel(
-                    text = String.format(Locale.getDefault(), "%.1f", axisBottom),
-                    y = CHART_HEIGHT - CHART_OVERSHOOT,
-                    color = axisTextColor
-                )
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(CHART_HEIGHT)
+        ) {
+            val w = size.width
+            val topY = CHART_OVERSHOOT.toPx()
+            val bottomY = size.height - CHART_OVERSHOOT.toPx()
+            // 양 끝 점이 잘리지 않게 좌우 6dp 안쪽에서 그린다
+            val inset = 6.dp.toPx()
+
+            fun px(day: Int) = inset + (day - firstDay).toFloat() / daySpan * (w - inset * 2)
+            fun py(kg: Float) =
+                bottomY - (kg - axisBottom) / (axisTop - axisBottom) * (bottomY - topY)
+
+            // 가운데 기준선 하나만 옅게
+            drawLine(
+                color = gridColor,
+                start = Offset(0f, (topY + bottomY) / 2f),
+                end = Offset(w, (topY + bottomY) / 2f),
+                strokeWidth = 1.dp.toPx(),
+                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
+            )
+
+            val coords = points.map { p -> Offset(px(p.date.takeLast(2).toInt()), py(p.weight)) }
+
+            // 선 아래 민트 그라데이션 영역
+            val area = Path().apply {
+                moveTo(coords.first().x, size.height)
+                coords.forEach { lineTo(it.x, it.y) }
+                lineTo(coords.last().x, size.height)
+                close()
             }
-
-            Canvas(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(CHART_HEIGHT)
-            ) {
-                val w = size.width
-                val topY = CHART_OVERSHOOT.toPx()
-                val bottomY = size.height - CHART_OVERSHOOT.toPx()
-
-                fun px(day: Int) = (day - firstDay).toFloat() / daySpan * w
-                fun py(kg: Float) =
-                    bottomY - (kg - axisBottom) / (axisTop - axisBottom) * (bottomY - topY)
-
-                // 눈금선 세 줄. 가운데는 기준이라 조금 더 또렷하게.
-                listOf(topY, bottomY).forEach { y ->
-                    drawLine(
-                        color = gridColor.copy(alpha = 0.6f),
-                        start = Offset(0f, y),
-                        end = Offset(w, y),
-                        strokeWidth = 1.dp.toPx()
-                    )
-                }
-                drawLine(
-                    color = gridColor,
-                    start = Offset(0f, (topY + bottomY) / 2f),
-                    end = Offset(w, (topY + bottomY) / 2f),
-                    strokeWidth = 1.dp.toPx()
+            drawPath(
+                path = area,
+                brush = Brush.verticalGradient(
+                    colors = listOf(net.mint.copy(alpha = 0.35f), net.mint.copy(alpha = 0f)),
+                    startY = coords.minOf { it.y },
+                    endY = size.height
                 )
+            )
 
-                var prev: Offset? = null
-                points.forEach { p ->
-                    val here = Offset(px(p.date.takeLast(2).toInt()), py(p.weight))
-                    prev?.let {
-                        drawLine(
-                            color = lineColor,
-                            start = it,
-                            end = here,
-                            strokeWidth = 2.dp.toPx(),
-                            cap = StrokeCap.Round
-                        )
-                    }
-                    prev = here
-                }
-                points.forEach { p ->
-                    val c = Offset(px(p.date.takeLast(2).toInt()), py(p.weight))
-                    drawCircle(color = dotFill, radius = 3.5.dp.toPx(), center = c)
-                    drawCircle(
-                        color = lineColor,
-                        radius = 3.5.dp.toPx(),
-                        center = c,
-                        style = Stroke(width = 2.dp.toPx())
-                    )
-                }
+            val line = Path().apply {
+                moveTo(coords.first().x, coords.first().y)
+                coords.drop(1).forEach { lineTo(it.x, it.y) }
             }
+            drawPath(
+                path = line,
+                color = lineColor,
+                style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
+            )
+
+            // 점은 최고·최저·마지막에만. 라벨은 최고·최저에만 (전부 찍으면 숫자가 선을 가린다)
+            fun dot(c: Offset, filled: Boolean) {
+                drawCircle(color = if (filled) lineColor else dotFill, radius = 4.dp.toPx(), center = c)
+                drawCircle(color = lineColor, radius = 4.dp.toPx(), center = c, style = Stroke(width = 2.dp.toPx()))
+            }
+            fun label(c: Offset, text: String, above: Boolean) {
+                val layout = textMeasurer.measure(text, labelStyle)
+                val x = (c.x - layout.size.width / 2f).coerceIn(0f, w - layout.size.width)
+                val y = if (above) c.y - layout.size.height - 6.dp.toPx() else c.y + 6.dp.toPx()
+                drawText(layout, color = labelColor, topLeft = Offset(x, y))
+            }
+            if (maxIdx >= 0) {
+                dot(coords[maxIdx], filled = false)
+                label(coords[maxIdx], String.format(Locale.getDefault(), "%.1f", maxWeight), above = true)
+            }
+            if (minIdx >= 0 && minIdx != maxIdx) {
+                dot(coords[minIdx], filled = false)
+                label(coords[minIdx], String.format(Locale.getDefault(), "%.1f", minWeight), above = false)
+            }
+            val lastIdx = coords.lastIndex
+            if (lastIdx != maxIdx && lastIdx != minIdx) dot(coords[lastIdx], filled = true)
         }
 
-        // 위 일별 차트의 눈금과 같은 형식(숫자만). 눈금 숫자 자리만큼 밀어야 곡선과 맞는다.
+        // 양 끝 날짜
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = AXIS_LABEL_WIDTH)
+                .padding(top = 6.dp)
         ) {
             Text(
-                text = "$firstDay",
+                text = shortMonthDay(points.first().date),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.weight(1f))
             Text(
-                text = "$lastDay",
+                text = shortMonthDay(points.last().date),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -877,103 +930,93 @@ private fun MonthWeightCard(records: List<DailyRecordModel>) {
     }
 }
 
-/** 가장 적자가 큰 날 / 가장 흑자가 큰 날 / 운동한 날 수 */
+/** 이 달의 기록: 가장 적자가 큰 날 / 운동한 날 수 / 가장 흑자가 큰 날 — KPI 타일 세 개 */
 @Composable
 private fun HighlightCard(
     records: List<DailyRecordModel>,
     summary: PeriodSummary,
     onOpenDay: (String) -> Unit
 ) {
+    val net = DnTheme.net
     val best = remember(records) { records.minByOrNull { it.netCalories } }
     val worst = remember(records) { records.maxByOrNull { it.netCalories } }
 
-    SectionCard(title = stringResource(R.string.month_report_highlight_title)) {
-        best?.let {
-            HighlightRow(
-                label = stringResource(R.string.month_report_best),
-                day = it.date,
-                value = String.format(Locale.getDefault(), "%,d kcal", it.netCalories),
-                valueColor = GOOD,
-                onClick = { onOpenDay(it.date) }
+    DnCard {
+        SectionHeader(title = stringResource(R.string.month_report_highlight_title))
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            best?.let {
+                KpiTile(
+                    label = stringResource(R.string.month_report_best),
+                    value = String.format(Locale.getDefault(), "%,d", it.netCalories),
+                    sub = "${getDayLabelText(it.date)} ${getDayOfWeekText(it.date)}".trim(),
+                    valueColor = net.of(it.netCalories),
+                    onClick = { onOpenDay(it.date) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            KpiTile(
+                label = stringResource(R.string.month_report_exercise_days),
+                value = stringResource(R.string.weight_stat_days_value, summary.exerciseDays),
+                sub = stringResource(R.string.month_report_of_days, summary.recordDays),
+                valueColor = MaterialTheme.colorScheme.onSurface,
+                onClick = null,
+                modifier = Modifier.weight(1f)
             )
+            // 전부 적자인 달이면 최고와 최악이 같은 날이 된다. 같은 타일을 두 번 보여줄 이유가 없다.
+            if (worst != null && worst.date != best?.date) {
+                KpiTile(
+                    label = stringResource(R.string.month_report_worst),
+                    value = String.format(Locale.getDefault(), "%,d", worst.netCalories),
+                    sub = "${getDayLabelText(worst.date)} ${getDayOfWeekText(worst.date)}".trim(),
+                    valueColor = net.of(worst.netCalories),
+                    onClick = { onOpenDay(worst.date) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
-        // 전부 적자인 달이면 최고와 최악이 같은 날이 된다. 같은 줄을 두 번 보여줄 이유가 없다.
-        if (worst != null && worst.date != best?.date) {
-            HighlightRow(
-                label = stringResource(R.string.month_report_worst),
-                day = worst.date,
-                value = String.format(Locale.getDefault(), "%,d kcal", worst.netCalories),
-                valueColor = if (worst.netCalories <= 0) GOOD else BAD,
-                onClick = { onOpenDay(worst.date) }
-            )
-        }
-        HighlightRow(
-            label = stringResource(R.string.month_report_exercise_days),
-            day = null,
-            value = stringResource(R.string.weight_stat_days_value, summary.exerciseDays),
-            valueColor = MaterialTheme.colorScheme.onSurface,
-            onClick = null
-        )
     }
 }
 
 @Composable
-private fun HighlightRow(
+private fun KpiTile(
     label: String,
-    day: String?,
     value: String,
+    sub: String,
     valueColor: Color,
-    onClick: (() -> Unit)?
+    onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(DnDimens.RadiusTile))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-            .padding(vertical = 8.dp, horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 12.dp, vertical = 12.dp)
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
         )
-        Spacer(modifier = Modifier.weight(1f))
-        day?.let {
-            Text(
-                text = "${getDayLabelText(it)} ${getDayOfWeekText(it)}".trim(),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-        }
+        Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = value,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = valueColor
+            style = MaterialTheme.typography.titleLarge.tabular(),
+            color = valueColor,
+            maxLines = 1
         )
-    }
-}
-
-/** 제목 + 내용 한 덩어리. 이 화면의 카드들이 같은 모양을 갖도록 묶어둔다. */
-@Composable
-private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            content()
-        }
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = sub,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
+        )
     }
 }
 

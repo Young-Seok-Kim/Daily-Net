@@ -29,6 +29,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.youngs.dailynet.R
 import com.youngs.dailynet.data.model.DailyRecordModel
+import com.youngs.dailynet.ui.theme.DnTheme
+import com.youngs.dailynet.ui.theme.tabular
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -159,10 +161,9 @@ fun MonthSummaryPanel(
             Column {
                 Text(
                     text = String.format(Locale.getDefault(), "%,d kcal", summary.netTotal),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    // 적자(음수)가 초록 — 앱 전체 규칙과 동일
-                    color = if (summary.netTotal <= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                    style = MaterialTheme.typography.headlineSmall.tabular(),
+                    // 적자(음수)가 초록 계열 — 앱 전체 규칙과 동일
+                    color = DnTheme.net.of(summary.netTotal)
                 )
                 Text(
                     text = stringResource(R.string.month_summary_total),
@@ -178,9 +179,8 @@ fun MonthSummaryPanel(
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = String.format(Locale.getDefault(), "%+.1f kg", diff),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = if (diff <= 0f) Color(0xFF4CAF50) else Color(0xFFF44336)
+                        style = MaterialTheme.typography.titleMedium.tabular(),
+                        color = DnTheme.net.of(diff)
                     )
                     Text(
                         text = stringResource(R.string.month_summary_weight),
@@ -207,7 +207,7 @@ fun MonthSummaryPanel(
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(top = 4.dp),
-            color = if (summary.netAverage <= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+            color = DnTheme.net.of(summary.netAverage)
         )
 
         MacroSection(summary)
@@ -268,8 +268,8 @@ fun WeekSummaryPanel(summary: PeriodSummary, modifier: Modifier = Modifier) {
                 text = stringResource(R.string.week_summary_net_avg, summary.netAverage),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
-                // 적자(음수)가 초록 — 앱 전체 규칙과 동일
-                color = if (summary.netAverage <= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                // 적자(음수)가 초록 계열 — 앱 전체 규칙과 동일
+                color = DnTheme.net.of(summary.netAverage)
             )
         }
 
@@ -308,50 +308,22 @@ private fun ColumnScope.MacroSection(summary: PeriodSummary) {
         )
     }
 
-    MacroBar(stringResource(R.string.macro_carb), summary.carbAvg, summary.recCarb)
-    MacroBar(stringResource(R.string.macro_protein), summary.proteinAvg, summary.recProtein)
-    MacroBar(stringResource(R.string.macro_fat), summary.fatAvg, summary.recFat)
-}
-
-/** "탄 88g / 200g" + 권장 대비 막대 한 줄 */
-@Composable
-private fun MacroBar(label: String, value: Float, recommended: Int) {
-    // 권장을 넘으면 막대가 꽉 찬 상태로 멈춘다. 넘친 정도는 숫자로 읽으면 된다.
-    val ratio = if (recommended <= 0) 0f else (value / recommended).coerceIn(0f, 1f)
-    val over = recommended > 0 && value > recommended
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.width(20.dp)
-        )
-        Text(
-            text = "${value.roundToInt()}g / ${recommended}g",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(88.dp)
-        )
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(6.dp)
-                .clip(RoundedCornerShape(3.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(ratio)
-                    .height(6.dp)
-                    .background(
-                        if (over) Color(0xFFF44336) else MaterialTheme.colorScheme.primary
-                    )
-            )
-        }
-    }
+    Spacer(modifier = Modifier.height(8.dp))
+    MacroProgressRow(
+        label = stringResource(R.string.macro_carb_full),
+        value = summary.carbAvg, recommended = summary.recCarb,
+        barColor = DnTheme.net.carb
+    )
+    Spacer(modifier = Modifier.height(10.dp))
+    MacroProgressRow(
+        label = stringResource(R.string.macro_protein_full),
+        value = summary.proteinAvg, recommended = summary.recProtein,
+        barColor = DnTheme.net.protein
+    )
+    Spacer(modifier = Modifier.height(10.dp))
+    MacroProgressRow(
+        label = stringResource(R.string.macro_fat_full),
+        value = summary.fatAvg, recommended = summary.recFat,
+        barColor = DnTheme.net.fat
+    )
 }

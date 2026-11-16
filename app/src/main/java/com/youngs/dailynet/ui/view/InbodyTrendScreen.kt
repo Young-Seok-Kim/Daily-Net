@@ -72,8 +72,8 @@ enum class InbodyMetric(
         if (decimals == 0) v.toInt().toString() else String.format(Locale.getDefault(), "%.1f", v)
 }
 
-private val LIGHT = listOf(Color(0xFF4A86E8), Color(0xFF2E9E5B), Color(0xFFC9971E), Color(0xFFC43C3C), Color(0xFF8E44AD))
-private val DARK = listOf(Color(0xFF5B93F0), Color(0xFF35A862), Color(0xFFB8891A), Color(0xFFC43C3C), Color(0xFF9A55BF))
+private val LIGHT = listOf(Color(0xFF4A86E8), Color(0xFF2E9E5B), Color(0xFFC9971E), Color(0xFFC43C3C), Color(0xFF7A5CA8))
+private val DARK = listOf(Color(0xFF5B93F0), Color(0xFF35A862), Color(0xFFB8891A), Color(0xFFC43C3C), Color(0xFFA07CC9))
 
 private const val KEY_HIDDEN = "inbody_trend_hidden"
 

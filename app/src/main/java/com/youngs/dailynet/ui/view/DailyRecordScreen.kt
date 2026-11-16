@@ -57,6 +57,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import com.youngs.dailynet.R
+import com.youngs.dailynet.ui.theme.DnDimens
+import com.youngs.dailynet.ui.theme.DnTheme
+import com.youngs.dailynet.ui.theme.tabular
 import com.youngs.dailynet.data.local.entity.FavoriteItemEntity
 import com.youngs.dailynet.util.FavoriteRank
 import com.youngs.dailynet.util.MealPhoto
@@ -115,6 +118,7 @@ fun DailyRecordScreen(
     val activity = context as? android.app.Activity
     val healthReader = remember { HealthStepReader(context) }
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     val haptic = LocalHapticFeedback.current
 
     // 권한 결과 후 재실행 트리거
@@ -355,7 +359,7 @@ fun DailyRecordScreen(
     // 순칼로리는 지금까지 AI 레포트 '본문 글' 안에만 있어서 한눈에 안 들어왔다.
     // 숫자만 따로 뽑아 상단바와 결과 카드 맨 위에 크게 보여준다.
     val hasCalorieResult = uiState.finalized || uiState.analysisResult.isNotEmpty()
-    val calorieColor = if (uiState.netCalories <= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+    val calorieColor = DnTheme.net.of(uiState.netCalories)
 
     // 리포트에서 누른 항목. 있으면 kcal 수정 창이 뜬다
     var editTarget by remember { mutableStateOf<ReportEditTarget?>(null) }
@@ -458,11 +462,19 @@ fun DailyRecordScreen(
         }
 
         Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background
+                    ),
                     title = {
                         Column {
-                            Text("${uiState.date} ${getDayOfWeekText(uiState.date)}")
+                            Text(
+                                text = "${uiState.date} ${getDayOfWeekText(uiState.date)}",
+                                style = MaterialTheme.typography.titleLarge
+                            )
                             // 💡 스크롤 위치와 상관없이 그날의 순칼로리가 항상 보이도록 상단바에 함께 표시
                             if (hasCalorieResult) {
                                 Text(
@@ -470,8 +482,7 @@ fun DailyRecordScreen(
                                         R.string.net_calories_value,
                                         uiState.netCalories
                                     ),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.labelLarge.tabular(),
                                     color = calorieColor
                                 )
                             }
@@ -680,8 +691,7 @@ fun DailyRecordScreen(
                                     if (uiState.analysisResult.isNotEmpty()) R.string.analyze_again
                                     else R.string.analyze_today
                                 ),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.SemiBold
+                                style = MaterialTheme.typography.titleMedium
                             )
                         }
                     }
@@ -702,59 +712,35 @@ fun DailyRecordScreen(
                 ) {
                     Column {
                         Spacer(modifier = Modifier.height(24.dp))
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                            elevation = CardDefaults.cardElevation(
-                                defaultElevation = if (showJustDoneBadge) 8.dp else 3.dp
-                            ),
-                            // 방금 분석이 끝난 결과는 테두리로 눈에 띄게 강조
-                            border = if (showJustDoneBadge) {
-                                BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
-                            } else null
+                        // 제목 줄. 카드 안에 카드가 들어가지 않도록 바깥 카드는 없애고 제목만 둔다.
+                        // 리포트 본문(AnalysisReport)이 끼니·운동·목표 카드를 배경 위에 직접 깐다.
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 4.dp, end = 4.dp, bottom = 12.dp)
                         ) {
-                            Column(modifier = Modifier.padding(20.dp)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        text = stringResource(R.string.ai_report_title),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    if (showJustDoneBadge) {
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        JustCompletedBadge()
-                                    }
-                                }
-
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(vertical = 12.dp),
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                                )
-                                // 항목별 결과(b33~)가 있으면 구조로 그려서 항목을 눌러 kcal을 고칠 수 있게 한다.
-                                // 그 전에 분석한 기록은 텍스트뿐이라 예전처럼 그대로 보여준다.
-                                val detail = uiState.analysisDetail
-                                if (detail != null && detail.isRenderable) {
-                                    AnalysisReport(
-                                        detail = detail,
-                                        edited = uiState.resultEdited,
-                                        editable = !uiState.analyzing,
-                                        onEditItem = { editTarget = it }
-                                    )
-                                } else {
-                                    Text(
-                                        text = uiState.analysisResult,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        lineHeight = 22.sp
-                                    )
-                                }
+                            Text(
+                                text = stringResource(R.string.ai_report_title),
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                            if (showJustDoneBadge) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                JustCompletedBadge()
                             }
+                        }
+                        // 항목별 결과(b33~)가 있으면 구조로 그려서 항목을 눌러 kcal을 고칠 수 있게 한다.
+                        // 그 전에 분석한 기록은 텍스트뿐이라 장식만 걷어내고 카드 안에 보여준다.
+                        val detail = uiState.analysisDetail
+                        if (detail != null && detail.isRenderable) {
+                            AnalysisReport(
+                                detail = detail,
+                                edited = uiState.resultEdited,
+                                editable = !uiState.analyzing,
+                                onEditItem = { editTarget = it }
+                            )
+                        } else {
+                            LegacyReport(text = uiState.analysisResult)
                         }
                         Spacer(modifier = Modifier.height(32.dp))
                     }
@@ -769,6 +755,13 @@ fun DailyRecordScreen(
                 onConfirm = { kcal ->
                     mainViewModel.updateItemKcal(target.section, target.index, kcal)
                     editTarget = null
+                    // 무엇을 얼마로 고쳤는지 한 줄로 알린다. AI 값이 없는 옛 기록은 "수정됨" 만
+                    val message = if (target.item.aiKcal > 0) {
+                        context.getString(R.string.report_edit_snackbar, target.item.aiKcal, kcal)
+                    } else {
+                        context.getString(R.string.toast_result_edited)
+                    }
+                    scope.launch { snackbarHostState.showSnackbar(message) }
                 },
                 onDismiss = { editTarget = null }
             )
@@ -931,7 +924,6 @@ private fun AnimatedAnalyzingText() {
     val dots = ".".repeat(dotCount.toInt())
     Text(
         text = stringResource(R.string.analyzing_inline) + dots,
-        fontSize = 16.sp,
-        fontWeight = FontWeight.SemiBold
+        style = MaterialTheme.typography.titleMedium
     )
 }

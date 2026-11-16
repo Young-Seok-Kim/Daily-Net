@@ -395,6 +395,8 @@ ${remarkBlock}
                - 각 끼니의 [calories] 객체와 [macros] 객체, 그리고 [meals] 리스트를 모두 포함해야 합니다.
                - [exercises] 리스트에는 사용자가 한 **운동을 항목별로 나누어** 각각의 "minutes"(분)와 "mets"를 담으세요.
                  **kcal은 담지 마십시오. 서버가 계산합니다.** 걸음 항목도 넣지 마십시오. 운동이 전혀 없으면 빈 배열([])로 두세요.
+               - [meals] 항목마다 "amount"에 **사용자가 적은 양을 그대로** 담으세요 ("150g", "1그릇", "300ml" 처럼 짧게).
+                 양이 적혀 있지 않으면 "amount"를 넣지 마세요. 추정하거나 지어내지 마세요.
                - [meals] 항목 중 **개수로 적힌 것에만** "units"(개수)와 "unitKcal"(한 단위의 열량)을,
                  **여럿이 나눠 먹은 것에만** "sharedBy"(나눠 먹은 사람 수)를,
                  똑같이 나누지 않았을 때만 "myShare"(사용자 몫의 비율, 0~1)를 함께 담으세요.
@@ -412,7 +414,7 @@ ${remarkBlock}
             {
                 "calories": { "breakfast": 0, "lunch": 0, "dinner": 0, "snack": 0 },
                 "meals": {
-                    "breakfast": [{ "name": "메뉴1", "kcal": 0 }, { "name": "나눠 먹은 메뉴", "kcal": 0, "sharedBy": 0, "myShare": 0 }],
+                    "breakfast": [{ "name": "메뉴1", "amount": "150g", "kcal": 0 }, { "name": "나눠 먹은 메뉴", "kcal": 0, "sharedBy": 0, "myShare": 0 }],
                     "lunch": [{ "name": "메뉴1", "kcal": 0 }, { "name": "개수로 먹은 메뉴", "kcal": 0, "units": 0, "unitKcal": 0 }],
                     "dinner": [{ "name": "메뉴1", "kcal": 0 }, { "name": "메뉴2", "kcal": 0 }],
                     "snack": [{ "name": "메뉴1", "kcal": 0 }, { "name": "메뉴2", "kcal": 0 }]
@@ -569,9 +571,14 @@ ${L.evalTitle}
 ${data.evaluation}
         `.trim();
 
-        // 항목 배열을 {name, kcal} 형태로 정리한다. AI가 필드를 빠뜨려도 안전하도록 기본값을 채운다.
+        // 항목 배열을 {name, amount, kcal} 형태로 정리한다. AI가 필드를 빠뜨려도 안전하도록 기본값을 채운다.
+        // amount 는 b53 앱부터 "그릭요거트 150g" 처럼 양을 보여주는 데 쓴다. 모델이 안 주면 빈 문자열.
         const normalizeItems = (arr, fallbackName) => Array.isArray(arr)
-            ? arr.map(m => ({ name: String(m.name || fallbackName), kcal: n(m.kcal) }))
+            ? arr.map(m => ({
+                name: String(m.name || fallbackName),
+                amount: m.amount ? String(m.amount).trim().slice(0, 40) : "",
+                kcal: n(m.kcal)
+            }))
             : [];
 
         // 앱이 차트·통계로 쓸 수 있도록 계산 결과를 구조화해서 함께 내려보낸다.
@@ -631,8 +638,11 @@ ${data.evaluation}
                 dinner: normalizeItems(data.meals?.dinner, L.unknownMenu),
                 snack: normalizeItems(data.meals?.snack, L.unknownMenu)
             },
-            // 앱에 나가는 형태는 {name, kcal} 그대로다. minutes·mets는 서버 계산용이라 빼고 보낸다
-            exercises: exerciseItems.map(e => ({ name: e.name, kcal: e.kcal }))
+            // b53 앱부터 "걷기 1시간 · 4.3 METs" 를 보여주려고 minutes·mets 도 같이 보낸다.
+            // 구버전 앱은 모르는 필드라 Gson 이 조용히 무시한다. 걸음 항목은 둘 다 0.
+            exercises: exerciseItems.map(e => ({
+                name: e.name, kcal: e.kcal, minutes: n(e.minutes), mets: Number(e.mets) || 0
+            }))
         };
 
         console.log(

@@ -29,8 +29,8 @@ android {
         minSdk = 26
         targetSdk = 36
         // 변경 내역은 프로젝트 루트의 CHANGELOG.md 참고 (버전 올릴 때 거기에 기록)
-        versionCode = 52
-        versionName = "1.13.4"
+        versionCode = 53
+        versionName = "1.14.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
