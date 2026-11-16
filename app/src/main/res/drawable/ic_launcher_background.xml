@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 어댑티브 아이콘 배경. 단색 딥틸. (예전엔 안드로이드 스튜디오 템플릿의 초록 격자가 그대로 들어가 있었다) -->
+<!-- 어댑티브 아이콘 배경. 단색 딥틸 — 사용자가 고른 2안 원본의 바탕색을 그대로 쓴다 (#013042).
+     전경은 drawable-xxxhdpi/ic_launcher_foreground.png, 둘 다 tools/make_icons.py 가 tools/assets/dailynet-icon-512.png 에서 뽑는다. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#06303F"
+        android:fillColor="#013042"
         android:pathData="M0,0h108v108h-108z" />
 </vector>
