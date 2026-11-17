@@ -94,6 +94,12 @@ object Constants {
     const val KEY_SHOW_MONTH_DIVIDER = "show_month_divider"
     const val KEY_SHOW_YEAR_DIVIDER = "show_year_divider"
 
+    // ── 표시 기간 ──────────────────────────────────────────────────
+    // 켜면 목록·그래프·요약이 시작일~종료일(비우면 오늘)의 기록만 본다. 다이어트를 다시 시작한 날부터 보는 용도.
+    const val KEY_RANGE_ENABLED = "range_enabled"
+    const val KEY_RANGE_START = "range_start"
+    const val KEY_RANGE_END = "range_end"
+
     // ── 구글 캘린더 연동 ──────────────────────────────────────────
     /** 운동을 구글 캘린더에 넣을지 */
     const val KEY_CALENDAR_SYNC_ENABLED = "calendar_sync_enabled"

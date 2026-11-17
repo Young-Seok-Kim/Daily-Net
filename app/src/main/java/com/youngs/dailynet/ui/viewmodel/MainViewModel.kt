@@ -55,6 +55,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -278,7 +279,7 @@ class MainViewModel @Inject constructor(
                 val data = inbodyRepository.get(measuredAt) ?: return@launch
                 if (!data.hasData) return@launch
 
-                val text = geminiManager.analyzeInbody(profile, data)
+                val text = geminiManager.analyzeInbody(profile, data, dailyRecordDao.getLatestWeight() ?: 0f)
                 if (text == null) {
                     toast(R.string.toast_inbody_analysis_failed)
                     return@launch
@@ -435,6 +436,45 @@ class MainViewModel @Inject constructor(
             PeriodKind.MONTH -> showMonthDivider = shown
             PeriodKind.YEAR -> showYearDivider = shown
         }
+    }
+
+    // ── 표시 기간 ─────────────────────────────────────────────────
+    // 설정에서 켜면 목록·그래프·주/월/연 요약·정산 화면이 이 기간의 기록만 본다.
+    // 종료일을 비우면 오늘까지다. 다이어트를 다시 시작한 날부터만 보고 싶을 때 쓴다.
+    // Room의 기록 자체는 그대로고(allDailyRecord), 화면이 보는 쪽(visibleRecords)만 거른다.
+    data class DateRange(
+        val enabled: Boolean = false,
+        /** yyyy-MM-dd. 비어 있으면 하한 없음 */
+        val start: String = "",
+        /** yyyy-MM-dd. 비어 있으면 오늘까지 */
+        val end: String = ""
+    ) {
+        val active: Boolean get() = enabled && (start.isNotBlank() || end.isNotBlank())
+    }
+
+    private val _dateRange = MutableStateFlow(
+        DateRange(
+            enabled = prefs.getBoolean(Constants.KEY_RANGE_ENABLED, false),
+            start = prefs.getString(Constants.KEY_RANGE_START, "").orEmpty(),
+            end = prefs.getString(Constants.KEY_RANGE_END, "").orEmpty()
+        )
+    )
+    val dateRange = _dateRange.asStateFlow()
+
+    fun setDateRange(range: DateRange) {
+        prefs.edit()
+            .putBoolean(Constants.KEY_RANGE_ENABLED, range.enabled)
+            .putString(Constants.KEY_RANGE_START, range.start)
+            .putString(Constants.KEY_RANGE_END, range.end)
+            .apply()
+        _dateRange.value = range
+    }
+
+    /** 기간 설정이 꺼져 있거나 비어 있으면 그대로, 아니면 날짜가 [start, end(없으면 오늘)] 안인 것만 */
+    private fun filterByDateRange(list: List<DailyRecordModel>, range: DateRange): List<DailyRecordModel> {
+        if (!range.active) return list
+        val end = range.end.ifBlank { today }
+        return list.filter { (range.start.isBlank() || it.date >= range.start) && it.date <= end }
     }
 
     // ── 주·월·연 AI 평가 ──────────────────────────────────────────
@@ -932,7 +972,20 @@ class MainViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
-    val totalNetCalories: StateFlow<Int> = allDailyRecord
+    /**
+     * 화면이 보는 기록. 표시 기간([dateRange])이 켜져 있으면 그 안의 것만이다.
+     * 목록·추이 차트·누적 결산·주/월/연 요약·월 정산·체중 추이가 전부 이걸 본다.
+     * 분석 요청의 대체 체중처럼 "기록 전체"가 필요한 곳만 [allDailyRecord]를 쓴다.
+     */
+    val visibleRecords: StateFlow<List<DailyRecordModel>> = combine(allDailyRecord, _dateRange) { list, range ->
+        filterByDateRange(list, range)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    val totalNetCalories: StateFlow<Int> = visibleRecords
         .map { list -> list.sumOf { it.netCalories } }
         .stateIn(
             scope = viewModelScope,
@@ -952,7 +1005,7 @@ class MainViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(DailyRecordModel(date = today))
     val uiState = _uiState.asStateFlow()
 
-    val weeklyCaloriesMap: StateFlow<Map<Int, Int>> = allDailyRecord
+    val weeklyCaloriesMap: StateFlow<Map<Int, Int>> = visibleRecords
         .map { list ->
             list.groupBy { getWeekIdentifier(it.date) }
                 .mapValues { entry ->

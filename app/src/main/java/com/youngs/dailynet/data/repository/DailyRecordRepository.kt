@@ -185,8 +185,13 @@ class DailyRecordRepository @Inject constructor(
         userProfile: UserProfileEntity,
         inbody: InbodyData? = null
     ): AnalysisOutcome {
+        // 그날 체중을 안 적었으면 가장 최근에 적은 체중, 그것도 없으면 인바디 측정 체중.
+        // 프로필의 시작 몸무게는 그 둘이 다 없을 때만 (GeminiManager 참고)
+        val fallbackWeight = dailyRecordDao.getLatestWeight()?.takeIf { it > 0f }
+            ?: inbody?.weight?.takeIf { it > 0f }
+            ?: 0f
         val analysisResponse =
-            geminiManager.analyzeFoodAndExercise(dailyRecordModel, userProfile, inbody)
+            geminiManager.analyzeFoodAndExercise(dailyRecordModel, userProfile, inbody, fallbackWeight)
                 ?: throw Exception(context.getString(R.string.error_server_analysis))
 
 

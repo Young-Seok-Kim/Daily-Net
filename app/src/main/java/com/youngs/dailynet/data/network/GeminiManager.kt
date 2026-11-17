@@ -38,13 +38,17 @@ class GeminiManager @Inject constructor(
         userProfile: UserProfileEntity,
         /** 가장 최근 인바디 측정. 없으면 서버가 공식으로 기초대사량을 추정한다 */
         inbody: InbodyData? = null,
+        /** 그날 체중이 없을 때 쓸 값(가장 최근 기록 체중). 이것도 없으면 프로필의 시작 몸무게 */
+        fallbackWeight: Float = 0f,
     ): AnalysisResponse? {
         return withContext(Dispatchers.IO) {
             try {
-                val sendWeight = if (dailyRecordModel.weight == 0f) {
-                    userProfile.initialWeight
-                } else {
-                    dailyRecordModel.weight
+                // 시작 몸무게는 체중 기록이 하나도 없을 때만 쓴다. 몇 달 전 가입 때 값으로
+                // 오늘 기초대사량을 구하면 그만큼 틀린다.
+                val sendWeight = when {
+                    dailyRecordModel.weight > 0f -> dailyRecordModel.weight
+                    fallbackWeight > 0f -> fallbackWeight
+                    else -> userProfile.initialWeight
                 }
 
                 val request = AnalysisRequest(
@@ -109,10 +113,22 @@ class GeminiManager @Inject constructor(
      * 여러 번 다시 찍어도 부담이 없어야 하기 때문이다. 서버에는 계정 탈취 같은
      * 비용 사고를 막는 높은 시도 상한만 있고, 그때 429가 온다.
      */
-    /** 저장된 인바디 값의 해석 글. 실패하면 null */
-    suspend fun analyzeInbody(userProfile: UserProfileEntity, inbody: InbodyData): String? {
+    /**
+     * 저장된 인바디 값의 해석 글. 실패하면 null.
+     * @param fallbackWeight 측정 체중이 없을 때 쓸 값(가장 최근 기록 체중). 그것도 없으면 시작 몸무게
+     */
+    suspend fun analyzeInbody(
+        userProfile: UserProfileEntity,
+        inbody: InbodyData,
+        fallbackWeight: Float = 0f
+    ): String? {
         return withContext(Dispatchers.IO) {
             try {
+                val weight = when {
+                    inbody.weight > 0f -> inbody.weight
+                    fallbackWeight > 0f -> fallbackWeight
+                    else -> userProfile.initialWeight
+                }
                 val token = runCatching {
                     auth.currentUser?.getIdToken(false)?.await()?.token
                 }.getOrNull()
@@ -123,7 +139,7 @@ class GeminiManager @Inject constructor(
                         request = InbodyAnalysisRequest(
                             inbody = inbody,
                             height = userProfile.height,
-                            weight = userProfile.initialWeight,
+                            weight = weight,
                             isMale = userProfile.isMale,
                             birthDate = userProfile.birthDate,
                             language = Locale.getDefault().toLanguageTag()

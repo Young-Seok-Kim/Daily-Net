@@ -27,6 +27,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.youngs.dailynet.ui.viewmodel.MainViewModel.DateRange
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 import com.youngs.dailynet.BuildConfig
 import com.youngs.dailynet.R
 import com.youngs.dailynet.data.calendar.GoogleCalendarSync
@@ -246,6 +250,43 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
+                // 표시 기간. 다이어트를 다시 시작한 날부터만 보고 싶을 때 켠다. 종료일을 비우면 오늘까지.
+                val range by mainViewModel.dateRange.collectAsState()
+                SettingsSection(stringResource(R.string.settings_section_range)) {
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.settings_range_enabled),
+                        subtitle = stringResource(R.string.settings_range_enabled_subtitle),
+                        checked = range.enabled,
+                        onCheckedChange = { mainViewModel.setDateRange(range.copy(enabled = it)) }
+                    )
+                    SettingsItem(
+                        title = stringResource(R.string.settings_range_start),
+                        subtitle = range.start.ifBlank { stringResource(R.string.settings_range_not_set) },
+                        onClick = {
+                            showDatePicker(context, range.start) { picked ->
+                                mainViewModel.setDateRange(range.copy(start = picked, enabled = true))
+                            }
+                        }
+                    )
+                    SettingsItem(
+                        title = stringResource(R.string.settings_range_end),
+                        subtitle = range.end.ifBlank { stringResource(R.string.settings_range_end_today) },
+                        onClick = {
+                            showDatePicker(context, range.end) { picked ->
+                                mainViewModel.setDateRange(range.copy(end = picked, enabled = true))
+                            }
+                        }
+                    )
+                    if (range.end.isNotBlank()) {
+                        SettingsItem(
+                            title = stringResource(R.string.settings_range_clear_end),
+                            onClick = { mainViewModel.setDateRange(range.copy(end = "")) }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
                 // 정산 목록의 주·월·연 구분선. 연 구분선은 올해 첫 기록 위에 항상 나오므로
                 // 거슬리면 여기서 끈다. 끄면 그 계층의 요약 패널과 AI 평가도 같이 사라진다.
                 SettingsSection(stringResource(R.string.settings_section_list)) {
@@ -412,6 +453,19 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+/** 날짜 하나를 고르는 시스템 대화상자. [initial]이 비어 있거나 못 읽으면 오늘부터 시작한다 */
+private fun showDatePicker(context: android.content.Context, initial: String, onPicked: (String) -> Unit) {
+    val cal = Calendar.getInstance()
+    runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(initial) }.getOrNull()?.let { cal.time = it }
+    android.app.DatePickerDialog(
+        context,
+        { _, year, month, day -> onPicked(String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, day)) },
+        cal.get(Calendar.YEAR),
+        cal.get(Calendar.MONTH),
+        cal.get(Calendar.DAY_OF_MONTH)
+    ).show()
 }
 
 /** 제목 + 카드로 묶인 설정 그룹. 항목을 늘리려면 content 안에 SettingsItem만 더 넣으면 된다. */
