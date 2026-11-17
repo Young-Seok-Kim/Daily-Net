@@ -828,19 +828,16 @@ fun DailyRecordScreen(
                                 JustCompletedBadge()
                             }
                             Spacer(modifier = Modifier.weight(1f))
-                            // 결과를 읽자마자 공유로 이어지는 자리. 상단바 아이콘을 모르는 사람을 위해
-                            // 여기에 이름이 있는 버튼을 하나 더 둔다
-                            TextButton(
+                            // 결과를 읽자마자 공유로 이어지는 자리. 제목 줄에는 글자 없이
+                            // 공유 아이콘만 둔다(설명은 접근성 문구가 맡는다)
+                            IconButton(
                                 onClick = { shareReceipt() },
                                 enabled = !uiState.analyzing
                             ) {
                                 Icon(
                                     Icons.Default.Share,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
+                                    contentDescription = stringResource(R.string.receipt_share)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(stringResource(R.string.receipt_share_action))
                             }
                         }
                         // 항목별 결과(b33~)가 있으면 구조로 그려서 항목을 눌러 kcal을 고칠 수 있게 한다.

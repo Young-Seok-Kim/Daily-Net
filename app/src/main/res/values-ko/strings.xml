@@ -495,7 +495,6 @@
 
     <!-- 결산 영수증 공유 (하루 정산을 이미지 한 장으로) -->
     <string name="receipt_share">결산 영수증 공유</string>
-    <string name="receipt_share_action">영수증</string>
     <string name="receipt_share_failed">영수증을 만들지 못했어요. 잠시 뒤 다시 시도해 주세요.</string>
     <string name="receipt_share_empty">이 날짜는 아직 결산한 기록이 없어요.</string>
     <string name="receipt_title">칼로리 결산서</string>

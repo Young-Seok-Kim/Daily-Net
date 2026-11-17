@@ -497,7 +497,6 @@
 
     <!-- 결산 영수증 공유 (하루 정산을 이미지 한 장으로) -->
     <string name="receipt_share">Share receipt</string>
-    <string name="receipt_share_action">Receipt</string>
     <string name="receipt_share_failed">Couldn\'t create the receipt. Please try again in a moment.</string>
     <string name="receipt_share_empty">There is no settled record for this day yet.</string>
     <string name="receipt_title">Calorie receipt</string>
