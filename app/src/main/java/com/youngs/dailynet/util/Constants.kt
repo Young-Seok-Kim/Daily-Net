@@ -29,6 +29,10 @@ object Constants {
     const val VERIFY_SUBSCRIPTION_URL =
         "https://asia-northeast3-daily-net-95d28.cloudfunctions.net/verifySubscription"
 
+    /** 회원탈퇴. 서버가 users/{uid} 트리와 Auth 계정을 통째로 지운다 */
+    const val WITHDRAW_ACCOUNT_URL =
+        "https://asia-northeast3-daily-net-95d28.cloudfunctions.net/withdrawAccount"
+
     /** 연결 수립 타임아웃 */
     const val CONNECT_TIMEOUT_MS = 15000L
 

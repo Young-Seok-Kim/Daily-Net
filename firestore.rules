@@ -54,10 +54,10 @@ service cloud.firestore {
                     && !request.resource.data.diff(resource.data)
                           .affectedKeys().hasAny(serverOnlyFields());
 
-      // 회원 탈퇴(withdrawAccount)가 이 문서를 지운다.
-      // 지우면 사진 횟수도 함께 초기화되지만, 프로필 전체를 잃는 대가라
-      // 필드를 직접 0으로 덮는 것과 달리 상시 우회 수단은 못 된다.
-      // 완전히 막으려면 탈퇴를 Cloud Function으로 옮겨야 한다.
+      // 회원 탈퇴. b61부터는 서버(withdrawAccount 함수)가 Admin SDK로 지우므로 이 허용이 필요 없다.
+      // b60 이하 구버전 앱은 아직 이 문서를 직접 지우니 당분간 열어 둔다.
+      // 구버전이 사라지면(min_version_code를 61 이상으로 올린 뒤) 이 줄을 지워서
+      // 문서 삭제로 사진 횟수를 초기화하는 우회까지 막는다.
       allow delete: if isOwner(userId);
     }
 
