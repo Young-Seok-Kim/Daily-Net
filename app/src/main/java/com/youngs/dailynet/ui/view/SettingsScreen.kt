@@ -54,7 +54,8 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onNavigateToLogin: () -> Unit,
     onNavigateToWithdraw: () -> Unit,
-    onNavigateToInbody: () -> Unit
+    onNavigateToInbody: () -> Unit,
+    onNavigateToPasses: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val userProfile by mainViewModel.userProfile.collectAsState()
@@ -239,6 +240,15 @@ fun SettingsScreen(
                         enabled = userProfile != null,
                         onClick = onNavigateToInbody
                     )
+                    val passUsages by mainViewModel.passUsages.collectAsState()
+                    val activePasses = passUsages.count { it.active }
+                    SettingsItem(
+                        title = stringResource(R.string.pass_title),
+                        subtitle = if (activePasses > 0) stringResource(R.string.pass_active_count, activePasses)
+                        else stringResource(R.string.settings_passes_subtitle),
+                        enabled = userProfile != null,
+                        onClick = onNavigateToPasses
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -388,6 +398,24 @@ fun SettingsScreen(
                             onClick = { showCalendarTitleDialog = true }
                         )
                     }
+                    // 이용권을 띠로 넣을지 시작·종료일만 넣을지. 바꾸면 캘린더의 이용권 일정이 바로 다시 만들어진다
+                    var passSpan by remember {
+                        mutableStateOf(mainViewModel.calendarPassMode() == GoogleCalendarSync.PASS_MODE_SPAN)
+                    }
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.settings_calendar_pass_span),
+                        subtitle = stringResource(
+                            if (passSpan) R.string.settings_calendar_pass_span_on
+                            else R.string.settings_calendar_pass_span_off
+                        ),
+                        checked = passSpan,
+                        onCheckedChange = { span ->
+                            passSpan = span
+                            mainViewModel.setCalendarPassMode(
+                                if (span) GoogleCalendarSync.PASS_MODE_SPAN else GoogleCalendarSync.PASS_MODE_EDGES
+                            )
+                        }
+                    )
                     SettingsItem(
                         title = stringResource(R.string.settings_calendar_sync_now),
                         subtitle = stringResource(R.string.settings_calendar_sync_now_subtitle),

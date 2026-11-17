@@ -112,6 +112,7 @@ fun DailyRecordScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by mainViewModel.uiState.collectAsState()
+    val passUsages by mainViewModel.passUsages.collectAsState()
     val justFinishedAnalysis by mainViewModel.shouldStreamResult.collectAsState()
     val recordLoadToken by mainViewModel.recordLoadToken.collectAsState()
     val context = LocalContext.current
@@ -659,6 +660,12 @@ fun DailyRecordScreen(
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
                             enabled = !isReadOnly
+                        )
+                        // 운동 이용권의 남은 양. 지금 적은 운동에 키워드가 있으면 "오늘 차감"이 붙는다
+                        PassHintRow(
+                            usages = passUsages,
+                            exerciseText = uiState.exercise,
+                            modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 6.dp)
                         )
                     }
                 }

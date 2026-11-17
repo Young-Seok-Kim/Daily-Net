@@ -26,6 +26,10 @@ import com.youngs.dailynet.data.model.InbodyData
 import com.youngs.dailynet.data.model.PeriodEvaluation
 import com.youngs.dailynet.data.network.EvaluationLimitException
 import com.youngs.dailynet.data.repository.PeriodEvaluationRepository
+import com.youngs.dailynet.data.repository.ExercisePassRepository
+import com.youngs.dailynet.data.local.entity.ExercisePassEntity
+import com.youngs.dailynet.util.PassUsage
+import com.youngs.dailynet.util.computePassUsage
 import com.youngs.dailynet.ui.view.PeriodKind
 import com.youngs.dailynet.ui.view.buildPeriodEvalRequest
 import com.youngs.dailynet.ui.view.periodKeyOf
@@ -90,6 +94,7 @@ class MainViewModel @Inject constructor(
     private val favoriteRepository: FavoriteRepository, // 입력 즐겨찾기 (분석 결과에서 자동 수집)
     private val inbodyRepository: InbodyRepository,     // 인바디 측정 이력
     private val periodEvaluationRepository: PeriodEvaluationRepository, // 주·월·연 AI 평가 저장소
+    private val passRepository: ExercisePassRepository,   // 운동 이용권 (기간제·횟수권)
     private val dailyRecordDao: DailyRecordDao,
     private val userProfileDao: UserProfileDao,
     val auth: FirebaseAuth,
@@ -832,6 +837,8 @@ class MainViewModel @Inject constructor(
                     )
                     // 인바디 이력도 계정 기준으로 맞춘다 (다른 기기에서 넣은 것, 재설치 뒤 복원)
                     inbodyRepository.sync()
+                    // 운동 이용권도 같은 이유로
+                    passRepository.sync()
 
                     // 💡 기존 사용자 문서를 조용히 보정한다. (앱을 켜기만 하면 적용되고 재로그인 불필요)
                     //    쓰기는 한 번으로 묶고, 실패해도 로그인 흐름을 막지 않는다.
@@ -992,6 +999,47 @@ class MainViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
+
+    // ── 운동 이용권 ───────────────────────────────────────────────
+    // 저장된 건 이용권 자체뿐이고 "얼마나 남았나"는 기록에서 매번 센다 (util/PassUsage.kt).
+    // 표시 기간 설정과 무관하게 기록 전체(allDailyRecord)를 본다 — 필터를 켰다고 PT 횟수가 줄면 안 된다.
+    val passUsages: StateFlow<List<PassUsage>> = combine(passRepository.observe(), allDailyRecord) { passes, records ->
+        passes.map { computePassUsage(it, records, today) }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    fun syncPasses() {
+        if (currentUserId == null) return
+        viewModelScope.launch { passRepository.sync() }
+    }
+
+    fun savePass(pass: ExercisePassEntity) {
+        viewModelScope.launch {
+            try {
+                passRepository.save(pass)
+                // 캘린더 연동이 켜져 있으면 기간을 띠 일정으로. 실패해도 저장은 끝난 뒤다
+                calendarSync.mirrorPass(pass)
+            } catch (e: Exception) {
+                CrashReporter.report("savePass", e)
+                toast(R.string.toast_pass_save_failed)
+            }
+        }
+    }
+
+    fun deletePass(id: String) {
+        viewModelScope.launch {
+            try {
+                passRepository.delete(id)
+                calendarSync.removePass(id)
+            } catch (e: Exception) {
+                CrashReporter.report("deletePass", e)
+                toast(R.string.toast_pass_save_failed)
+            }
+        }
+    }
 
     val totalNetCalories: StateFlow<Int> = visibleRecords
         .map { list -> list.sumOf { it.netCalories } }
@@ -1452,6 +1500,24 @@ class MainViewModel @Inject constructor(
     fun calendarFixedTitle(): String = calendarSync.fixedTitle()
     fun setCalendarTitleMode(mode: String) = calendarSync.setTitleMode(mode)
     fun setCalendarFixedTitle(title: String) = calendarSync.setFixedTitle(title)
+    fun calendarPassMode(): String = calendarSync.passMode()
+
+    /** 이용권 표시 방식을 바꾸고, 이미 승인된 계정이면 캘린더의 이용권 일정을 바로 새 방식으로 다시 만든다 */
+    fun setCalendarPassMode(mode: String) {
+        calendarSync.setPassMode(mode)
+        if (!calendarSync.isEnabled()) return
+        viewModelScope.launch {
+            try {
+                val access = calendarSync.requestAccess()
+                if (access is GoogleCalendarSync.Access.Granted) {
+                    calendarSync.syncAllPasses(access.token, passRepository.getAll())
+                }
+                // 동의가 필요한 상태면 다음 "지금 동기화" 때 따라온다
+            } catch (e: Exception) {
+                CrashReporter.report("setCalendarPassMode", e)
+            }
+        }
+    }
     fun disableCalendarSync() = calendarSync.setEnabled(false)
 
     /** 정산 저장 뒤 캘린더에 반영. 실패는 [GoogleCalendarSync.mirror] 안에서 삼키므로 정산 흐름을 막지 않는다. */
@@ -1530,8 +1596,21 @@ class MainViewModel @Inject constructor(
                     is GoogleCalendarSync.Access.Granted -> {
                         repository.fetchAllFromFirebase()
                         val result = calendarSync.syncAll(access.token, dailyRecordDao.getAllWithExercise())
-                        if (result.added == 0 && result.updated == 0) toast(R.string.calendar_sync_nothing)
-                        else toast(R.string.calendar_sync_done, result.added, result.updated)
+                        // 이용권 일정도 같이 맞춘다 (연동을 켜기 전에 등록한 것이 여기서 들어간다).
+                        // 여기서 실패해도 앞의 운동 일정은 이미 들어갔으니 전체를 실패로 보고하지 않는다.
+                        val passesChanged = try {
+                            calendarSync.syncAllPasses(access.token, passRepository.getAll())
+                        } catch (e: Exception) {
+                            Log.w("GoogleCalendarSync", "pass sync failed: ${e.message}", e)
+                            null
+                        }
+                        when {
+                            passesChanged == null ->
+                                toast(R.string.calendar_sync_partial, result.added, result.updated)
+                            result.added == 0 && result.updated == 0 && passesChanged == 0 ->
+                                toast(R.string.calendar_sync_nothing)
+                            else -> toast(R.string.calendar_sync_done, result.added, result.updated + passesChanged)
+                        }
                     }
                     is GoogleCalendarSync.Access.NeedsConsent -> onNeedsConsent(access.pendingIntent)
                     is GoogleCalendarSync.Access.Failed ->
@@ -1543,7 +1622,9 @@ class MainViewModel @Inject constructor(
             } catch (e: Exception) {
                 val body = (e as? retrofit2.HttpException)?.response()?.errorBody()?.string()
                 Log.w("GoogleCalendarSync", "sync failed: ${e.message} ${body.orEmpty()}", e)
-                toast(R.string.calendar_sync_failed, e.message.orEmpty())
+                // "Unable to resolve host" 같은 영어 원문 대신, 네트워크 오류면 그렇다고 말한다
+                if (e is java.io.IOException) toast(R.string.calendar_sync_failed_network)
+                else toast(R.string.calendar_sync_failed, e.message.orEmpty())
             }
             onDone()
         }

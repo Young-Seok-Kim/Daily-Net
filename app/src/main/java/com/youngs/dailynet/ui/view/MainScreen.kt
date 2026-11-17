@@ -207,7 +207,10 @@ fun MainScreen(
     onNavigateToMonth: (String) -> Unit,
     /** 주("202646")·연("2026") 정산 상세를 연다. AI 평가 전문은 거기서 본다 */
     onNavigateToPeriod: (PeriodKind, String) -> Unit = { _, _ -> },
+    /** 운동 이용권 화면 */
+    onNavigateToPasses: () -> Unit = {},
 ) {
+    val passUsages by mainViewModel.passUsages.collectAsState()
     // 표시 기간 설정이 켜져 있으면 그 안의 기록만 온다 (MainViewModel.visibleRecords)
     val dailyRecords by mainViewModel.visibleRecords.collectAsState()
     val dateRange by mainViewModel.dateRange.collectAsState()
@@ -394,6 +397,12 @@ fun MainScreen(
                             ?: stringResource(R.string.no_records),
                         records = dailyRecords,
                         today = mainViewModel.todayDate
+                    )
+                    // 쓸 수 있는 운동 이용권이 있으면 남은 양을 한 줄로. 없으면 아무것도 안 그린다
+                    PassSummaryRow(
+                        usages = passUsages,
+                        onClick = onNavigateToPasses,
+                        modifier = Modifier.padding(top = DnDimens.SpaceMd)
                     )
                     Spacer(modifier = Modifier.height(DnDimens.SpaceMd))
                 }

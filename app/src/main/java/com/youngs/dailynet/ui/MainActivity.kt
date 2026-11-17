@@ -28,6 +28,7 @@ import com.youngs.dailynet.ui.view.LoginScreen
 import com.youngs.dailynet.ui.view.MainScreen
 import com.youngs.dailynet.ui.view.PeriodKind
 import com.youngs.dailynet.ui.view.PeriodReportScreen
+import com.youngs.dailynet.ui.view.ExercisePassScreen
 import com.youngs.dailynet.ui.view.MonthReportScreen
 import com.youngs.dailynet.ui.view.DailyRecordScreen
 import com.youngs.dailynet.ui.view.WeightTrendScreen
@@ -225,7 +226,15 @@ class MainActivity : ComponentActivity() {
                                         resetTo(ScreenEntry("login"))
                                     },
                                     onNavigateToWithdraw = { navigateTo(ScreenEntry("withdraw")) },
-                                    onNavigateToInbody = { navigateTo(ScreenEntry("inbody")) }
+                                    onNavigateToInbody = { navigateTo(ScreenEntry("inbody")) },
+                                    onNavigateToPasses = { navigateTo(ScreenEntry("passes")) }
+                                )
+                            }
+
+                            "passes" -> {
+                                ExercisePassScreen(
+                                    mainViewModel = mainViewModel,
+                                    onBack = { goBack() }
                                 )
                             }
 
@@ -323,7 +332,8 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onNavigateToPeriod = { kind, label ->
                                         navigateTo(ScreenEntry("period", "${kind.type}:$label"))
-                                    }
+                                    },
+                                    onNavigateToPasses = { navigateTo(ScreenEntry("passes")) }
                                 )
                             }
                         }

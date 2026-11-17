@@ -14,6 +14,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.youngs.dailynet.R
 import com.youngs.dailynet.data.model.DailyRecordModel
+import com.youngs.dailynet.data.local.entity.ExercisePassEntity
 import com.youngs.dailynet.data.network.CalendarBody
 import com.youngs.dailynet.data.network.CalendarPatch
 import com.youngs.dailynet.data.network.EventBody
@@ -70,6 +71,15 @@ class GoogleCalendarSync @Inject constructor(
 
         private const val PROP_APP = "dailynet"
         private const val PROP_DATE = "dailynet_date"
+        /** 운동 이용권에서 나온 일정. 값은 이용권 id. 운동 일정(PROP_DATE)과 섞이지 않게 따로 둔다 */
+        private const val PROP_PASS = "dailynet_pass"
+        /** 이용권 일정의 조각. span(기간 전체 띠) / start(시작일) / end(종료일) */
+        private const val PROP_PASS_PART = "dailynet_pass_part"
+
+        /** 이용권을 시작일·종료일 두 날짜에만 */
+        const val PASS_MODE_EDGES = "edges"
+        /** 이용권을 시작일~종료일 띠 하나로 */
+        const val PASS_MODE_SPAN = "span"
 
         /** Firestore에 캘린더 ID를 두는 자리: users/{uid}/settings/calendar */
         private const val CLOUD_SUB = "settings"
@@ -120,6 +130,14 @@ class GoogleCalendarSync @Inject constructor(
     fun fixedTitle(): String =
         prefs.getString(Constants.KEY_CALENDAR_FIXED_TITLE, null)?.takeIf { it.isNotBlank() }
             ?: context.getString(R.string.calendar_default_title)
+
+    /** 이용권을 캘린더에 어떻게 넣을지. 기본은 시작일·종료일만 (띠는 한 달 내내 눈에 걸린다) */
+    fun passMode(): String =
+        prefs.getString(Constants.KEY_CALENDAR_PASS_MODE, PASS_MODE_EDGES) ?: PASS_MODE_EDGES
+
+    fun setPassMode(mode: String) {
+        prefs.edit().putString(Constants.KEY_CALENDAR_PASS_MODE, mode).apply()
+    }
 
     fun setFixedTitle(title: String) {
         prefs.edit().putString(Constants.KEY_CALENDAR_FIXED_TITLE, title.trim()).apply()
@@ -328,6 +346,132 @@ class GoogleCalendarSync @Inject constructor(
         }
     }
 
+    // ── 운동 이용권 ───────────────────────────────────────────────
+
+    /**
+     * 이용권 한 장을 캘린더에 하루 종일 일정(기간 전체)으로 넣거나 고친다. 연동이 꺼져 있으면 아무것도 안 한다.
+     * 운동 일정과 달리 키는 날짜가 아니라 이용권 id다. 실패해도 저장 흐름은 막지 않는다.
+     */
+    suspend fun mirrorPass(pass: ExercisePassEntity) {
+        if (!isEnabled()) return
+        val token = tokenOrNull() ?: run {
+            Log.w(TAG, "no access token; skip mirror for pass ${pass.id}")
+            return
+        }
+        try {
+            withCalendar(token) { bearer, calendarId -> upsertPass(bearer, calendarId, pass) }
+        } catch (e: Exception) {
+            Log.w(TAG, "mirrorPass failed for ${pass.id}", e)
+        }
+    }
+
+    /** 이용권을 지울 때 그 일정(조각 전부)도 지운다 */
+    suspend fun removePass(passId: String) {
+        if (!isEnabled()) return
+        val token = tokenOrNull() ?: return
+        try {
+            withCalendar(token) { bearer, calendarId ->
+                listPassEvents(bearer, calendarId, passId).forEach { api.deleteEvent(bearer, calendarId, it.id) }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "removePass failed for $passId", e)
+        }
+    }
+
+    /** "지금 동기화"와 표시 방식 변경에서 이용권 전부를 맞춘다. 없는 건 넣고 달라진 건 고치고 남는 조각은 지운다 */
+    suspend fun syncAllPasses(token: String, passes: List<ExercisePassEntity>): Int {
+        if (passes.isEmpty()) return 0
+        return withCalendar(token) { bearer, calendarId ->
+            var changed = 0
+            passes.forEach { pass ->
+                if (retryOnNetworkError { upsertPass(bearer, calendarId, pass) }) changed++
+            }
+            changed
+        }
+    }
+
+    private suspend fun listPassEvents(bearer: String, calendarId: String, passId: String): List<EventResource> =
+        api.listEvents(
+            bearer, calendarId, "$PROP_PASS=$passId", 10, null, "items(id,summary,description,extendedProperties)"
+        ).items
+
+    /**
+     * 이용권 하나의 일정 조각들을 지금 설정대로 맞춘다. 넣거나 고치거나 지운 게 있으면 true.
+     *
+     * 표시 방식을 바꾸면 조각 구성이 달라진다(띠 하나 ↔ 시작·종료 둘). 그래서 있는 조각을 전부 읽어
+     * 원하는 구성에 없는 건 지우고, 있어야 할 건 넣거나 고친다. 예전 빌드가 조각 표식 없이 넣은 띠는 span으로 본다.
+     */
+    private suspend fun upsertPass(bearer: String, calendarId: String, pass: ExercisePassEntity): Boolean {
+        if (pass.startDate.isBlank()) return false
+        val desired = passEventBodies(pass)
+        val existing = listPassEvents(bearer, calendarId, pass.id)
+        val byPart = existing.groupBy { it.extendedProperties?.privateProps?.get(PROP_PASS_PART) ?: "span" }
+        var changed = false
+
+        // 원하지 않는 조각과 중복은 지운다
+        byPart.forEach { (part, events) ->
+            val keep = if (part in desired) events.firstOrNull() else null
+            events.filter { it.id != keep?.id }.forEach {
+                api.deleteEvent(bearer, calendarId, it.id)
+                changed = true
+            }
+        }
+        // 있어야 할 조각은 넣거나, 내용이 달라졌으면 고친다
+        desired.forEach { (part, body) ->
+            val event = byPart[part]?.firstOrNull()
+            when {
+                event == null -> { api.insertEvent(bearer, calendarId, body); changed = true }
+                event.summary != body.summary || event.description.orEmpty() != body.description.orEmpty() -> {
+                    api.patchEvent(bearer, calendarId, event.id, body); changed = true
+                }
+            }
+        }
+        return changed
+    }
+
+    /**
+     * 이용권 일정 조각들. 설정에 따라
+     * - span: 시작일~종료일 하루 종일 띠 하나 (종료일이 없으면 시작일 하루)
+     * - edges: 시작일에 "○○ 시작", 종료일에 "○○ 종료" 두 개 (종료일이 없거나 같은 날이면 하나)
+     * 구글은 종료일을 배타로 받아 하루를 더한다.
+     */
+    private fun passEventBodies(pass: ExercisePassEntity): Map<String, EventBody> {
+        val title = if (pass.isCount) {
+            context.getString(R.string.calendar_pass_title_count, pass.name, pass.totalCount)
+        } else {
+            context.getString(R.string.calendar_pass_title_period, pass.name)
+        }
+        val lastDay = pass.endDate.ifBlank { pass.startDate }
+        val days = runCatching {
+            java.time.temporal.ChronoUnit.DAYS.between(LocalDate.parse(pass.startDate), LocalDate.parse(lastDay)).toInt() + 1
+        }.getOrDefault(1)
+        val description = listOfNotNull(
+            context.getString(R.string.calendar_pass_desc_period, pass.startDate, lastDay, days),
+            pass.keyword.takeIf { pass.isCount && it.isNotBlank() }
+                ?.let { context.getString(R.string.calendar_pass_desc_keyword, it) }
+        ).joinToString("\n")
+
+        fun body(part: String, summary: String, from: String, to: String): EventBody {
+            val endExclusive = runCatching { LocalDate.parse(to).plusDays(1).toString() }.getOrDefault(to)
+            return EventBody(
+                summary = summary,
+                description = description,
+                start = EventDate(from),
+                end = EventDate(endExclusive),
+                extendedProperties = ExtendedProperties(mapOf(PROP_PASS to pass.id, PROP_PASS_PART to part))
+            )
+        }
+
+        return if (passMode() == PASS_MODE_SPAN || lastDay == pass.startDate) {
+            mapOf("span" to body("span", title, pass.startDate, lastDay))
+        } else {
+            mapOf(
+                "start" to body("start", context.getString(R.string.calendar_pass_start, title), pass.startDate, pass.startDate),
+                "end" to body("end", context.getString(R.string.calendar_pass_end, title), lastDay, lastDay)
+            )
+        }
+    }
+
     /**
      * 지금까지 기록한 운동을 캘린더와 맞춘다.
      * 없는 날짜는 넣고, 이미 있는 일정은 **지금 설정(제목 방식·열량)대로 다시 만든 내용과 다를 때만** 고친다.
@@ -377,13 +521,16 @@ class GoogleCalendarSync @Inject constructor(
      */
     private suspend fun <T> retryOnNetworkError(block: suspend () -> T): T {
         var lastError: IOException? = null
-        repeat(3) { attempt ->
+        // 2026-11-17 폰의 DNS(AdGuard)가 www.googleapis.com 조회를 몇 초씩 못 하는 일이 있었다.
+        // 1.5·3·4.5초로는 못 넘겨서 2·4·8·12초, 네 번 더(총 26초) 기다린다. DNS가 풀리면 바로 이어진다.
+        val waits = longArrayOf(2000L, 4000L, 8000L, 12000L)
+        repeat(waits.size + 1) { attempt ->
             try {
                 return block()
             } catch (e: IOException) {
                 lastError = e
                 Log.w(TAG, "network error (attempt ${attempt + 1}): ${e.message}")
-                delay(1500L * (attempt + 1))
+                if (attempt < waits.size) delay(waits[attempt])
             }
         }
         throw lastError!!
