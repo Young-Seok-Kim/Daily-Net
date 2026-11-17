@@ -103,6 +103,12 @@ class MainViewModel @Inject constructor(
 
     private val UNINITIALIZED = -1 // 오늘 횟수 가져오는데 실패하면 _todayCount를 -1로 셋팅해서 다시 시도하도록 유도함
 
+    /** 앱을 켤 때 서버와 다시 맞추는 최근 기록 범위(일). 읽기 비용이 이 숫자만큼이라 한 달 남짓으로 둔다 */
+    private val RECENT_SYNC_DAYS = 45
+
+    /** 이번 프로세스에서 최근 기록 동기화를 했는지. checkProfile이 홈 화면마다 불려서 가드가 필요하다 */
+    private var recentRecordsSynced = false
+
     /** 무료 사용자의 하루 분석 횟수. 최종 판단은 서버(quota.js)가 하며 여기는 사전 확인용이다. */
     private val DAILY_FREE_ANALYSIS_LIMIT = 3
 
@@ -822,6 +828,12 @@ class MainViewModel @Inject constructor(
                         // 새로 설치한 직후에는 ViewModel이 만들어질 때 Room이 비어 있어 백필이 건너뛰었다.
                         // 기록을 다 받아온 지금 다시 돌려야 과거 기록이 즐겨찾기에 들어간다.
                         favoriteRepository.backfillIfNeeded()
+                    } else if (!recentRecordsSynced) {
+                        // 캐시가 있어도 최근 며칠은 서버와 맞춘다. 백업 복원이나 다른 기기의 정산으로
+                        // 캐시가 낡아 있을 수 있다 (2026-11-17 복원된 캐시 때문에 이틀이 사라졌다).
+                        // 앱을 켠 뒤 한 번만. 이 함수는 홈 화면이 그려질 때마다 불린다.
+                        recentRecordsSynced = true
+                        repository.fetchRecentFromFirebase(RECENT_SYNC_DAYS)
                     }
                 } else {
                     // 신체 정보가 아직 없는 사용자.
@@ -1538,6 +1550,7 @@ class MainViewModel @Inject constructor(
                 // 메모리에 든 AI 평가도 비운다. 남의 평가가 다음 계정 패널에 보이면 안 된다
                 _periodEvaluations.value = emptyMap()
                 loadedEvaluationKeys.clear()
+                recentRecordsSynced = false
                 expandedWeeks = emptySet()
                 expandedMonths = emptySet()
                 expandedYears = emptySet()

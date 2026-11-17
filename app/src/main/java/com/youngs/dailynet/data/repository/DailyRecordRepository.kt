@@ -111,6 +111,32 @@ class DailyRecordRepository @Inject constructor(
         }
     }
 
+    /**
+     * 최근 [days]일치만 서버에서 받아 Room에 덮어쓴다. 앱을 켤 때마다 한 번 부른다.
+     *
+     * 전체 로드(fetchAllFromFirebase)는 캐시가 비었을 때만 도는데, 캐시가 **있지만 낡은** 경우가 있다.
+     * - 자동 백업이 며칠 전 Room을 복원한 경우 (2026-11-17 실제로 겪음, backup_rules.xml 참고)
+     * - 다른 기기에서 정산하거나 고친 경우
+     * 전체를 매번 받으면 기록 일수만큼 읽기 비용이 들어 최근 며칠만 받는다. 그 범위 밖이 어긋나는 건
+     * 설정의 "지금 동기화"(캘린더)가 전체를 다시 받으니 거기에 맡긴다.
+     */
+    suspend fun fetchRecentFromFirebase(days: Int) {
+        try {
+            val since = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_MONTH, -days) }
+            val sinceDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(since.time)
+            val snapshot = userDailyRecordCollection
+                .whereGreaterThanOrEqualTo("date", sinceDate)
+                .orderBy("date", Query.Direction.DESCENDING)
+                .get()
+                .await()
+            snapshot.toObjects(DailyRecordModel::class.java).forEach { model ->
+                dailyRecordDao.insertOrUpdate(model)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     /** 로컬(Room)에 캐시된 정산 기록 개수 */
     suspend fun getCachedRecordCount(): Int = dailyRecordDao.getCount()
 

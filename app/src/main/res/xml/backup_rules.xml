@@ -1,13 +1,13 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   안드로이드 11 이하의 자동 백업 규칙. (12 이상은 data_extraction_rules.xml)
+
+   로컬 DB(Room 정산 캐시, Firestore 오프라인 캐시)는 백업에서 뺀다.
+   2026-11-17 실제로 겪었다 — 앱을 지웠다 다시 깔자 며칠 전 백업된 Room이 복원됐고, 앱은
+   "캐시가 있으니" 서버에서 다시 받지 않아 그 사이 정산한 이틀이 목록에서 사라졌다.
+   정산 기록의 원본은 Firestore라 로컬 DB는 언제든 다시 받으면 된다. 복원되면 오히려 해롭다.
+   설정(SharedPreferences: 리마인더·캘린더 연동 등)은 그대로 백업한다.
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <exclude domain="database" path="." />
 </full-backup-content>
