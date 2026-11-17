@@ -187,6 +187,11 @@
     <string name="pass_delete">이용권 삭제</string>
     <string name="pass_delete_confirm">\"%1$s\" 이용권을 삭제할까요? 기록은 그대로 남습니다.</string>
     <string name="toast_pass_save_failed">이용권을 저장하지 못했어요. 다시 시도해 주세요.</string>
+    <!-- 이용권 캘린더 일정 (구글 캘린더 연동이 켜져 있을 때) -->
+    <string name="calendar_pass_title_period">%1$s 이용권</string>
+    <string name="calendar_pass_title_count">%1$s %2$d회권</string>
+    <string name="calendar_pass_desc_period">%1$s ~ %2$s (%3$d일)</string>
+    <string name="calendar_pass_desc_keyword">차감 키워드: %1$s</string>
 
     <!-- 설정: 표시 기간 -->
     <string name="settings_section_range">표시 기간</string>

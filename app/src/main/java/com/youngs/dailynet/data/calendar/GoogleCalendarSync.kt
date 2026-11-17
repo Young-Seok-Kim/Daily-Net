@@ -14,6 +14,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.youngs.dailynet.R
 import com.youngs.dailynet.data.model.DailyRecordModel
+import com.youngs.dailynet.data.local.entity.ExercisePassEntity
 import com.youngs.dailynet.data.network.CalendarBody
 import com.youngs.dailynet.data.network.CalendarPatch
 import com.youngs.dailynet.data.network.EventBody
@@ -70,6 +71,8 @@ class GoogleCalendarSync @Inject constructor(
 
         private const val PROP_APP = "dailynet"
         private const val PROP_DATE = "dailynet_date"
+        /** 운동 이용권에서 나온 일정. 값은 이용권 id. 운동 일정(PROP_DATE)과 섞이지 않게 따로 둔다 */
+        private const val PROP_PASS = "dailynet_pass"
 
         /** Firestore에 캘린더 ID를 두는 자리: users/{uid}/settings/calendar */
         private const val CLOUD_SUB = "settings"
@@ -326,6 +329,98 @@ class GoogleCalendarSync @Inject constructor(
         } catch (e: Exception) {
             Log.w(TAG, "mirror failed for ${record.date}", e)
         }
+    }
+
+    // ── 운동 이용권 ───────────────────────────────────────────────
+
+    /**
+     * 이용권 한 장을 캘린더에 하루 종일 일정(기간 전체)으로 넣거나 고친다. 연동이 꺼져 있으면 아무것도 안 한다.
+     * 운동 일정과 달리 키는 날짜가 아니라 이용권 id다. 실패해도 저장 흐름은 막지 않는다.
+     */
+    suspend fun mirrorPass(pass: ExercisePassEntity) {
+        if (!isEnabled()) return
+        val token = tokenOrNull() ?: run {
+            Log.w(TAG, "no access token; skip mirror for pass ${pass.id}")
+            return
+        }
+        try {
+            withCalendar(token) { bearer, calendarId -> upsertPass(bearer, calendarId, pass) }
+        } catch (e: Exception) {
+            Log.w(TAG, "mirrorPass failed for ${pass.id}", e)
+        }
+    }
+
+    /** 이용권을 지울 때 그 일정도 지운다 */
+    suspend fun removePass(passId: String) {
+        if (!isEnabled()) return
+        val token = tokenOrNull() ?: return
+        try {
+            withCalendar(token) { bearer, calendarId ->
+                findPassEvent(bearer, calendarId, passId)?.let { api.deleteEvent(bearer, calendarId, it.id) }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "removePass failed for $passId", e)
+        }
+    }
+
+    /** "지금 동기화"에서 이용권 전부를 맞춘다. 없는 건 넣고 내용이 달라진 건 고친다 */
+    suspend fun syncAllPasses(token: String, passes: List<ExercisePassEntity>): Int {
+        if (passes.isEmpty()) return 0
+        return withCalendar(token) { bearer, calendarId ->
+            var changed = 0
+            passes.forEach { pass ->
+                if (retryOnNetworkError { upsertPass(bearer, calendarId, pass) }) changed++
+            }
+            changed
+        }
+    }
+
+    private suspend fun findPassEvent(bearer: String, calendarId: String, passId: String): EventResource? =
+        api.listEvents(
+            bearer, calendarId, "$PROP_PASS=$passId", 5, null, "items(id,summary,description)"
+        ).items.firstOrNull()
+
+    /** 넣거나 고쳤으면 true, 이미 같아서 손대지 않았으면 false */
+    private suspend fun upsertPass(bearer: String, calendarId: String, pass: ExercisePassEntity): Boolean {
+        if (pass.startDate.isBlank()) return false
+        val body = passEventBody(pass)
+        val existing = findPassEvent(bearer, calendarId, pass.id)
+        return when {
+            existing == null -> { api.insertEvent(bearer, calendarId, body); true }
+            existing.summary != body.summary || existing.description.orEmpty() != body.description.orEmpty() -> {
+                api.patchEvent(bearer, calendarId, existing.id, body); true
+            }
+            else -> false
+        }
+    }
+
+    /**
+     * 이용권 일정. 시작일부터 종료일까지 하루 종일 일정 하나로 걸쳐 둔다 (캘린더에 띠로 보인다).
+     * 종료일이 없는 횟수권은 시작일 하루짜리. 구글은 종료일을 배타로 받아 하루를 더한다.
+     */
+    private fun passEventBody(pass: ExercisePassEntity): EventBody {
+        val summary = if (pass.isCount) {
+            context.getString(R.string.calendar_pass_title_count, pass.name, pass.totalCount)
+        } else {
+            context.getString(R.string.calendar_pass_title_period, pass.name)
+        }
+        val lastDay = pass.endDate.ifBlank { pass.startDate }
+        val days = runCatching {
+            java.time.temporal.ChronoUnit.DAYS.between(LocalDate.parse(pass.startDate), LocalDate.parse(lastDay)).toInt() + 1
+        }.getOrDefault(1)
+        val description = listOfNotNull(
+            context.getString(R.string.calendar_pass_desc_period, pass.startDate, lastDay, days),
+            pass.keyword.takeIf { pass.isCount && it.isNotBlank() }
+                ?.let { context.getString(R.string.calendar_pass_desc_keyword, it) }
+        ).joinToString("\n")
+        val endExclusive = runCatching { LocalDate.parse(lastDay).plusDays(1).toString() }.getOrDefault(lastDay)
+        return EventBody(
+            summary = summary,
+            description = description,
+            start = EventDate(pass.startDate),
+            end = EventDate(endExclusive),
+            extendedProperties = ExtendedProperties(mapOf(PROP_PASS to pass.id))
+        )
     }
 
     /**

@@ -189,6 +189,11 @@
     <string name="pass_delete">Delete pass</string>
     <string name="pass_delete_confirm">Delete \"%1$s\"? Your records stay as they are.</string>
     <string name="toast_pass_save_failed">Could not save the pass. Please try again.</string>
+    <!-- Pass events in Google Calendar (when calendar sync is on) -->
+    <string name="calendar_pass_title_period">%1$s membership</string>
+    <string name="calendar_pass_title_count">%1$s (%2$d sessions)</string>
+    <string name="calendar_pass_desc_period">%1$s ~ %2$s (%3$d days)</string>
+    <string name="calendar_pass_desc_keyword">Keywords: %1$s</string>
 
     <!-- Settings: visible date range -->
     <string name="settings_section_range">Visible period</string>

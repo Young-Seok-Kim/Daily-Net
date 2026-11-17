@@ -1020,6 +1020,8 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 passRepository.save(pass)
+                // 캘린더 연동이 켜져 있으면 기간을 띠 일정으로. 실패해도 저장은 끝난 뒤다
+                calendarSync.mirrorPass(pass)
             } catch (e: Exception) {
                 CrashReporter.report("savePass", e)
                 toast(R.string.toast_pass_save_failed)
@@ -1031,6 +1033,7 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 passRepository.delete(id)
+                calendarSync.removePass(id)
             } catch (e: Exception) {
                 CrashReporter.report("deletePass", e)
                 toast(R.string.toast_pass_save_failed)
@@ -1575,8 +1578,10 @@ class MainViewModel @Inject constructor(
                     is GoogleCalendarSync.Access.Granted -> {
                         repository.fetchAllFromFirebase()
                         val result = calendarSync.syncAll(access.token, dailyRecordDao.getAllWithExercise())
-                        if (result.added == 0 && result.updated == 0) toast(R.string.calendar_sync_nothing)
-                        else toast(R.string.calendar_sync_done, result.added, result.updated)
+                        // 이용권 띠 일정도 같이 맞춘다 (연동을 켜기 전에 등록한 것이 여기서 들어간다)
+                        val passesChanged = calendarSync.syncAllPasses(access.token, passRepository.getAll())
+                        if (result.added == 0 && result.updated == 0 && passesChanged == 0) toast(R.string.calendar_sync_nothing)
+                        else toast(R.string.calendar_sync_done, result.added, result.updated + passesChanged)
                     }
                     is GoogleCalendarSync.Access.NeedsConsent -> onNeedsConsent(access.pendingIntent)
                     is GoogleCalendarSync.Access.Failed ->

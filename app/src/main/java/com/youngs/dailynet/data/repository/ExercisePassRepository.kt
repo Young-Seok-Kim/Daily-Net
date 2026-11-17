@@ -32,6 +32,8 @@ class ExercisePassRepository @Inject constructor(
 
     fun observe(): Flow<List<ExercisePassEntity>> = passDao.observeAll()
 
+    suspend fun getAll(): List<ExercisePassEntity> = passDao.getAll()
+
     /** Firestore의 이용권을 Room에 덮어쓴다. 계정에서 지워진 것은 기기에서도 지운다 */
     suspend fun sync() {
         val col = collection ?: return
