@@ -22,6 +22,15 @@
 
 ### 상세 내역
 
+- **다이얼로그 디자인 통일** (2026-11-17 다이얼로그 디자인 기획서, `ui/view/DnDialog.kt`)
+  - 부품: `DnDialog`(톤 Neutral/Destructive/Required, 아이콘·대상 박스·content 슬롯, 잉크 스크림, 폭 화면-40 최대 400, r28, 버튼은
+    왼쪽 보조 → 오른쪽 주액션 48dp), `DnFormSheet`(상단 r28·본문 스크롤·하단 56dp CTA·imePadding·파괴 행), `DnActionSheet`,
+    `DnBlockingOverlay`, `DnTargetBox`, `DnDestructiveRow`. `Theme.kt`에 error 토큰(#B3261E / 다크 #FFB4A6)
+  - 교체 17곳: 기록 삭제·인바디 삭제·이용권 삭제·탈퇴(Destructive + 대상 박스), 로그아웃 두 벌 → `LogoutConfirmDialog` 하나,
+    업데이트 안내(강제면 Required), 음식·인바디 사진 소스 두 벌 → `PhotoSourceSheet` 하나, 이용권 등록·신체 정보 입력·수정 →
+    `DnFormSheet`(생년월일 기본값 2000-01-01 제거), 일정 제목·칼로리 수정 → `DnDialog` + content, 즐겨찾기 시트 라운드 토큰,
+    프로필 시트 skipPartiallyExpanded, 로그아웃·탈퇴·설정 처리 중 오버레이 → `DnBlockingOverlay`
+  - 문구는 질문형 제목("이 기록을 지울까요?"), 주액션은 동작 그대로("삭제", "로그아웃"). 플랫폼 DatePickerDialog 5곳은 이번 범위 밖
 - **운동 이용권** (`ExercisePassEntity`, Room `exercise_passes` v16 `MIGRATION_15_16`, Firestore `users/{uid}/passes/{id}`, `ExercisePassRepository`)
   - 기간제: 시작일·종료일. 횟수권: 전체 횟수·차감 키워드(쉼표로 여러 개)·유효기간(선택)
   - 쓴 횟수는 저장하지 않고 기록에서 센다 (`util/PassUsage.kt` `computePassUsage`): 기간 안의 기록 중 운동 칸에 키워드가 든 날을

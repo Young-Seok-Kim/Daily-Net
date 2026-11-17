@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -183,46 +184,44 @@ fun InbodyEditScreen(
     }
 
     if (showPhotoSource) {
-        AlertDialog(
-            onDismissRequest = { showPhotoSource = false },
-            title = { Text(stringResource(R.string.inbody_photo_source_title)) },
-            text = { Text(stringResource(R.string.inbody_photo_source_desc)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showPhotoSource = false
-                    val granted = ContextCompat.checkSelfPermission(
-                        context, Manifest.permission.CAMERA
-                    ) == PackageManager.PERMISSION_GRANTED
-                    if (granted) cameraOpen = true
-                    else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                }) { Text(stringResource(R.string.photo_source_camera)) }
+        // 음식 사진과 같은 시트. 인바디는 결과지 한 장이라 갤러리 설명만 다르다
+        PhotoSourceSheet(
+            title = stringResource(R.string.inbody_photo_source_title),
+            subtitle = stringResource(R.string.inbody_photo_source_desc),
+            gallerySubtitle = stringResource(R.string.photo_source_gallery_desc_inbody),
+            onCamera = {
+                showPhotoSource = false
+                val granted = ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.CAMERA
+                ) == PackageManager.PERMISSION_GRANTED
+                if (granted) cameraOpen = true
+                else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    showPhotoSource = false
-                    galleryLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
-                }) { Text(stringResource(R.string.photo_source_gallery)) }
-            }
+            onGallery = {
+                showPhotoSource = false
+                galleryLauncher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                )
+            },
+            onDismiss = { showPhotoSource = false }
         )
     }
 
     var showDeleteConfirm by remember { mutableStateOf(false) }
     if (showDeleteConfirm && !isNew) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text(stringResource(R.string.inbody_delete_title)) },
-            text = { Text(stringResource(R.string.inbody_delete_message, measuredAt)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showDeleteConfirm = false
-                    mainViewModel.deleteInbody(measuredAt) { ok -> if (ok) onBack() }
-                }) { Text(stringResource(R.string.inbody_clear), color = MaterialTheme.colorScheme.error) }
+        DnDialog(
+            title = stringResource(R.string.inbody_delete_title),
+            body = stringResource(R.string.inbody_delete_message),
+            tone = DnDialogTone.Destructive,
+            icon = Icons.Default.Delete,
+            targetLabel = stringResource(R.string.delete_target),
+            targetValue = stringResource(R.string.inbody_delete_target_value, measuredAt),
+            primaryLabel = stringResource(R.string.delete),
+            onPrimary = {
+                showDeleteConfirm = false
+                mainViewModel.deleteInbody(measuredAt) { ok -> if (ok) onBack() }
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text(stringResource(R.string.cancel)) }
-            }
+            onDismiss = { showDeleteConfirm = false }
         )
     }
 

@@ -54,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.youngs.dailynet.R
+import com.youngs.dailynet.ui.theme.DnDimens
 import com.youngs.dailynet.data.local.entity.FavoriteItemEntity
 import com.youngs.dailynet.util.FavoriteRank
 import kotlinx.coroutines.launch
@@ -231,7 +232,7 @@ fun FavoriteSheet(
                 onValueChange = { query = it },
                 placeholder = { Text(stringResource(R.string.fav_search_hint)) },
                 singleLine = true,
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(DnDimens.RadiusTile),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp),
@@ -347,7 +348,7 @@ fun FavoriteSheet(
                     close { onInsert(chosen) }
                 },
                 enabled = selected.isNotEmpty(),
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(DnDimens.RadiusTile),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 12.dp)

@@ -146,53 +146,44 @@ fun SettingsScreen(
 
     if (showCalendarTitleDialog) {
         var draft by remember { mutableStateOf(calendarFixedTitle) }
-        AlertDialog(
-            onDismissRequest = { showCalendarTitleDialog = false },
-            title = { Text(stringResource(R.string.settings_calendar_fixed_title)) },
-            text = {
-                OutlinedTextField(
-                    value = draft,
-                    onValueChange = { draft = it },
-                    singleLine = true,
-                    placeholder = { Text(stringResource(R.string.calendar_title_dialog_hint)) },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val title = draft.trim()
-                    if (title.isNotEmpty()) {
-                        mainViewModel.setCalendarFixedTitle(title)
-                        calendarFixedTitle = title
-                    }
-                    showCalendarTitleDialog = false
-                }) { Text(stringResource(R.string.save)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCalendarTitleDialog = false }) { Text(stringResource(R.string.cancel)) }
+        // 입력 한 칸이라 다이얼로그에 content로 끼운다. 두 칸이 되면 DnFormSheet로
+        DnDialog(
+            title = stringResource(R.string.settings_calendar_fixed_title),
+            onDismiss = { showCalendarTitleDialog = false },
+            primaryLabel = stringResource(R.string.save),
+            primaryEnabled = draft.isNotBlank(),
+            onPrimary = {
+                val title = draft.trim()
+                if (title.isNotEmpty()) {
+                    mainViewModel.setCalendarFixedTitle(title)
+                    calendarFixedTitle = title
+                }
+                showCalendarTitleDialog = false
             }
-        )
+        ) {
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                placeholder = { Text(stringResource(R.string.calendar_title_dialog_hint)) },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
 
     if (showLogoutConfirm) {
-        AlertDialog(
-            onDismissRequest = { showLogoutConfirm = false },
-            title = { Text(stringResource(R.string.logout)) },
-            text = { Text(stringResource(R.string.logout_confirm_message)) },
-            confirmButton = {
-                val loadingText = stringResource(R.string.logout_in_progress)
-                TextButton(onClick = {
-                    showLogoutConfirm = false
-                    loadingMessage = loadingText
-                    mainViewModel.logout(context) { success ->
-                        loadingMessage = null
-                        if (success) onNavigateToLogin()
-                    }
-                }) { Text(stringResource(R.string.logout)) }
+        val loadingText = stringResource(R.string.logout_in_progress)
+        LogoutConfirmDialog(
+            onConfirm = {
+                showLogoutConfirm = false
+                loadingMessage = loadingText
+                mainViewModel.logout(context) { success ->
+                    loadingMessage = null
+                    if (success) onNavigateToLogin()
+                }
             },
-            dismissButton = {
-                TextButton(onClick = { showLogoutConfirm = false }) { Text(stringResource(R.string.cancel)) }
-            }
+            onDismiss = { showLogoutConfirm = false }
         )
     }
 
@@ -464,21 +455,7 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(32.dp))
             }
 
-            loadingMessage?.let { msg ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
-                        .clickable(enabled = false) {},   // 뒷배경 클릭 방지
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator()
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(msg, style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
-            }
+            loadingMessage?.let { msg -> DnBlockingOverlay(msg) }
         }
     }
 }

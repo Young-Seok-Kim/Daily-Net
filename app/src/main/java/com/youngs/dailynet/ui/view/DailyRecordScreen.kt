@@ -206,33 +206,30 @@ fun DailyRecordScreen(
     }
 
     photoSourceField?.let { field ->
-        AlertDialog(
-            onDismissRequest = { photoSourceField = null },
-            title = { Text(stringResource(R.string.photo_source_title)) },
-            text = { Text(stringResource(R.string.photo_source_desc)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    photoSourceField = null
-                    pendingPhotoField = field
-                    val granted = ContextCompat.checkSelfPermission(
-                        context, Manifest.permission.CAMERA
-                    ) == PackageManager.PERMISSION_GRANTED
-                    if (granted) {
-                        cameraField = field
-                    } else {
-                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                    }
-                }) { Text(stringResource(R.string.photo_source_camera)) }
+        PhotoSourceSheet(
+            title = stringResource(R.string.photo_source_title),
+            subtitle = stringResource(R.string.photo_source_desc),
+            gallerySubtitle = stringResource(R.string.photo_source_gallery_desc_meal),
+            onCamera = {
+                photoSourceField = null
+                pendingPhotoField = field
+                val granted = ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.CAMERA
+                ) == PackageManager.PERMISSION_GRANTED
+                if (granted) {
+                    cameraField = field
+                } else {
+                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                }
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    photoSourceField = null
-                    pendingPhotoField = field
-                    galleryLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
-                }) { Text(stringResource(R.string.photo_source_gallery)) }
-            }
+            onGallery = {
+                photoSourceField = null
+                pendingPhotoField = field
+                galleryLauncher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                )
+            },
+            onDismiss = { photoSourceField = null }
         )
     }
 

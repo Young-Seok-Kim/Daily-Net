@@ -21,8 +21,8 @@
     <string name="login_reauth_failed">Could not re-authenticate your Google account. Please try again, or check your Google account in device settings.</string>
 
     <!-- Update notice -->
-    <string name="update_title_forced">Update required</string>
-    <string name="update_title_recommend">A new version is available</string>
+    <string name="update_title_forced">Update needed</string>
+    <string name="update_title_recommend">A new version is here</string>
     <string name="update_action">Update</string>
     <string name="update_later">Later</string>
     <string name="update_message_forced">This version is no longer supported.\nPlease update to the latest version.</string>
@@ -50,7 +50,7 @@
     <string name="inbody_date_label">Test date</string>
     <string name="inbody_clear">Clear</string>
     <string name="inbody_photo_source_title">Photo of the result sheet</string>
-    <string name="inbody_photo_source_desc">Take a photo or pick one from the gallery. Make sure the numbers are sharp and well lit.</string>
+    <string name="inbody_photo_source_desc">Make sure the numbers are sharp and well lit.</string>
     <string name="inbody_photo_filled">Numbers read from the photo. Check them, then save.</string>
     <string name="inbody_photo_not_found">Could not read a body composition sheet. Try again with the numbers clearly visible.</string>
     <string name="toast_inbody_saved">InBody results saved.</string>
@@ -69,7 +69,8 @@
     <string name="inbody_list_empty">No InBody results yet. Add one with the button below.</string>
     <string name="inbody_applied">Used for analysis</string>
     <string name="inbody_delete_title">Delete this result?</string>
-    <string name="inbody_delete_message">The %1$s measurement and its interpretation will be deleted.</string>
+    <string name="inbody_delete_message">The measurement and its interpretation will be deleted.</string>
+    <string name="inbody_delete_target_value">Measured %1$s</string>
     <string name="inbody_visceral_label">Visceral fat level</string>
     <string name="inbody_score_label">InBody score</string>
     <string name="inbody_water_label">Body water (L)</string>
@@ -99,7 +100,8 @@
 
     <!-- Sign out -->
     <string name="logout">Sign out</string>
-    <string name="logout_confirm_message">Sign out?\nYour records stay on the server and are restored when you sign back in.</string>
+    <string name="logout_confirm_message">Your records stay on the server.\nThey come back when you sign in again.</string>
+    <string name="logout_confirm_title">Sign out?</string>
     <string name="logout_in_progress">Signing out…</string>
 
     <!-- Main screen -->
@@ -111,8 +113,9 @@
     <string name="save">Save</string>
     <string name="save_and_start">Save and start</string>
     <string name="open_settings">Open settings</string>
-    <string name="delete_record_title">Delete record</string>
-    <string name="delete_record_message">Delete the record for %1$s?\nThis cannot be undone.</string>
+    <string name="delete_record_title">Delete this record?</string>
+    <string name="delete_record_message">The record and its AI report will be deleted.\nThis cannot be undone.</string>
+    <string name="delete_target">To delete</string>
     <string name="cd_profile">Profile</string>
     <string name="cd_profile_photo">Profile photo</string>
     <string name="cd_expand">Expand</string>
@@ -187,7 +190,10 @@
     <string name="pass_no_keyword">No keywords, so sessions are not counted automatically. Use +1/−1.</string>
     <string name="pass_today_deducted">counted today</string>
     <string name="pass_delete">Delete pass</string>
-    <string name="pass_delete_confirm">Delete \"%1$s\"? Your records stay as they are.</string>
+    <string name="pass_delete_confirm">Your records stay as they are.</string>
+    <string name="pass_delete_title">Delete this pass?</string>
+    <string name="dialog_close">Close</string>
+    <string name="birth_date_pick">Tap to pick</string>
     <string name="toast_pass_save_failed">Could not save the pass. Please try again.</string>
     <!-- Pass events in Google Calendar (when calendar sync is on) -->
     <string name="calendar_pass_title_period">%1$s membership</string>
@@ -306,9 +312,12 @@
     <string name="steps_load_failed">Could not load your steps</string>
     <string name="steps_reloaded">Steps reloaded (%1$d)</string>
     <string name="photo_source_title">Add a food photo</string>
-    <string name="photo_source_desc">Take a new photo, or pick ones you already have. From the gallery you can select up to 5 photos of the same meal.</string>
-    <string name="photo_source_camera">Camera</string>
-    <string name="photo_source_gallery">Gallery</string>
+    <string name="photo_source_desc">You can pick up to 5 photos of one meal.</string>
+    <string name="photo_source_camera">Take a photo</string>
+    <string name="photo_source_gallery">Choose from gallery</string>
+    <string name="photo_source_camera_desc">Shoot right now</string>
+    <string name="photo_source_gallery_desc_meal">Up to 5 saved photos</string>
+    <string name="photo_source_gallery_desc_inbody">One photo of the result sheet</string>
     <string name="camera_permission_denied">Camera permission is needed to take a photo. You can still pick one from the gallery.</string>
     <string name="camera_unavailable">Could not open the camera.</string>
     <string name="camera_capture_failed">Could not take the photo. Please try again.</string>
@@ -357,8 +366,8 @@
     <string name="weight_stat_days_value">%1$d days</string>
 
     <!-- Delete account -->
-    <string name="withdraw_final_title">Final confirmation</string>
-    <string name="withdraw_final_message">Delete your account?\nAll of your records will be permanently deleted and cannot be recovered.</string>
+    <string name="withdraw_final_title">Delete your account?</string>
+    <string name="withdraw_final_message">All of your records will be permanently deleted.\nThis cannot be recovered.</string>
     <string name="withdraw_confirm_action">Delete account</string>
     <string name="withdraw_target_account">Account to be deleted</string>
     <string name="withdraw_heading">Deleting your account removes all of the following.</string>

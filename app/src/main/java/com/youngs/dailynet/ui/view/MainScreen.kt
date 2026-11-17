@@ -16,6 +16,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
@@ -261,28 +262,25 @@ fun MainScreen(
     // 페이징 제거: 첫 로그인 시 checkProfile에서 전체를 한 번에 로드하고 이후엔 캐시를 사용한다.
     // (스크롤 페이징이 먼저 돌아 전체 로드를 건너뛰던 경쟁 상태를 방지)
 
-    if (selectedDateToDelete != null) {
-        AlertDialog(
-            onDismissRequest = { selectedDateToDelete = null },
-            title = { Text(stringResource(R.string.delete_record_title)) },
-            text = {
-                Text(stringResource(R.string.delete_record_message, selectedDateToDelete.orEmpty()))
+    selectedDateToDelete?.let { date ->
+        // 되돌릴 수 없는 동작이라 날짜와 순칼로리를 대상 박스로 보여 눈으로 대조하게 한다
+        val net = dailyRecords.firstOrNull { it.date == date }?.netCalories
+        DnDialog(
+            title = stringResource(R.string.delete_record_title),
+            body = stringResource(R.string.delete_record_message),
+            tone = DnDialogTone.Destructive,
+            icon = Icons.Default.Delete,
+            targetLabel = stringResource(R.string.delete_target),
+            targetValue = listOfNotNull(
+                "$date ${getDayOfWeekText(date)}".trim(),
+                net?.let { String.format(Locale.getDefault(), "%+,d kcal", it) }
+            ).joinToString(" · "),
+            primaryLabel = stringResource(R.string.delete),
+            onPrimary = {
+                mainViewModel.deleteDailyRecord(date)
+                selectedDateToDelete = null
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    selectedDateToDelete?.let { date ->
-                        mainViewModel.deleteDailyRecord(date)
-                    }
-                    selectedDateToDelete = null
-                }) {
-                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { selectedDateToDelete = null }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
+            onDismiss = { selectedDateToDelete = null }
         )
     }
 
@@ -302,28 +300,22 @@ fun MainScreen(
     }
 
     var showSheet by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState()
+    // 부분 확장으로 열리면 아래 칸이 잘린 채 멈춘다. 내용이 짧으니 바로 다 펼친다
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // 프로필 시트의 로그아웃. 설정 화면과 같은 확인 창·같은 진행 표시를 쓴다.
     var showLogoutConfirm by remember { mutableStateOf(false) }
     val isLoggingOut by mainViewModel.isLoggingOut.collectAsState()
     val context = LocalContext.current
     if (showLogoutConfirm) {
-        AlertDialog(
-            onDismissRequest = { showLogoutConfirm = false },
-            title = { Text(stringResource(R.string.logout)) },
-            text = { Text(stringResource(R.string.logout_confirm_message)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showLogoutConfirm = false
-                    mainViewModel.logout(context) { success ->
-                        if (success) onNavigateToLogin()
-                    }
-                }) { Text(stringResource(R.string.logout), color = MaterialTheme.colorScheme.error) }
+        LogoutConfirmDialog(
+            onConfirm = {
+                showLogoutConfirm = false
+                mainViewModel.logout(context) { success ->
+                    if (success) onNavigateToLogin()
+                }
             },
-            dismissButton = {
-                TextButton(onClick = { showLogoutConfirm = false }) { Text(stringResource(R.string.cancel)) }
-            }
+            onDismiss = { showLogoutConfirm = false }
         )
     }
 
@@ -584,7 +576,9 @@ fun MainScreen(
             if (showSheet) {
                 ModalBottomSheet(
                     onDismissRequest = { showSheet = false },
-                    sheetState = sheetState
+                    sheetState = sheetState,
+                    shape = RoundedCornerShape(topStart = DnDimens.RadiusHero, topEnd = DnDimens.RadiusHero),
+                    containerColor = MaterialTheme.colorScheme.surface
                 ) {
                     Column(
                         modifier = Modifier
@@ -693,21 +687,9 @@ fun MainScreen(
             }
         }
 
-        // 로그아웃 진행 표시. 로컬 기록을 지우는 동안 뒤를 누르지 못하게 덮는다 (설정 화면과 같은 모양)
+        // 로그아웃 진행 표시. 로컬 기록을 지우는 동안 뒤를 누르지 못하게 덮는다 (설정 화면과 같은 부품)
         if (isLoggingOut) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
-                    .clickable(enabled = false) {},
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator()
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(stringResource(R.string.logout_in_progress), style = MaterialTheme.typography.bodyLarge)
-                }
-            }
+            DnBlockingOverlay(stringResource(R.string.logout_in_progress))
         }
     }
 }
@@ -896,7 +878,104 @@ private fun SectionDivider(
 }
 
 /**
- * 신체 정보(키, 시작 체중)를 최초 1회 입력받는 다이얼로그
+ * 신체 정보 입력 칸 묶음. 최초 입력([ProfileSetupDialog])과 수정([ProfileEditDialog])이 같은 칸을 쓴다.
+ * 생년월일은 누르면 시스템 날짜 선택이 뜬다. 비어 있으면 오늘부터 고르게 둔다 (예전엔 2000-01-01이 기본값이었다).
+ */
+@Composable
+private fun BodyInfoFields(
+    isMale: Boolean,
+    onGender: (Boolean) -> Unit,
+    birthDate: String,
+    onBirthDate: (String) -> Unit,
+    heightText: String,
+    onHeight: (String) -> Unit,
+    weightText: String,
+    onWeight: (String) -> Unit
+) {
+    val context = LocalContext.current
+    Text(stringResource(R.string.gender), style = MaterialTheme.typography.labelMedium)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(
+            selected = isMale,
+            onClick = { onGender(true) },
+            label = { Text(stringResource(R.string.gender_male)) }
+        )
+        FilterChip(
+            selected = !isMale,
+            onClick = { onGender(false) },
+            label = { Text(stringResource(R.string.gender_female)) }
+        )
+    }
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = birthDate,
+            onValueChange = {},
+            label = { Text(stringResource(R.string.birth_date)) },
+            placeholder = { Text(stringResource(R.string.birth_date_pick)) },
+            enabled = false,
+            singleLine = true,
+            shape = RoundedCornerShape(DnDimens.RadiusChip),
+            colors = OutlinedTextFieldDefaults.colors(
+                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                disabledBorderColor = MaterialTheme.colorScheme.outline,
+                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+        // 비활성 입력칸은 터치를 먹지 않아 위에 투명 판을 깔아 누르게 한다
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable {
+                    val cal = Calendar.getInstance()
+                    runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(birthDate) }
+                        .getOrNull()?.let { cal.time = it }
+                    android.app.DatePickerDialog(
+                        context,
+                        { _, year, month, dayOfMonth ->
+                            onBirthDate(String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, dayOfMonth))
+                        },
+                        cal.get(Calendar.YEAR),
+                        cal.get(Calendar.MONTH),
+                        cal.get(Calendar.DAY_OF_MONTH)
+                    ).show()
+                }
+        )
+    }
+
+    OutlinedTextField(
+        value = heightText,
+        onValueChange = onHeight,
+        label = { Text(stringResource(R.string.height_label)) },
+        placeholder = { Text(stringResource(R.string.height_placeholder)) },
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(DnDimens.RadiusChip),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        singleLine = true
+    )
+
+    OutlinedTextField(
+        value = weightText,
+        onValueChange = onWeight,
+        label = { Text(stringResource(R.string.start_weight_label)) },
+        placeholder = { Text(stringResource(R.string.start_weight_placeholder)) },
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(DnDimens.RadiusChip),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        singleLine = true
+    )
+    Text(
+        stringResource(R.string.start_weight_note),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+/**
+ * 신체 정보(키, 시작 체중, 성별, 생년월일)를 최초 1회 입력받는 시트.
+ * 필수 단계라 닫을 수 없다 (바깥 터치·스와이프·뒤로가기 모두 막힘, "닫기" 없음).
  */
 @Composable
 fun ProfileSetupDialog(
@@ -907,129 +986,41 @@ fun ProfileSetupDialog(
                 birthDate: String
             ) -> Unit
 ) {
-    var birthDateText by remember { mutableStateOf("2000-01-01") } // 기본값
+    var birthDateText by remember { mutableStateOf("") }
     var heightText by remember { mutableStateOf("") }
     var weightText by remember { mutableStateOf("") }
-    var selectedIsMale by remember { mutableStateOf(true) } // 👈 성별 상태 추가 (기본값 남성)
-
+    var selectedIsMale by remember { mutableStateOf(true) }
     val context = LocalContext.current
-    val calendar = Calendar.getInstance()
 
-    fun getCalendarFromText(dateStr: String): Calendar {
-        val cal = Calendar.getInstance()
-        try {
-            val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateStr)
-            if (date != null) {
-                cal.time = date
-            }
-        } catch (e: Exception) {
-            // 파싱 실패 시 현재 날짜(오늘) 유지
+    val h = heightText.toFloatOrNull() ?: 0f
+    val w = weightText.toFloatOrNull() ?: 0f
+    val valid = h > 0f && w > 0f && birthDateText.contains("-")
+
+    DnFormSheet(
+        title = stringResource(R.string.profile_input_title),
+        subtitle = stringResource(R.string.profile_input_desc),
+        dismissible = false,
+        onDismiss = {},
+        primaryLabel = stringResource(R.string.save_and_start),
+        primaryEnabled = valid,
+        onPrimary = {
+            val googleName = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.displayName
+                ?: context.getString(R.string.default_user_name)
+            onConfirm(googleName, h, w, selectedIsMale, birthDateText)
         }
-        return cal
+    ) {
+        BodyInfoFields(
+            isMale = selectedIsMale, onGender = { selectedIsMale = it },
+            birthDate = birthDateText, onBirthDate = { birthDateText = it },
+            heightText = heightText, onHeight = { heightText = it },
+            weightText = weightText, onWeight = { weightText = it }
+        )
     }
-
-    AlertDialog(
-        onDismissRequest = { /* 필수 입력 사항이므로 닫기 방지 */ },
-        title = { Text(stringResource(R.string.profile_input_title)) },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    stringResource(R.string.profile_input_desc),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-
-                Text(stringResource(R.string.gender), style = MaterialTheme.typography.labelMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = selectedIsMale,
-                        onClick = { selectedIsMale = true },
-                        label = { Text(stringResource(R.string.gender_male)) }
-                    )
-                    FilterChip(
-                        selected = !selectedIsMale,
-                        onClick = { selectedIsMale = false },
-                        label = { Text(stringResource(R.string.gender_female)) }
-                    )
-                }
-
-                OutlinedTextField(
-                    value = birthDateText,
-                    onValueChange = { /* 읽기 전용으로 만들기 위해 비워둠 */ },
-                    label = { Text(stringResource(R.string.birth_date)) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            val currentCal = getCalendarFromText(birthDateText)
-
-                            android.app.DatePickerDialog(
-                                context,
-                                { _, year, month, dayOfMonth ->
-                                    birthDateText =
-                                        String.format(Locale.getDefault(), "%d-%02d-%02d", year, month + 1, dayOfMonth)
-                                },
-                                currentCal.get(Calendar.YEAR),
-                                currentCal.get(Calendar.MONTH),
-                                currentCal.get(Calendar.DAY_OF_MONTH)
-                            ).show()
-                        },
-                    enabled = false,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                        disabledBorderColor = MaterialTheme.colorScheme.outline,
-                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = heightText,
-                    onValueChange = { heightText = it },
-                    label = { Text(stringResource(R.string.height_label)) },
-                    placeholder = { Text(stringResource(R.string.height_placeholder)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = weightText,
-                    onValueChange = { weightText = it },
-                    label = { Text(stringResource(R.string.start_weight_label)) },
-                    placeholder = { Text(stringResource(R.string.start_weight_placeholder)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val h = heightText.toFloatOrNull() ?: 0f
-                    val w = weightText.toFloatOrNull() ?: 0f
-                    val googleName = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.displayName ?: context.getString(R.string.default_user_name)
-                    // 날짜 형식이 최소한의 형태를 갖췄는지 체크
-                    if (h > 0f && w > 0f && birthDateText.contains("-")) {
-                        onConfirm(googleName, h, w, selectedIsMale, birthDateText)
-                    }
-                },
-                // 모든 필드가 채워졌을 때만 버튼 활성화
-                enabled = heightText.isNotBlank() &&
-                        weightText.isNotBlank() &&
-                        birthDateText.isNotBlank()
-            ) {
-                Text(stringResource(R.string.save_and_start))
-            }
-        }
-    )
 }
 
 /**
- * 가입 때 입력한 신체 정보(키 / 시작 몸무게 / 성별 / 생년월일)를 나중에 고치는 다이얼로그.
- * 초기 입력용 [ProfileSetupDialog]와 달리 기존 값이 채워진 상태로 열리고, 취소할 수 있다.
+ * 가입 때 입력한 신체 정보(키 / 시작 몸무게 / 성별 / 생년월일)를 나중에 고치는 시트.
+ * 초기 입력용 [ProfileSetupDialog]와 달리 기존 값이 채워진 상태로 열리고, 닫을 수 있다.
  */
 @Composable
 fun ProfileEditDialog(
@@ -1040,123 +1031,28 @@ fun ProfileEditDialog(
     onDismiss: () -> Unit,
     onConfirm: (height: Float, weight: Float, isMale: Boolean, birthDate: String) -> Unit
 ) {
-    var birthDateText by remember {
-        mutableStateOf(initialBirthDate.ifBlank { "2000-01-01" })
-    }
-    var heightText by remember {
-        mutableStateOf(if (initialHeight > 0f) initialHeight.toString() else "")
-    }
-    var weightText by remember {
-        mutableStateOf(if (initialWeight > 0f) initialWeight.toString() else "")
-    }
+    var birthDateText by remember { mutableStateOf(initialBirthDate) }
+    var heightText by remember { mutableStateOf(if (initialHeight > 0f) initialHeight.toString() else "") }
+    var weightText by remember { mutableStateOf(if (initialWeight > 0f) initialWeight.toString() else "") }
     var selectedIsMale by remember { mutableStateOf(initialIsMale) }
 
-    val context = LocalContext.current
+    val h = heightText.toFloatOrNull() ?: 0f
+    val w = weightText.toFloatOrNull() ?: 0f
 
-    fun getCalendarFromText(dateStr: String): Calendar {
-        val cal = Calendar.getInstance()
-        try {
-            val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateStr)
-            if (date != null) cal.time = date
-        } catch (_: Exception) {
-            // 파싱 실패 시 오늘 날짜 유지
-        }
-        return cal
+    DnFormSheet(
+        title = stringResource(R.string.settings_edit_body_info),
+        onDismiss = onDismiss,
+        primaryLabel = stringResource(R.string.save),
+        primaryEnabled = h > 0f && w > 0f && birthDateText.contains("-"),
+        onPrimary = { onConfirm(h, w, selectedIsMale, birthDateText) }
+    ) {
+        BodyInfoFields(
+            isMale = selectedIsMale, onGender = { selectedIsMale = it },
+            birthDate = birthDateText, onBirthDate = { birthDateText = it },
+            heightText = heightText, onHeight = { heightText = it },
+            weightText = weightText, onWeight = { weightText = it }
+        )
     }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.settings_edit_body_info)) },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(stringResource(R.string.gender), style = MaterialTheme.typography.labelMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = selectedIsMale,
-                        onClick = { selectedIsMale = true },
-                        label = { Text(stringResource(R.string.gender_male)) }
-                    )
-                    FilterChip(
-                        selected = !selectedIsMale,
-                        onClick = { selectedIsMale = false },
-                        label = { Text(stringResource(R.string.gender_female)) }
-                    )
-                }
-
-                OutlinedTextField(
-                    value = birthDateText,
-                    onValueChange = { },
-                    label = { Text(stringResource(R.string.birth_date)) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            val currentCal = getCalendarFromText(birthDateText)
-                            android.app.DatePickerDialog(
-                                context,
-                                { _, year, month, dayOfMonth ->
-                                    birthDateText = String.format(
-                                        Locale.getDefault(),
-                                        "%d-%02d-%02d", year, month + 1, dayOfMonth
-                                    )
-                                },
-                                currentCal.get(Calendar.YEAR),
-                                currentCal.get(Calendar.MONTH),
-                                currentCal.get(Calendar.DAY_OF_MONTH)
-                            ).show()
-                        },
-                    enabled = false,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                        disabledBorderColor = MaterialTheme.colorScheme.outline,
-                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = heightText,
-                    onValueChange = { heightText = it },
-                    label = { Text(stringResource(R.string.height_label)) },
-                    placeholder = { Text(stringResource(R.string.height_placeholder)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = weightText,
-                    onValueChange = { weightText = it },
-                    label = { Text(stringResource(R.string.start_weight_label)) },
-                    placeholder = { Text(stringResource(R.string.start_weight_placeholder)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true
-                )
-
-                Text(
-                    stringResource(R.string.start_weight_note),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        },
-        confirmButton = {
-            val h = heightText.toFloatOrNull() ?: 0f
-            val w = weightText.toFloatOrNull() ?: 0f
-            Button(
-                onClick = { onConfirm(h, w, selectedIsMale, birthDateText) },
-                enabled = h > 0f && w > 0f && birthDateText.contains("-")
-            ) {
-                Text(stringResource(R.string.save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
-        }
-    )
 }
 
 /**
