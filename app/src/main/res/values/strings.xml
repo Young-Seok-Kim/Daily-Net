@@ -158,11 +158,11 @@
 
     <!-- Settings: record list dividers -->
     <string name="settings_section_list">Record list</string>
-    <string name="settings_show_year_divider">Year dividers</string>
-    <string name="settings_show_year_divider_subtitle">Shown above the first record of each year, with the year summary and AI review</string>
-    <string name="settings_show_month_divider">Month dividers</string>
+    <string name="settings_show_year_divider">Yearly summary</string>
+    <string name="settings_show_year_divider_subtitle">A row above the first record of each year, with the year summary and AI review</string>
+    <string name="settings_show_month_divider">Monthly summary</string>
     <string name="settings_show_month_divider_subtitle">A row per month with its summary, AI review and the month report</string>
-    <string name="settings_show_week_divider">Week dividers</string>
+    <string name="settings_show_week_divider">Weekly summary</string>
     <string name="settings_show_week_divider_subtitle">A row per week with its summary and AI review</string>
 
     <!-- Month report screen -->
