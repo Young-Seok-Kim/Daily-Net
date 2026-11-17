@@ -57,7 +57,7 @@ data class ExercisePassEntity(
          * "/"는 Firestore 문서 id에 못 쓰고, 공백은 보기 싫어 밑줄로 바꾼다.
          */
         fun newId(name: String, now: Long = System.currentTimeMillis()): String {
-            val base = name.trim().replace(Regex("[/\s]+"), "_").take(20).ifBlank { "pass" }
+            val base = name.trim().replace(Regex("[/\\s]+"), "_").take(20).ifBlank { "pass" }
             val stamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date(now))
             return "${base}_$stamp"
         }
