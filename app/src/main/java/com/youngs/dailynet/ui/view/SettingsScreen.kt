@@ -10,7 +10,10 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -259,30 +262,23 @@ fun SettingsScreen(
                         checked = range.enabled,
                         onCheckedChange = { mainViewModel.setDateRange(range.copy(enabled = it)) }
                     )
-                    SettingsItem(
-                        title = stringResource(R.string.settings_range_start),
-                        subtitle = range.start.ifBlank { stringResource(R.string.settings_range_not_set) },
-                        onClick = {
+                    // 시작일 ~ 종료일을 한 줄에. 각 칸을 누르면 그 날짜를 고른다.
+                    // 종료일 칸을 길게 누르면 비워서 "오늘까지"로 돌아간다.
+                    DateRangeRow(
+                        start = range.start,
+                        end = range.end,
+                        onPickStart = {
                             showDatePicker(context, range.start) { picked ->
                                 mainViewModel.setDateRange(range.copy(start = picked, enabled = true))
                             }
-                        }
-                    )
-                    SettingsItem(
-                        title = stringResource(R.string.settings_range_end),
-                        subtitle = range.end.ifBlank { stringResource(R.string.settings_range_end_today) },
-                        onClick = {
+                        },
+                        onPickEnd = {
                             showDatePicker(context, range.end) { picked ->
                                 mainViewModel.setDateRange(range.copy(end = picked, enabled = true))
                             }
-                        }
+                        },
+                        onClearEnd = { mainViewModel.setDateRange(range.copy(end = "")) }
                     )
-                    if (range.end.isNotBlank()) {
-                        SettingsItem(
-                            title = stringResource(R.string.settings_range_clear_end),
-                            onClick = { mainViewModel.setDateRange(range.copy(end = "")) }
-                        )
-                    }
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -452,6 +448,80 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * 표시 기간의 시작일·종료일 한 줄. 왼쪽 칸이 시작일, 물결 뒤 오른쪽 칸이 종료일.
+ * 비어 있는 칸은 흐리게 "선택"·"오늘까지"로 보인다. 종료일 칸은 길게 누르면 비운다.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun DateRangeRow(
+    start: String,
+    end: String,
+    onPickStart: () -> Unit,
+    onPickEnd: () -> Unit,
+    onClearEnd: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+        Text(text = stringResource(R.string.settings_range_dates), style = MaterialTheme.typography.bodyLarge)
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            DateCell(
+                text = start.ifBlank { stringResource(R.string.settings_range_not_set) },
+                filled = start.isNotBlank(),
+                onClick = onPickStart,
+                onLongClick = null,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "~",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 10.dp)
+            )
+            DateCell(
+                text = end.ifBlank { stringResource(R.string.settings_range_end_today) },
+                filled = end.isNotBlank(),
+                onClick = onPickEnd,
+                onLongClick = if (end.isNotBlank()) onClearEnd else null,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        if (end.isNotBlank()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = stringResource(R.string.settings_range_clear_end_hint),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun DateCell(
+    text: String,
+    filled: Boolean,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)?,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (filled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

@@ -161,11 +161,10 @@
     <string name="settings_section_range">표시 기간</string>
     <string name="settings_range_enabled">기간만 보기</string>
     <string name="settings_range_enabled_subtitle">켜면 아래 기간의 기록만 목록·그래프·정산 요약에 보입니다</string>
-    <string name="settings_range_start">시작일</string>
-    <string name="settings_range_end">종료일</string>
-    <string name="settings_range_not_set">선택 안 함</string>
-    <string name="settings_range_end_today">비우면 오늘까지</string>
-    <string name="settings_range_clear_end">종료일 지우기</string>
+    <string name="settings_range_dates">시작일 ~ 종료일</string>
+    <string name="settings_range_not_set">선택</string>
+    <string name="settings_range_end_today">오늘까지</string>
+    <string name="settings_range_clear_end_hint">종료일을 길게 누르면 지워져 오늘까지로 돌아갑니다</string>
     <string name="record_list_range">기간 %1$s ~ %2$s</string>
     <string name="range_today">오늘</string>
 

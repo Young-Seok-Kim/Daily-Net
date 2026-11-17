@@ -163,11 +163,10 @@
     <string name="settings_section_range">Visible period</string>
     <string name="settings_range_enabled">Limit to a period</string>
     <string name="settings_range_enabled_subtitle">When on, only records in the period below appear in the list, charts and summaries</string>
-    <string name="settings_range_start">Start date</string>
-    <string name="settings_range_end">End date</string>
-    <string name="settings_range_not_set">Not set</string>
-    <string name="settings_range_end_today">Leave empty for today</string>
-    <string name="settings_range_clear_end">Clear end date</string>
+    <string name="settings_range_dates">Start ~ end</string>
+    <string name="settings_range_not_set">Pick</string>
+    <string name="settings_range_end_today">Until today</string>
+    <string name="settings_range_clear_end_hint">Long-press the end date to clear it and go back to today</string>
     <string name="record_list_range">Period %1$s ~ %2$s</string>
     <string name="range_today">today</string>
 
