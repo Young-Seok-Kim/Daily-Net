@@ -14,6 +14,33 @@
 
 ---
 
+## v1.16.3 (b61) — 2026-11-17
+
+### 스토어 문구
+
+하루 결산을 영수증 카드로 만들어 공유할 수 있습니다. 일일 기록 화면의 공유 아이콘을 누르면 그날의 끼니·기초대사·걸음·운동과 최종 순칼로리(NET), 탄단지 섭취, AI 한줄평이 담긴 영수증 이미지가 만들어지고, 카카오톡·인스타그램 등 원하는 앱으로 바로 보낼 수 있습니다.
+
+### 상세 내역
+
+- **결산 영수증 공유** (`ui/view/DailyReceipt.kt`, `ui/view/DailyReceiptImage.kt`, `util/ReceiptShare.kt`)
+  - `DailyReceiptBuilder`: 기록 한 건을 영수증 줄로 옮기는 산수. 끼니(+kcal) → 기초대사(−kcal) → 걸음 → 운동(−kcal) 순서.
+    0kcal 끼니는 줄을 만들지 않고, 걸음 항목에는 "운동 ·"을 붙이지 않는다 (서버가 운동 목록에 넣어 주는 "걸음 9,420보"를
+    `functions/exerciseCheck.js`와 같은 규칙으로 알아본다). `AnalysisDetail` 구조가 없는 b33 이전 기록은 적은 글·집계 컬럼으로
+    채우고 AI 한줄평 상자는 통째로 뺀다. 문구는 `ReceiptLabels`로 받아 언어별 리소스를 그대로 쓴다 (영어 사용자에게 한국어 영수증이
+    나가지 않게). 순칼로리 0은 적자 쪽, 탄단지·NET은 화면과 같은 집계 컬럼 기준
+  - `DailyReceiptImage`: `android.graphics.Canvas`로 1080px 폭 PNG를 직접 그린다. 위·아래 톱니 종이, DAILYNET 배지·날짜·영수증 번호,
+    항목 표, NET 카드(감량 적자 달성/섭취 초과 배지), 탄단지 막대·g, AI 한줄평 상자, 가운데 정렬 바코드, 푸터. 항목이 많거나 메뉴가
+    길면 두 줄까지 접고 말줄임하며, 내용 높이를 먼저 재서 Bitmap 높이를 정한다. 색은 `Color.kt` 라이트 팔레트 고정
+  - `ReceiptShare` + `res/xml/file_paths.xml`: `cacheDir/receipts`에 PNG를 쓰고 기존 FileProvider의 content URI로
+    `ACTION_SEND(image/png)` + chooser. `EXTRA_STREAM`만으로는 URI 읽기 권한을 못 받는 구형 카카오톡을 위해 `ClipData`도 함께 넣는다.
+    사진첩(MediaStore)에 넣지 않으므로 권한이 늘지 않고, 공유한 이전 영수증은 지운다. 매니페스트는 FileProvider가 이미 있어 경로만 추가
+  - `DailyRecordScreen`: 상단바 공유 아이콘과 AI 리포트 제목 줄의 공유 아이콘 두 곳에서 같은 동작. 결산이 없는 날은 버튼을 숨기고
+    `receipt_share_empty`("이 날짜는 아직 결산한 기록이 없어요"), 렌더 실패는 `receipt_share_failed`로 안내
+  - 테스트 `DailyReceiptTest` 13건: 줄 순서·부호·합계, 걸음 항목, 운동 시간 표기, 옛 기록 폴백, 0kcal 끼니 제외, 날짜/일련번호, 숫자 표기
+- 일일 기록 제목 줄의 "영수증" 글자를 빼고 아이콘만 남겼다 (`receipt_share_action` 문자열 제거, 접근성 문구는 상단바와 같은 `receipt_share`)
+
+---
+
 ## v1.16.2 (b60) — 2026-11-17
 
 ### 스토어 문구
