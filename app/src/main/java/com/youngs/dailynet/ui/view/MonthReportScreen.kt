@@ -80,7 +80,7 @@ fun MonthReportScreen(
     onBack: () -> Unit,
     onNavigateToDetail: (String) -> Unit
 ) {
-    val allRecords by mainViewModel.allDailyRecord.collectAsState()
+    val allRecords by mainViewModel.visibleRecords.collectAsState()
 
     // 넘길 수 있는 달 목록 (오름차순). 기록이 바뀌어 달이 늘면 아래 key()로 페이저를 다시 만든다.
     val months = remember(allRecords, yearMonth) { monthRangeOf(allRecords, yearMonth) }

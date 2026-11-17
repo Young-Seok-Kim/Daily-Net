@@ -208,7 +208,9 @@ fun MainScreen(
     /** 주("202646")·연("2026") 정산 상세를 연다. AI 평가 전문은 거기서 본다 */
     onNavigateToPeriod: (PeriodKind, String) -> Unit = { _, _ -> },
 ) {
-    val dailyRecords by mainViewModel.allDailyRecord.collectAsState()
+    // 표시 기간 설정이 켜져 있으면 그 안의 기록만 온다 (MainViewModel.visibleRecords)
+    val dailyRecords by mainViewModel.visibleRecords.collectAsState()
+    val dateRange by mainViewModel.dateRange.collectAsState()
     val totalCalories by mainViewModel.totalNetCalories.collectAsState()
     val weeklyCaloriesMap by mainViewModel.weeklyCaloriesMap.collectAsState()
     var selectedDateToDelete by remember { mutableStateOf<String?>(null) }
@@ -421,6 +423,20 @@ fun MainScreen(
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.padding(top = 12.dp, bottom = 10.dp, start = 4.dp)
                     )
+                    // 표시 기간이 켜져 있으면 어디부터 어디까지 보고 있는지 제목 밑에 적는다.
+                    // 이게 없으면 기록이 사라진 줄 알고 당황한다.
+                    if (dateRange.active) {
+                        Text(
+                            text = stringResource(
+                                R.string.record_list_range,
+                                dateRange.start.ifBlank { mainViewModel.defaultStartDate().ifBlank { "…" } },
+                                dateRange.end.ifBlank { stringResource(R.string.range_today) }
+                            ),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
+                        )
+                    }
                 }
 
                 itemsIndexed(
@@ -621,11 +637,32 @@ fun MainScreen(
                                     value = String.format(Locale.getDefault(), "%.1f cm", p.height),
                                     modifier = Modifier.weight(1f)
                                 )
+                                // 기준이 되는 시작 몸무게. 표시 기간이 켜져 있으면 가입 때 적은 값이 아니라
+                                // 그 기간에 처음 적은 체중이다 — 사용자에게는 시작일부터 다시 시작한 것처럼 보여야 한다.
+                                // (dailyRecords는 최신순이라 lastOrNull이 가장 이른 날이다)
+                                val baselineWeight = if (dateRange.active) {
+                                    dailyRecords.lastOrNull { it.weight > 0f }?.weight ?: p.initialWeight
+                                } else {
+                                    p.initialWeight
+                                }
                                 StatCell(
                                     label = stringResource(R.string.profile_start_weight),
-                                    value = String.format(Locale.getDefault(), "%.1f kg", p.initialWeight),
+                                    value = String.format(Locale.getDefault(), "%.1f kg", baselineWeight),
                                     modifier = Modifier.weight(1f)
                                 )
+                                // 시작 몸무게가 "기준점"이려면 지금 어디까지 왔는지가 옆에 있어야 한다.
+                                // 정산에 적은 가장 최근 체중과 시작 대비 차이. 체중 기록이 없으면 자리를 비운다.
+                                dailyRecords.firstOrNull { it.weight > 0f }?.weight?.let { current ->
+                                    StatCell(
+                                        label = stringResource(
+                                            R.string.profile_current_weight,
+                                            String.format(Locale.getDefault(), "%+.1f", current - baselineWeight)
+                                        ),
+                                        value = String.format(Locale.getDefault(), "%.1f kg", current),
+                                        valueColor = DnTheme.net.of(current - baselineWeight),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
                             }
                         }
 

@@ -10,7 +10,10 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +30,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.youngs.dailynet.ui.viewmodel.MainViewModel.DateRange
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 import com.youngs.dailynet.BuildConfig
 import com.youngs.dailynet.R
 import com.youngs.dailynet.data.calendar.GoogleCalendarSync
@@ -246,6 +253,40 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
+                // 표시 기간. 다이어트를 다시 시작한 날부터만 보고 싶을 때 켠다. 종료일을 비우면 오늘까지.
+                val range by mainViewModel.dateRange.collectAsState()
+                SettingsSection(stringResource(R.string.settings_section_range)) {
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.settings_range_enabled),
+                        subtitle = stringResource(R.string.settings_range_enabled_subtitle),
+                        checked = range.enabled,
+                        onCheckedChange = { mainViewModel.setDateRange(range.copy(enabled = it)) }
+                    )
+                    // 시작일 ~ 종료일을 한 줄에. 각 칸을 누르면 그 날짜를 고른다.
+                    // 종료일 칸을 길게 누르면 비워서 "오늘까지"로 돌아간다.
+                    DateRangeRow(
+                        // 시작일을 안 골랐으면 가입일이 기본값이다. 칸에도 그 날짜를 보여준다
+                        start = range.start.ifBlank { mainViewModel.defaultStartDate() },
+                        end = range.end,
+                        onPickStart = {
+                            showDatePicker(context, range.start.ifBlank { mainViewModel.defaultStartDate() }) { picked ->
+                                mainViewModel.setDateRange(range.copy(start = picked, enabled = true))
+                            }
+                        },
+                        onPickEnd = {
+                            showDatePicker(context, range.end) { picked ->
+                                mainViewModel.setDateRange(range.copy(end = picked, enabled = true))
+                            }
+                        },
+                        onClearEnd = { mainViewModel.setDateRange(range.copy(end = "")) },
+                        // 시작일을 길게 누르면 비워서 가입일로 돌아간다 (빈 값 = 가입일)
+                        onClearStart = { mainViewModel.setDateRange(range.copy(start = "")) },
+                        startIsDefault = range.start.isBlank()
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
                 // 정산 목록의 주·월·연 구분선. 연 구분선은 올해 첫 기록 위에 항상 나오므로
                 // 거슬리면 여기서 끈다. 끄면 그 계층의 요약 패널과 AI 평가도 같이 사라진다.
                 SettingsSection(stringResource(R.string.settings_section_list)) {
@@ -412,6 +453,94 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+/**
+ * 표시 기간의 시작일·종료일 한 줄. 왼쪽 칸이 시작일, 물결 뒤 오른쪽 칸이 종료일.
+ * 비어 있는 칸은 흐리게 "선택"·"오늘까지"로 보인다. 종료일 칸은 길게 누르면 비운다.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun DateRangeRow(
+    start: String,
+    end: String,
+    onPickStart: () -> Unit,
+    onPickEnd: () -> Unit,
+    onClearEnd: () -> Unit,
+    onClearStart: () -> Unit,
+    /** 시작일을 따로 고르지 않아 가입일이 보이는 상태인지. 그러면 길게 눌러도 할 일이 없다 */
+    startIsDefault: Boolean
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+        Text(text = stringResource(R.string.settings_range_dates), style = MaterialTheme.typography.bodyLarge)
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            DateCell(
+                text = start.ifBlank { stringResource(R.string.settings_range_not_set) },
+                filled = start.isNotBlank(),
+                onClick = onPickStart,
+                onLongClick = if (startIsDefault) null else onClearStart,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "~",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 10.dp)
+            )
+            DateCell(
+                text = end.ifBlank { stringResource(R.string.settings_range_end_today) },
+                filled = end.isNotBlank(),
+                onClick = onPickEnd,
+                onLongClick = if (end.isNotBlank()) onClearEnd else null,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.settings_range_long_press_hint),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun DateCell(
+    text: String,
+    filled: Boolean,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)?,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (filled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/** 날짜 하나를 고르는 시스템 대화상자. [initial]이 비어 있거나 못 읽으면 오늘부터 시작한다 */
+private fun showDatePicker(context: android.content.Context, initial: String, onPicked: (String) -> Unit) {
+    val cal = Calendar.getInstance()
+    runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(initial) }.getOrNull()?.let { cal.time = it }
+    android.app.DatePickerDialog(
+        context,
+        { _, year, month, day -> onPicked(String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, day)) },
+        cal.get(Calendar.YEAR),
+        cal.get(Calendar.MONTH),
+        cal.get(Calendar.DAY_OF_MONTH)
+    ).show()
 }
 
 /** 제목 + 카드로 묶인 설정 그룹. 항목을 늘리려면 content 안에 SettingsItem만 더 넣으면 된다. */

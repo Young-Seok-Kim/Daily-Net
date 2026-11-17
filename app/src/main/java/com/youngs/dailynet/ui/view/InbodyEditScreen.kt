@@ -86,6 +86,8 @@ fun InbodyEditScreen(
     val context = LocalContext.current
     val userProfile by mainViewModel.userProfile.collectAsState()
     val records by mainViewModel.inbodyRecords.collectAsState()
+    // BMI 대체 체중용. 측정 체중이 없으면 정산에 적은 최근 체중을 쓴다 (시작 몸무게는 그 다음)
+    val dailyRecords by mainViewModel.allDailyRecord.collectAsState()
     val photoProcessing by mainViewModel.inbodyPhotoProcessing.collectAsState()
     val analyzingFor by mainViewModel.inbodyAnalyzingFor.collectAsState()
     val isNew = measuredAt.isBlank()
@@ -351,9 +353,10 @@ fun InbodyEditScreen(
 
             // ── 내 위치 막대 ──
             // 지금 칸에 적힌 값으로 그린다. 저장 전이라도 숫자를 넣는 대로 위치가 움직인다.
-            // BMI는 측정 체중(없으면 프로필 시작 체중)과 프로필 키로 계산한다.
+            // BMI는 측정 체중(없으면 최근 기록 체중, 그것도 없으면 시작 몸무게)과 프로필 키로 계산한다.
             val heightCm = userProfile?.height ?: 0f
-            val weightForBmi = if (draft.weight > 0f) draft.weight else (userProfile?.initialWeight ?: 0f)
+            val weightForBmi = if (draft.weight > 0f) draft.weight
+            else dailyRecords.firstOrNull { it.weight > 0f }?.weight ?: (userProfile?.initialWeight ?: 0f)
             val bmi = if (heightCm > 0f && weightForBmi > 0f) weightForBmi / ((heightCm / 100f) * (heightCm / 100f)) else 0f
             if (bmi > 0f || draft.bodyFatPercent > 0f) {
                 Text(

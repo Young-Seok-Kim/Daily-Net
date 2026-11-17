@@ -50,7 +50,7 @@ fun PeriodReportScreen(
     label: String,
     onBack: () -> Unit
 ) {
-    val allRecords by mainViewModel.allDailyRecord.collectAsState()
+    val allRecords by mainViewModel.visibleRecords.collectAsState()
     val userProfile by mainViewModel.userProfile.collectAsState()
     val context = LocalContext.current
 

@@ -69,7 +69,7 @@ fun WeightTrendScreen(
     onBack: () -> Unit,
     onNavigateToDetail: (String) -> Unit
 ) {
-    val records by mainViewModel.allDailyRecord.collectAsState()
+    val records by mainViewModel.visibleRecords.collectAsState()
 
     // 몸무게가 "이전 날짜 대비 바뀐 날"만 남긴다.
     // 예) 55.3 / 55.3 / 55.3 / 54.0 → 55.3(최초) 과 54.0(바뀐 날)만 표시.

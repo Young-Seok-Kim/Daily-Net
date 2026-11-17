@@ -55,6 +55,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -278,7 +279,7 @@ class MainViewModel @Inject constructor(
                 val data = inbodyRepository.get(measuredAt) ?: return@launch
                 if (!data.hasData) return@launch
 
-                val text = geminiManager.analyzeInbody(profile, data)
+                val text = geminiManager.analyzeInbody(profile, data, dailyRecordDao.getLatestWeight() ?: 0f)
                 if (text == null) {
                     toast(R.string.toast_inbody_analysis_failed)
                     return@launch
@@ -435,6 +436,52 @@ class MainViewModel @Inject constructor(
             PeriodKind.MONTH -> showMonthDivider = shown
             PeriodKind.YEAR -> showYearDivider = shown
         }
+    }
+
+    // ── 표시 기간 ─────────────────────────────────────────────────
+    // 설정에서 켜면 목록·그래프·주/월/연 요약·정산 화면이 이 기간의 기록만 본다.
+    // 종료일을 비우면 오늘까지다. 다이어트를 다시 시작한 날부터만 보고 싶을 때 쓴다.
+    // Room의 기록 자체는 그대로고(allDailyRecord), 화면이 보는 쪽(visibleRecords)만 거른다.
+    data class DateRange(
+        val enabled: Boolean = false,
+        /** yyyy-MM-dd. 비어 있으면 가입일부터 ([defaultStartDate]) */
+        val start: String = "",
+        /** yyyy-MM-dd. 비어 있으면 오늘까지 */
+        val end: String = ""
+    ) {
+        val active: Boolean get() = enabled
+    }
+
+    /** 시작일을 고르지 않았을 때 쓰는 날 = 가입일. 프로필이 아직 없으면 빈 문자열(하한 없음) */
+    fun defaultStartDate(): String {
+        val createdAt = userProfile.value?.createdAt ?: return ""
+        return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(createdAt))
+    }
+
+    private val _dateRange = MutableStateFlow(
+        DateRange(
+            enabled = prefs.getBoolean(Constants.KEY_RANGE_ENABLED, false),
+            start = prefs.getString(Constants.KEY_RANGE_START, "").orEmpty(),
+            end = prefs.getString(Constants.KEY_RANGE_END, "").orEmpty()
+        )
+    )
+    val dateRange = _dateRange.asStateFlow()
+
+    fun setDateRange(range: DateRange) {
+        prefs.edit()
+            .putBoolean(Constants.KEY_RANGE_ENABLED, range.enabled)
+            .putString(Constants.KEY_RANGE_START, range.start)
+            .putString(Constants.KEY_RANGE_END, range.end)
+            .apply()
+        _dateRange.value = range
+    }
+
+    /** 기간 설정이 꺼져 있거나 비어 있으면 그대로, 아니면 날짜가 [start, end(없으면 오늘)] 안인 것만 */
+    private fun filterByDateRange(list: List<DailyRecordModel>, range: DateRange): List<DailyRecordModel> {
+        if (!range.active) return list
+        val start = range.start.ifBlank { defaultStartDate() }
+        val end = range.end.ifBlank { today }
+        return list.filter { (start.isBlank() || it.date >= start) && it.date <= end }
     }
 
     // ── 주·월·연 AI 평가 ──────────────────────────────────────────
@@ -932,7 +979,21 @@ class MainViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
-    val totalNetCalories: StateFlow<Int> = allDailyRecord
+    /**
+     * 화면이 보는 기록. 표시 기간([dateRange])이 켜져 있으면 그 안의 것만이다.
+     * 목록·추이 차트·누적 결산·주/월/연 요약·월 정산·체중 추이가 전부 이걸 본다.
+     * 분석 요청의 대체 체중처럼 "기록 전체"가 필요한 곳만 [allDailyRecord]를 쓴다.
+     */
+    val visibleRecords: StateFlow<List<DailyRecordModel>> = combine(allDailyRecord, _dateRange, userProfile) { list, range, _ ->
+        // 프로필(가입일)도 같이 본다. 시작일을 비워 두면 가입일부터라 프로필이 늦게 오면 다시 걸러야 한다
+        filterByDateRange(list, range)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    val totalNetCalories: StateFlow<Int> = visibleRecords
         .map { list -> list.sumOf { it.netCalories } }
         .stateIn(
             scope = viewModelScope,
@@ -952,7 +1013,7 @@ class MainViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(DailyRecordModel(date = today))
     val uiState = _uiState.asStateFlow()
 
-    val weeklyCaloriesMap: StateFlow<Map<Int, Int>> = allDailyRecord
+    val weeklyCaloriesMap: StateFlow<Map<Int, Int>> = visibleRecords
         .map { list ->
             list.groupBy { getWeekIdentifier(it.date) }
                 .mapValues { entry ->
@@ -1042,43 +1103,6 @@ class MainViewModel @Inject constructor(
     fun insertFavorites(fieldName: String, items: List<String>) {
         if (items.isEmpty()) return
         updateField(fieldName, FavoriteRank.appendAll(fieldText(fieldName), items))
-    }
-
-    /**
-     * "어제와 같게". 어제 같은 칸에 적은 내용을 통째로 가져온다.
-     *
-     * 칸이 비어 있으면 그대로 넣고, 이미 적은 게 있으면 뒤에 이어 붙인다. 어제 기록이 없거나
-     * 그 칸이 비어 있으면 토스트로 알린다. 어제 기록은 Room에 없으면 Firestore까지 찾아본다.
-     */
-    fun copyFromYesterday(fieldName: String) {
-        val date = _uiState.value.date
-        val yesterday = runCatching {
-            val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            Calendar.getInstance().apply {
-                time = fmt.parse(date)!!
-                add(Calendar.DAY_OF_MONTH, -1)
-            }.let { fmt.format(it.time) }
-        }.getOrNull() ?: return
-
-        viewModelScope.launch {
-            val record = repository.getDailyRecordByDate(yesterday)
-            val text = when (fieldName) {
-                "breakfast" -> record?.breakfast
-                "lunch" -> record?.lunch
-                "dinner" -> record?.dinner
-                "snack" -> record?.snack
-                "exercise" -> record?.exercise
-                else -> null
-            }.orEmpty()
-
-            if (text.isBlank()) {
-                val label = categoryList.firstOrNull { it.fieldName == fieldName }
-                    ?.let { context.getString(it.labelRes) } ?: fieldName
-                toast(R.string.fav_yesterday_empty, label)
-                return@launch
-            }
-            insertFavorites(fieldName, FavoriteRank.splitItems(text))
-        }
     }
 
     /** [field] 칸에서만 고정/해제. 점심에서 고정해도 아침 칸에는 영향이 없다 */
