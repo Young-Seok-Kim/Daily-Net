@@ -12,6 +12,8 @@ exports.extractMeal = require("./extractMeal").extractMeal;
 exports.extractInbody = require("./extractInbody").extractInbody;
 // 인바디 결과 해석. 저장할 때 한 번 부르고, 분석 횟수는 소모하지 않는다.
 exports.analyzeInbody = require("./analyzeInbody").analyzeInbody;
+// 주·월·연 정산의 식단·운동 평가. 정산 목록의 구분선 패널과 월 정산 화면이 부른다.
+exports.evaluatePeriod = require("./evaluatePeriod").evaluatePeriod;
 
 // 구독 검증. 앱이 보낸 "나 구독자야"를 믿지 않고 서버가 Play에 직접 확인한다.
 exports.verifySubscription = require("./subscription").verifySubscription;

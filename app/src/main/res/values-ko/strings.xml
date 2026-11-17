@@ -136,6 +136,33 @@
     <string name="month_summary_weight">체중 변화</string>
     <string name="month_summary_open">이 달 한눈에 보기</string>
 
+    <!-- 연간 요약 (연 구분선을 누르면 펼쳐짐) -->
+    <string name="year_summary_total">연 합계</string>
+
+    <!-- 주·월·연 AI 평가 -->
+    <string name="period_eval_title">AI 평가</string>
+    <string name="period_eval_intro">이 기간의 식단과 운동을 AI가 평가합니다.</string>
+    <string name="period_eval_button">AI 평가 받기</string>
+    <string name="period_eval_loading">평가하는 중…</string>
+    <string name="period_eval_score">%1$d점</string>
+    <string name="period_eval_diet">식단</string>
+    <string name="period_eval_exercise">운동</string>
+    <string name="period_eval_actions">다음에 할 일</string>
+    <string name="period_eval_footer">%1$s 평가 · 기록 %2$d일 기준</string>
+    <string name="period_eval_outdated">그 뒤로 기록이 바뀌었습니다.</string>
+    <string name="period_eval_again">다시 평가</string>
+    <string name="toast_period_eval_failed">AI 평가를 받지 못했어요. 다시 시도해 주세요.</string>
+    <string name="toast_period_eval_limit">오늘 AI 평가 횟수를 모두 사용했어요. 내일 다시 시도해 주세요.</string>
+
+    <!-- 설정: 정산 목록 구분선 -->
+    <string name="settings_section_list">정산 목록</string>
+    <string name="settings_show_year_divider">연 구분선</string>
+    <string name="settings_show_year_divider_subtitle">연도 첫 기록 위에 나오며, 연 요약과 AI 평가를 펼쳐 볼 수 있습니다</string>
+    <string name="settings_show_month_divider">월 구분선</string>
+    <string name="settings_show_month_divider_subtitle">달마다 요약·AI 평가·월 정산 화면으로 가는 줄</string>
+    <string name="settings_show_week_divider">주 구분선</string>
+    <string name="settings_show_week_divider_subtitle">주차마다 요약과 AI 평가를 펼쳐 볼 수 있는 줄</string>
+
     <!-- 월 정산 화면 -->
     <string name="month_report_daily_title">일별 순칼로리</string>
     <string name="month_report_daily_hint">막대를 누르면 위에 정보가 뜨고, 한 번 더 누르면 그날 정산이 열립니다.</string>

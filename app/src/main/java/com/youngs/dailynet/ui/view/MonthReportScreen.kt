@@ -293,6 +293,15 @@ private fun MonthReportPage(
 
         MonthHeadlineCard(summary)
 
+        // 목록의 월 패널과 같은 평가(같은 저장 키)다. 여기서 받으면 목록에서도 바로 보인다.
+        PeriodEvaluationSection(
+            mainViewModel = mainViewModel,
+            kind = PeriodKind.MONTH,
+            label = yearMonth,
+            title = monthTitleOf(yearMonth),
+            records = records
+        )
+
         DailyNetChartCard(
             yearMonth = yearMonth,
             records = records,

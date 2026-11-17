@@ -89,6 +89,7 @@ AI는 Gemini를 씁니다. 앱은 AI 키를 갖지 않고 모든 분석은 서�
        ├─ extractMeal        음식 사진 → 메뉴 텍스트
        ├─ extractInbody      인바디 결과지 사진 → 숫자
        ├─ analyzeInbody      인바디 해석 리포트
+       ├─ evaluatePeriod     주·월·연 정산 AI 평가 (점수·총평·식단·운동·할 일)
        ├─ verifySubscription 구매 토큰 검증
        └─ playSubscriptionEvent  Play RTDN(Pub/Sub) 수신
               ├─▶ [ Gemini ]      텍스트 + 이미지, 재시도·대체 모델·시간 예산 관리
@@ -104,9 +105,9 @@ AI는 Gemini를 씁니다. 앱은 AI 키를 갖지 않고 모든 분석은 서�
 
 | 묶음 | 파일 | 역할 |
 |---|---|---|
-| 진입점 | `analyzeDiet` `extractMeal` `extractInbody` `analyzeInbody` `subscription` | 배포되는 함수 |
+| 진입점 | `analyzeDiet` `extractMeal` `extractInbody` `analyzeInbody` `evaluatePeriod` `subscription` | 배포되는 함수 |
 | 정책 | `quota` `requestGuard` | 인증, 하루 사용량(Firestore 트랜잭션, 실패 시 환불), 봇·스캐너 요청 거절 |
-| 계산 | `exerciseCalc` `dailyTotals` `shareItems` `nutrition` `inbody` | 운동 소모량(METs·걸음), 끼니 합계·탄단지, 나눠 먹은 양, 권장 섭취량, 인바디 지표 |
+| 계산 | `exerciseCalc` `dailyTotals` `shareItems` `nutrition` `inbody` `periodEval` | 운동 소모량(METs·걸음), 끼니 합계·탄단지, 나눠 먹은 양, 권장 섭취량, 인바디 지표, 기간 집계 |
 | 입력 정리 | `splitInput` `mergeItems` `extractItems` | 입력 분리, 중복 항목 병합, 사진 결과를 입력 텍스트로 변환 |
 | 검증 | `kcalCheck` `exerciseCheck` | 열량·운동 강도가 상식 범위인지 로그로만 점검(값은 바꾸지 않음) |
 | AI · 문구 | `gemini` `labels` | 모델 호출·JSON 복구·재시도, 언어별 리포트 문구 |

@@ -21,6 +21,10 @@ object Constants {
     const val ANALYZE_INBODY_URL =
         "https://asia-northeast3-daily-net-95d28.cloudfunctions.net/analyzeInbody"
 
+    /** 주·월·연 정산의 식단·운동을 평가해 주는 함수 주소 */
+    const val EVALUATE_PERIOD_URL =
+        "https://asia-northeast3-daily-net-95d28.cloudfunctions.net/evaluatePeriod"
+
     /** 구매 토큰을 검증받는 함수 주소. 구독 여부는 서버가 Play에 물어봐서 정한다. */
     const val VERIFY_SUBSCRIPTION_URL =
         "https://asia-northeast3-daily-net-95d28.cloudfunctions.net/verifySubscription"
@@ -82,6 +86,13 @@ object Constants {
      * 로컬 데이터를 지울 때 함께 지워서 다음 로그인 뒤 다시 받는다.
      */
     const val KEY_FAVORITES_PULLED = "favorites_pulled"
+
+    // ── 정산 목록 구분선 표시 ──────────────────────────────────────
+    // 주·월·연 구분선(요약 패널·AI 평가가 달린 줄)을 목록에 보일지. 기본은 전부 켬.
+    // 연 구분선은 연도 첫 기록 위에 항상 나오므로, 번거로우면 여기서 끈다.
+    const val KEY_SHOW_WEEK_DIVIDER = "show_week_divider"
+    const val KEY_SHOW_MONTH_DIVIDER = "show_month_divider"
+    const val KEY_SHOW_YEAR_DIVIDER = "show_year_divider"
 
     // ── 구글 캘린더 연동 ──────────────────────────────────────────
     /** 운동을 구글 캘린더에 넣을지 */

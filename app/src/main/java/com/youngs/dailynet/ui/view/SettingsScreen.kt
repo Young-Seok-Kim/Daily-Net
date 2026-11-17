@@ -246,6 +246,31 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
+                // 정산 목록의 주·월·연 구분선. 연 구분선은 올해 첫 기록 위에 항상 나오므로
+                // 거슬리면 여기서 끈다. 끄면 그 계층의 요약 패널과 AI 평가도 같이 사라진다.
+                SettingsSection(stringResource(R.string.settings_section_list)) {
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.settings_show_year_divider),
+                        subtitle = stringResource(R.string.settings_show_year_divider_subtitle),
+                        checked = mainViewModel.showYearDivider,
+                        onCheckedChange = { mainViewModel.setDividerShown(PeriodKind.YEAR, it) }
+                    )
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.settings_show_month_divider),
+                        subtitle = stringResource(R.string.settings_show_month_divider_subtitle),
+                        checked = mainViewModel.showMonthDivider,
+                        onCheckedChange = { mainViewModel.setDividerShown(PeriodKind.MONTH, it) }
+                    )
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.settings_show_week_divider),
+                        subtitle = stringResource(R.string.settings_show_week_divider_subtitle),
+                        checked = mainViewModel.showWeekDivider,
+                        onCheckedChange = { mainViewModel.setDividerShown(PeriodKind.WEEK, it) }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
                 SettingsSection(stringResource(R.string.settings_section_notification)) {
                     SettingsSwitchItem(
                         title = stringResource(R.string.settings_reminder),

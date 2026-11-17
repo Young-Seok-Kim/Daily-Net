@@ -23,6 +23,14 @@ import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.data.model.AnalysisUsage
 import com.youngs.dailynet.data.model.InbodyData
+import com.youngs.dailynet.data.model.PeriodEvaluation
+import com.youngs.dailynet.data.network.EvaluationLimitException
+import com.youngs.dailynet.data.repository.PeriodEvaluationRepository
+import com.youngs.dailynet.ui.view.PeriodKind
+import com.youngs.dailynet.ui.view.buildPeriodEvalRequest
+import com.youngs.dailynet.ui.view.periodKeyOf
+import com.youngs.dailynet.ui.view.recordsFingerprint
+import com.youngs.dailynet.util.Constants
 import com.youngs.dailynet.data.network.AnalysisLimitException
 import com.youngs.dailynet.data.network.BillingManager.Companion.PRODUCT_ID_MONTHLY
 import com.youngs.dailynet.data.network.GeminiManager
@@ -80,6 +88,7 @@ class MainViewModel @Inject constructor(
     private val repository: DailyRecordRepository,
     private val favoriteRepository: FavoriteRepository, // 입력 즐겨찾기 (분석 결과에서 자동 수집)
     private val inbodyRepository: InbodyRepository,     // 인바디 측정 이력
+    private val periodEvaluationRepository: PeriodEvaluationRepository, // 주·월·연 AI 평가 저장소
     private val dailyRecordDao: DailyRecordDao,
     private val userProfileDao: UserProfileDao,
     val auth: FirebaseAuth,
@@ -394,6 +403,113 @@ class MainViewModel @Inject constructor(
     // 화면은 아까와 다른 모습이 된다. 스크롤 위치와 같은 이유로 여기에 둔다.
     var expandedWeeks by mutableStateOf(setOf<Int>())
     var expandedMonths by mutableStateOf(setOf<String>())
+    var expandedYears by mutableStateOf(setOf<String>())
+
+    // ── 정산 목록 구분선 표시 설정 ─────────────────────────────────
+    // 주·월·연 구분선을 목록에 보일지. 설정 화면의 스위치가 바꾸고, 목록이 바로 따라간다.
+    private val prefs
+        get() = context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
+
+    var showWeekDivider by mutableStateOf(prefs.getBoolean(Constants.KEY_SHOW_WEEK_DIVIDER, true))
+        private set
+    var showMonthDivider by mutableStateOf(prefs.getBoolean(Constants.KEY_SHOW_MONTH_DIVIDER, true))
+        private set
+    var showYearDivider by mutableStateOf(prefs.getBoolean(Constants.KEY_SHOW_YEAR_DIVIDER, true))
+        private set
+
+    fun setDividerShown(kind: PeriodKind, shown: Boolean) {
+        val key = when (kind) {
+            PeriodKind.WEEK -> Constants.KEY_SHOW_WEEK_DIVIDER
+            PeriodKind.MONTH -> Constants.KEY_SHOW_MONTH_DIVIDER
+            PeriodKind.YEAR -> Constants.KEY_SHOW_YEAR_DIVIDER
+        }
+        prefs.edit().putBoolean(key, shown).apply()
+        when (kind) {
+            PeriodKind.WEEK -> showWeekDivider = shown
+            PeriodKind.MONTH -> showMonthDivider = shown
+            PeriodKind.YEAR -> showYearDivider = shown
+        }
+    }
+
+    // ── 주·월·연 AI 평가 ──────────────────────────────────────────
+    // 키는 periodKeyOf ("week-202646" 등). 패널이 처음 보일 때 Firestore에서 한 번 읽어 채우고,
+    // "AI 평가 받기"를 누르면 서버에 받아 저장한 뒤 여기도 갱신한다.
+    private val _periodEvaluations = MutableStateFlow<Map<String, PeriodEvaluation>>(emptyMap())
+    val periodEvaluations = _periodEvaluations.asStateFlow()
+
+    /** 지금 서버에 평가를 받고 있는 키. 같은 기간을 두 번 누르지 못하게 하고 카드에 진행 표시를 띄운다 */
+    private val _evaluatingPeriods = MutableStateFlow<Set<String>>(emptySet())
+    val evaluatingPeriods = _evaluatingPeriods.asStateFlow()
+
+    /** Firestore에서 읽기를 시도한 키. 패널을 접었다 펴도 다시 읽지 않는다 */
+    private val loadedEvaluationKeys = mutableSetOf<String>()
+
+    fun loadPeriodEvaluation(key: String) {
+        if (currentUserId == null) return
+        if (!loadedEvaluationKeys.add(key)) return
+        viewModelScope.launch {
+            val saved = periodEvaluationRepository.get(key) ?: return@launch
+            _periodEvaluations.update { it + (key to saved) }
+        }
+    }
+
+    /**
+     * 그 기간의 기록을 서버에 보내 AI 평가를 받고 저장한다.
+     *
+     * 저장할 때 기록의 지문([recordsFingerprint])을 같이 둔다. 나중에 기록이 바뀌면 카드가
+     * "그 뒤로 기록이 바뀌었습니다"를 띄우고, 다시 받는 건 사용자가 누를 때만이다.
+     */
+    fun evaluatePeriod(kind: PeriodKind, label: String, title: String, records: List<DailyRecordModel>) {
+        if (currentUserId == null || records.isEmpty()) return
+        val key = periodKeyOf(kind, label)
+        if (key in _evaluatingPeriods.value) return
+
+        viewModelScope.launch {
+            _evaluatingPeriods.update { it + key }
+            try {
+                val profile = userProfileDao.getProfile()
+                if (profile == null) {
+                    toast(R.string.toast_period_eval_failed)
+                    return@launch
+                }
+                val inbody = inbodyRepository.latest()?.takeIf { it.hasData }
+                val fallbackWeight = allDailyRecord.value.firstOrNull { it.weight > 0f }?.weight
+                    ?: profile.initialWeight
+                val request = buildPeriodEvalRequest(
+                    kind = kind,
+                    label = label,
+                    title = title,
+                    records = records,
+                    profile = profile,
+                    inbody = inbody,
+                    today = today,
+                    fallbackWeight = fallbackWeight
+                )
+
+                val result = geminiManager.evaluatePeriod(request)
+                if (result == null) {
+                    toast(R.string.toast_period_eval_failed)
+                    return@launch
+                }
+                val saved = result.copy(
+                    evaluatedAt = today,
+                    fingerprint = recordsFingerprint(records),
+                    recordDays = records.size
+                )
+                _periodEvaluations.update { it + (key to saved) }
+                loadedEvaluationKeys.add(key)
+                runCatching { periodEvaluationRepository.save(key, saved) }
+                    .onFailure { CrashReporter.report("evaluatePeriod:save", it) }
+            } catch (e: EvaluationLimitException) {
+                toast(R.string.toast_period_eval_limit)
+            } catch (e: Exception) {
+                CrashReporter.report("evaluatePeriod", e)
+                toast(R.string.toast_period_eval_failed)
+            } finally {
+                _evaluatingPeriods.update { it - key }
+            }
+        }
+    }
 
     private val _isPagingLoading = MutableStateFlow(false)
     val isPagingLoading = _isPagingLoading.asStateFlow()
@@ -1419,6 +1535,12 @@ class MainViewModel @Inject constructor(
                 }
                 // 다음 계정이 이 계정의 캘린더에 쓰지 않도록 연동 설정도 지운다
                 calendarSync.clear()
+                // 메모리에 든 AI 평가도 비운다. 남의 평가가 다음 계정 패널에 보이면 안 된다
+                _periodEvaluations.value = emptyMap()
+                loadedEvaluationKeys.clear()
+                expandedWeeks = emptySet()
+                expandedMonths = emptySet()
+                expandedYears = emptySet()
                 // 여기만 observeTodayRecordForWidget()에 맡기지 않고 직접 부른다.
                 // 로그아웃 직후에는 화면이 넘어가면서 ViewModel이 정리될 수 있어,
                 // Room 변경 통지가 도착하기 전에 관찰이 끊기면 이전 사용자의 순칼로리가

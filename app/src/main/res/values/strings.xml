@@ -138,6 +138,33 @@
     <string name="month_summary_weight">Weight change</string>
     <string name="month_summary_open">See the whole month</string>
 
+    <!-- Yearly summary (tap the year divider) -->
+    <string name="year_summary_total">Year total</string>
+
+    <!-- AI review of a week / month / year -->
+    <string name="period_eval_title">AI review</string>
+    <string name="period_eval_intro">Let AI review your diet and exercise for this period.</string>
+    <string name="period_eval_button">Get AI review</string>
+    <string name="period_eval_loading">Reviewing…</string>
+    <string name="period_eval_score">%1$d pts</string>
+    <string name="period_eval_diet">Diet</string>
+    <string name="period_eval_exercise">Exercise</string>
+    <string name="period_eval_actions">What to do next</string>
+    <string name="period_eval_footer">Reviewed %1$s · based on %2$d days</string>
+    <string name="period_eval_outdated">Records have changed since then.</string>
+    <string name="period_eval_again">Review again</string>
+    <string name="toast_period_eval_failed">Could not get the AI review. Please try again.</string>
+    <string name="toast_period_eval_limit">You have used all of today\'s AI reviews. Please try again tomorrow.</string>
+
+    <!-- Settings: record list dividers -->
+    <string name="settings_section_list">Record list</string>
+    <string name="settings_show_year_divider">Year dividers</string>
+    <string name="settings_show_year_divider_subtitle">Shown above the first record of each year, with the year summary and AI review</string>
+    <string name="settings_show_month_divider">Month dividers</string>
+    <string name="settings_show_month_divider_subtitle">A row per month with its summary, AI review and the month report</string>
+    <string name="settings_show_week_divider">Week dividers</string>
+    <string name="settings_show_week_divider_subtitle">A row per week with its summary and AI review</string>
+
     <!-- Month report screen -->
     <string name="month_report_daily_title">Net calories by day</string>
     <string name="month_report_daily_hint">Tap a bar to see its details above, and tap again to open that day.</string>

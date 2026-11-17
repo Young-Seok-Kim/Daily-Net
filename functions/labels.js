@@ -50,6 +50,7 @@ const LABELS = {
         evalTitle: "💡 전문가 총평",
         error: "분석 중 오류가 발생했습니다.",
         limitReached: "오늘 분석 횟수를 모두 사용했습니다.",
+        evalLimitReached: "오늘 AI 평가 횟수를 모두 사용했습니다. 내일 다시 시도해 주세요.",
         photoLimitReached: "오늘 사진 인식을 너무 많이 사용했습니다. 내일 다시 시도해 주세요.",
         authRequired: "로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요."
     },
@@ -93,6 +94,7 @@ const LABELS = {
         evalTitle: "💡 Expert Summary",
         error: "An error occurred during analysis.",
         limitReached: "You have used all of today's analyses.",
+        evalLimitReached: "You have used all of today's AI evaluations. Please try again tomorrow.",
         photoLimitReached: "Too many photo scans today. Please try again tomorrow.",
         authRequired: "We could not verify your sign-in. Please sign in again."
     }

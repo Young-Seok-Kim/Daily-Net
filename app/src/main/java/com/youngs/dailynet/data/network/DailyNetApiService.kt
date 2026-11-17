@@ -8,6 +8,8 @@ import com.youngs.dailynet.data.model.InbodyPhotoRequest
 import com.youngs.dailynet.data.model.InbodyPhotoResponse
 import com.youngs.dailynet.data.model.MealPhotoRequest
 import com.youngs.dailynet.data.model.MealPhotoResponse
+import com.youngs.dailynet.data.model.PeriodEvalRequest
+import com.youngs.dailynet.data.model.PeriodEvalResponse
 import com.youngs.dailynet.data.model.SubscriptionVerifyRequest
 import com.youngs.dailynet.data.model.SubscriptionVerifyResponse
 import retrofit2.http.POST
@@ -55,6 +57,14 @@ interface DailyNetApiService {
         @Header("Authorization") authorization: String?,
         @Body request: InbodyAnalysisRequest
     ): InbodyAnalysisResponse
+
+    /** 주·월·연 정산의 식단·운동 평가를 받아온다. 분석 횟수와 따로 센다 (하루 상한만 있음) */
+    @POST
+    suspend fun evaluatePeriod(
+        @Url url: String,
+        @Header("Authorization") authorization: String?,
+        @Body request: PeriodEvalRequest
+    ): PeriodEvalResponse
 
     /**
      * 구매 토큰을 서버에 보내 구독 여부를 확인받는다.
