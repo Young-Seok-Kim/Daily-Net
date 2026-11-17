@@ -100,6 +100,22 @@ test("체중이 하루만 있으면 변화는 null, 전부 흑자면 최악의 �
     assert.equal(same.worstDay, null);
 });
 
+test("운동한 날은 운동 칸에 적은 날만 — 걸음 소모(exerciseKcal)만 있는 날은 세지 않는다", () => {
+    const days = normalizeDays([
+        day("2026-11-01", -300, { exerciseKcal: 250 }),                     // 걸음만
+        day("2026-11-02", -300, { exerciseKcal: 600, hasExercise: true }),  // 운동 적음
+        day("2026-11-03", -300, { exerciseKcal: 0, hasExercise: true })     // 적었지만 소모 0 (수정해서 0이 된 경우)
+    ]);
+    const stats = periodStats(days, { type: "week" }, "", 70);
+    assert.equal(stats.exerciseDays, 2);
+    const month = periodStats(days, { type: "month", start: "2026-11-01", end: "2026-11-30" }, "2026-12-01", 70);
+    // 11-01은 일요일이라 앞 주(W44)에 홀로 들어간다. 주별로 나눠도 합은 같아야 한다
+    assert.equal(month.buckets.reduce((n, b) => n + b.exerciseDays, 0), 2);
+    const joined = factLines(stats, { type: "week" }, [], []).join("\n");
+    assert.match(joined, /운동한 날 2일/);
+    assert.match(joined, /활동 소모/);
+});
+
 test("영양 집계가 없는 날(bmr 0)은 탄단지 평균에서 빠지고 권장은 없다", () => {
     const days = normalizeDays([
         { date: "2026-11-01", net: -200, bmr: 0, carb: 0, protein: 0, fat: 0 },
@@ -156,7 +172,7 @@ test("사실 줄에는 있는 값만, 없는 값은 줄이 없다", () => {
     assert.match(joined, /순칼로리 합계 -900 kcal, 하루 평균 -450 kcal/);
     assert.match(joined, /닭가슴살\(5회\)/);
     assert.doesNotMatch(joined, /체중/);          // 체중 기록 없음
-    assert.doesNotMatch(joined, /걸음/);          // 걸음 없음
+    assert.doesNotMatch(joined, /평균 걸음/);     // 걸음 없음
     assert.doesNotMatch(joined, /자주 한 운동/);   // 빈 목록
     assert.doesNotMatch(joined, /진행 중/);        // 끝난 기간
 });

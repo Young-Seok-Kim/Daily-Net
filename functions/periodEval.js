@@ -148,7 +148,10 @@ function periodStats(days, period, today, fallbackWeight) {
 
     const nets = days.map((d) => d.net);
     const netTotal = nets.reduce((a, b) => a + b, 0);
-    const exerciseDays = days.filter((d) => d.hasExercise || d.exerciseKcal > 0).length;
+    // "운동한 날"은 운동 칸에 뭔가 적은 날(hasExercise)만이다. exerciseKcal로 세면 안 된다 —
+    // 거기엔 걸음 소모가 들어 있어 걸음만 있는 날도 운동한 날이 된다.
+    // (2026-11-17 실제로 그랬다: 운동 7일인 달이 "15일 중 15일 운동"으로 평가됐다)
+    const exerciseDays = days.filter((d) => d.hasExercise).length;
 
     const withNutrition = days.filter((d) => d.bmr > 0);
     const weighed = days.filter((d) => d.weight > 0);
@@ -212,7 +215,7 @@ function bucketsOf(days, type) {
         return {
             label,
             days: list.length,
-            exerciseDays: list.filter((d) => d.hasExercise || d.exerciseKcal > 0).length,
+            exerciseDays: list.filter((d) => d.hasExercise).length,
             netAvg: Math.round(average(list.map((d) => d.net))),
             weightLast: weighed.length ? weighed[weighed.length - 1].weight : 0
         };
@@ -240,13 +243,13 @@ function factLines(stats, period, topFoods, topExercises) {
         lines.push(`- 아직 진행 중인 기간입니다. 전체 ${stats.totalDays}일 중 ${stats.elapsedDays}일이 지났습니다`);
     }
     lines.push(`- 기록한 날 ${stats.recordDays}일 / 지난 날 ${stats.elapsedDays}일 (기록하지 않은 날은 "안 먹은 날"이 아니라 "안 적은 날"입니다)`);
-    lines.push(`- 운동한 날 ${stats.exerciseDays}일`);
+    lines.push(`- 운동한 날 ${stats.exerciseDays}일 (운동 칸에 적은 날만. 걸음만 있는 날은 운동한 날이 아닙니다)`);
     lines.push(`- 순칼로리 합계 ${signed(stats.netTotal)} kcal, 하루 평균 ${signed(stats.netAvg)} kcal (적자 ${stats.deficitDays}일 / 흑자 ${stats.surplusDays}일)`);
     if (stats.recordDays > 0) {
         lines.push(`- 순칼로리 합계를 체지방으로 환산하면 약 ${signed(stats.estFatKg)} kg (7,700 kcal = 1 kg, 음수가 감량)`);
     }
     if (stats.nutritionDays > 0) {
-        lines.push(`- 하루 평균 섭취 ${fmt(stats.intakeAvg)} kcal, 운동 소모 ${fmt(stats.burnAvg)} kcal (영양 집계가 있는 ${stats.nutritionDays}일 기준)`);
+        lines.push(`- 하루 평균 섭취 ${fmt(stats.intakeAvg)} kcal, 활동 소모 ${fmt(stats.burnAvg)} kcal (운동과 걸음을 합친 값, 영양 집계가 있는 ${stats.nutritionDays}일 기준)`);
         const rec = stats.recommended;
         const recText = rec ? ` / 권장 탄 ${rec.carb}g · 단 ${rec.protein}g · 지 ${rec.fat}g (권장 섭취 ${fmt(rec.calories)} kcal)` : "";
         lines.push(`- 하루 평균 탄단지: 탄 ${stats.carbAvg}g · 단 ${stats.proteinAvg}g · 지 ${stats.fatAvg}g${recText}`);
