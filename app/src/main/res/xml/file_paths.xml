@@ -5,4 +5,6 @@
 -->
 <paths>
     <cache-path name="meal_photos" path="meal_photos/" />
+    <!-- 공유용 결산 영수증 PNG (util/ReceiptShare.kt가 cacheDir/receipts에 쓴다) -->
+    <cache-path name="receipts" path="receipts/" />
 </paths>

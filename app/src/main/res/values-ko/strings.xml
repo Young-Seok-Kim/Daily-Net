@@ -492,4 +492,23 @@
     <string name="report_bmr_note_inbody">인바디 기초대사 %1$d 포함</string>
     <string name="report_legacy_note">이전 형식의 기록이라 글로만 보여드려요.</string>
     <string name="report_edit_snackbar">AI 추정 %1$d → %2$d kcal</string>
+
+    <!-- 결산 영수증 공유 (하루 정산을 이미지 한 장으로) -->
+    <string name="receipt_share">결산 영수증 공유</string>
+    <string name="receipt_share_failed">영수증을 만들지 못했어요. 잠시 뒤 다시 시도해 주세요.</string>
+    <string name="receipt_share_empty">이 날짜는 아직 결산한 기록이 없어요.</string>
+    <string name="receipt_title">칼로리 결산서</string>
+    <string name="receipt_badge">DAILYNET</string>
+    <string name="receipt_serial_prefix">영수증 번호</string>
+    <string name="receipt_column_item">항목</string>
+    <string name="receipt_column_kcal">칼로리</string>
+    <string name="receipt_exercise">운동</string>
+    <string name="receipt_bmr">기초대사</string>
+    <string name="receipt_net_label">최종 순칼로리 (NET)</string>
+    <string name="receipt_badge_deficit">감량 적자 달성</string>
+    <string name="receipt_badge_surplus">섭취 초과</string>
+    <string name="receipt_macro_title">오늘 탄단지 섭취</string>
+    <string name="receipt_intake_total">총 %1$s kcal 섭취</string>
+    <string name="receipt_ai_title">AI 결산 한줄평</string>
+    <string name="receipt_footer">DAILYNET · 칼로리 결산 완료</string>
 </resources>
