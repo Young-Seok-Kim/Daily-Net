@@ -1,6 +1,7 @@
 package com.youngs.dailynet.ui.view
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -26,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -65,8 +67,11 @@ import com.youngs.dailynet.util.FavoriteRank
 import com.youngs.dailynet.util.MealPhoto
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import com.youngs.dailynet.util.HealthStepReader
+import com.youngs.dailynet.util.ReceiptShare
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -359,6 +364,72 @@ fun DailyRecordScreen(
     val hasCalorieResult = uiState.finalized || uiState.analysisResult.isNotEmpty()
     val calorieColor = DnTheme.net.of(uiState.netCalories)
 
+    // ── 결산 영수증 공유 ──
+    // 문구는 언어마다 달라서 화면에서 채워 넣는다. 숫자 매기기(DailyReceiptBuilder)와
+    // 그리기(DailyReceiptImage)는 화면 밖에 두어 테스트로 못박는다.
+    val receiptLabels = ReceiptLabels(
+        title = stringResource(R.string.receipt_title),
+        badge = stringResource(R.string.receipt_badge),
+        serialPrefix = stringResource(R.string.receipt_serial_prefix),
+        columnItem = stringResource(R.string.receipt_column_item),
+        columnKcal = stringResource(R.string.receipt_column_kcal),
+        breakfast = stringResource(R.string.report_breakfast),
+        lunch = stringResource(R.string.report_lunch),
+        dinner = stringResource(R.string.report_dinner),
+        snack = stringResource(R.string.report_snack),
+        exercise = stringResource(R.string.receipt_exercise),
+        bmr = stringResource(R.string.receipt_bmr),
+        netLabel = stringResource(R.string.receipt_net_label),
+        badgeDeficit = stringResource(R.string.receipt_badge_deficit),
+        badgeSurplus = stringResource(R.string.receipt_badge_surplus),
+        macroTitle = stringResource(R.string.receipt_macro_title),
+        intakeTotalFormat = stringResource(R.string.receipt_intake_total),
+        aiTitle = stringResource(R.string.receipt_ai_title),
+        footer = stringResource(R.string.receipt_footer),
+        macroCarb = stringResource(R.string.macro_carb_full),
+        macroProtein = stringResource(R.string.macro_protein_full),
+        macroFat = stringResource(R.string.macro_fat_full),
+        hourUnit = stringResource(R.string.unit_hour),
+        minuteUnit = stringResource(R.string.unit_minute)
+    )
+    val shareChooserTitle = stringResource(R.string.receipt_share)
+    val shareFailedText = stringResource(R.string.receipt_share_failed)
+    val shareEmptyText = stringResource(R.string.receipt_share_empty)
+
+    fun shareReceipt() {
+        val snapshot = uiState
+        val labels = receiptLabels
+        // 결과가 없는 날은 영수증에 찍을 숫자가 없다. 상단바 버튼도 이 조건으로 숨긴다
+        if (!hasCalorieResult) {
+            Toast.makeText(context, shareEmptyText, Toast.LENGTH_SHORT).show()
+            return
+        }
+        scope.launch {
+            try {
+                val receipt = DailyReceiptBuilder.build(snapshot, labels, Locale.getDefault())
+                // 그리기는 8MB짜리 Bitmap을 만든다 — 화면 스레드에서 하지 않는다
+                val bitmap = withContext(Dispatchers.Default) {
+                    DailyReceiptImage.render(receipt, labels)
+                }
+                val file = withContext(Dispatchers.IO) {
+                    ReceiptShare.save(context, bitmap, snapshot.date)
+                }
+                bitmap.recycle()
+                val chooser = ReceiptShare.chooser(context, file, shareChooserTitle)
+                if (activity != null) {
+                    activity.startActivity(chooser)
+                } else {
+                    chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(chooser)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Toast.makeText(context, shareFailedText, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     // 리포트에서 누른 항목. 있으면 kcal 수정 창이 뜬다
     var editTarget by remember { mutableStateOf<ReportEditTarget?>(null) }
 
@@ -506,6 +577,18 @@ fun DailyRecordScreen(
                         }
                     },
                     actions = {
+                        // 이 날짜의 결산을 영수증 이미지로 공유한다. 결과가 없으면 숨긴다
+                        if (hasCalorieResult) {
+                            IconButton(
+                                onClick = { shareReceipt() },
+                                enabled = !uiState.analyzing
+                            ) {
+                                Icon(
+                                    Icons.Default.Share,
+                                    contentDescription = stringResource(R.string.receipt_share)
+                                )
+                            }
+                        }
                         // 이 날짜를 기준으로 몸무게 추이 그래프를 연다
                         IconButton(onClick = { onNavigateToWeightTrend(uiState.date) }) {
                             Icon(
@@ -743,6 +826,21 @@ fun DailyRecordScreen(
                             if (showJustDoneBadge) {
                                 Spacer(modifier = Modifier.width(8.dp))
                                 JustCompletedBadge()
+                            }
+                            Spacer(modifier = Modifier.weight(1f))
+                            // 결과를 읽자마자 공유로 이어지는 자리. 상단바 아이콘을 모르는 사람을 위해
+                            // 여기에 이름이 있는 버튼을 하나 더 둔다
+                            TextButton(
+                                onClick = { shareReceipt() },
+                                enabled = !uiState.analyzing
+                            ) {
+                                Icon(
+                                    Icons.Default.Share,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(stringResource(R.string.receipt_share_action))
                             }
                         }
                         // 항목별 결과(b33~)가 있으면 구조로 그려서 항목을 눌러 kcal을 고칠 수 있게 한다.

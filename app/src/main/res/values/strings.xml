@@ -494,4 +494,24 @@
     <string name="report_bmr_note_inbody">includes InBody BMR %1$d</string>
     <string name="report_legacy_note">This record is in the older format, so it is shown as text.</string>
     <string name="report_edit_snackbar">AI estimate %1$d → %2$d kcal</string>
+
+    <!-- 결산 영수증 공유 (하루 정산을 이미지 한 장으로) -->
+    <string name="receipt_share">Share receipt</string>
+    <string name="receipt_share_action">Receipt</string>
+    <string name="receipt_share_failed">Couldn\'t create the receipt. Please try again in a moment.</string>
+    <string name="receipt_share_empty">There is no settled record for this day yet.</string>
+    <string name="receipt_title">Calorie receipt</string>
+    <string name="receipt_badge">DAILYNET</string>
+    <string name="receipt_serial_prefix">Receipt no.</string>
+    <string name="receipt_column_item">Item</string>
+    <string name="receipt_column_kcal">Calories</string>
+    <string name="receipt_exercise">Exercise</string>
+    <string name="receipt_bmr">BMR</string>
+    <string name="receipt_net_label">Final net calories (NET)</string>
+    <string name="receipt_badge_deficit">Calorie deficit</string>
+    <string name="receipt_badge_surplus">Over intake</string>
+    <string name="receipt_macro_title">Macros today</string>
+    <string name="receipt_intake_total">%1$s kcal eaten</string>
+    <string name="receipt_ai_title">AI summary</string>
+    <string name="receipt_footer">DAILYNET · Calories settled</string>
 </resources>
