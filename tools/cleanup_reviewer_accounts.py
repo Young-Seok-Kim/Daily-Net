@@ -13,6 +13,10 @@ Play 심사관·사전 출시 보고서 로봇이 남긴 계정 정리.
 
 지우는 것: Firestore users/{uid} 문서와 하위 컬렉션 전부, Firebase Auth 계정.
 
+추가로 Auth에 없는 uid의 Firestore 잔여물도 쓸어낸다. 앱의 회원탈퇴(withdrawAccount)가
+users 문서만 지우고 서브컬렉션은 남기기 때문에, 콘솔에 "필드 없는 문서"로 보이는 유령이 생긴다.
+서브컬렉션 이름은 고정 목록이 아니라 listCollectionIds로 매번 찾는다 (settings처럼 새로 생긴 걸 놓치지 않게).
+
 사용법 (gcloud 로그인 + firebase CLI 로그인 상태에서):
   python tools/cleanup_reviewer_accounts.py          # 미리보기만
   python tools/cleanup_reviewer_accounts.py --apply  # 실제 삭제
@@ -28,7 +32,6 @@ import urllib.request
 
 PROJECT = "daily-net-95d28"
 FS = f"https://firestore.googleapis.com/v1/projects/{PROJECT}/databases/(default)/documents"
-SUBCOLLECTIONS = ["settlements", "inbody", "passes", "evaluations", "favorites"]
 REVIEWER = re.compile(r"^[a-z]+\.\d{5}@gmail\.com$")
 TESTLAB = re.compile(r"@cloudtestlabaccounts\.com$")
 
@@ -78,9 +81,13 @@ def list_docs(tok, path):
             return names
 
 
+def subcollections(tok, uid):
+    return call(tok, f"{FS}/users/{uid}:listCollectionIds", "POST", {}).get("collectionIds", [])
+
+
 def delete_user_data(tok, uid):
     n = 0
-    for sub in SUBCOLLECTIONS:
+    for sub in subcollections(tok, uid):
         for name in list_docs(tok, f"users/{uid}/{sub}"):
             call(tok, f"https://firestore.googleapis.com/v1/{name}", "DELETE")
             n += 1
@@ -93,7 +100,8 @@ def main():
     apply = "--apply" in sys.argv
     tok = token()
     targets = []
-    for u in export_users():
+    users = export_users()
+    for u in users:
         email = u.get("email", "")
         if not (REVIEWER.match(email) or TESTLAB.search(email)):
             continue
@@ -109,7 +117,19 @@ def main():
     print(f"\n삭제 대상 {len(targets)}개")
     for uid, email, created, s in targets:
         print(f"  {created}  {email}  기록 {s}")
-    if not targets:
+
+    # Auth에 없는 uid의 유령 문서 (탈퇴 잔여물, 또는 예전 정리 때 놓친 서브컬렉션)
+    alive = {u["localId"] for u in users}
+    ghosts = []
+    for d in call(tok, f"{FS}/users?pageSize=300&showMissing=true&mask.fieldPaths=__name__").get("documents", []):
+        uid = d["name"].split("/")[-1]
+        if uid not in alive:
+            ghosts.append((uid, subcollections(tok, uid)))
+    print(f"\nAuth에 없는 유령 uid {len(ghosts)}개")
+    for uid, cols in ghosts:
+        print(f"  {uid}  하위: {', '.join(cols) or '(없음)'}")
+
+    if not targets and not ghosts:
         return
     if not apply:
         print("\n미리보기입니다. 실제로 지우려면 --apply 를 붙이세요.")
@@ -118,13 +138,15 @@ def main():
     docs = 0
     for uid, email, _, _ in targets:
         docs += delete_user_data(tok, uid)
+    for uid, _ in ghosts:
+        docs += delete_user_data(tok, uid)
     ids = [t[0] for t in targets]
     for i in range(0, len(ids), 100):
         res = call(tok, f"https://identitytoolkit.googleapis.com/v1/projects/{PROJECT}/accounts:batchDelete",
                    "POST", {"localIds": ids[i:i + 100], "force": True})
         for err in res.get("errors", []):
             print("Auth 삭제 실패:", err)
-    print(f"\n완료: Auth 계정 {len(ids)}개, Firestore 문서 {docs + len(ids)}개 삭제")
+    print(f"\n완료: Auth 계정 {len(ids)}개, 유령 uid {len(ghosts)}개, Firestore 문서 {docs + len(ids)}개 삭제")
 
 
 if __name__ == "__main__":
