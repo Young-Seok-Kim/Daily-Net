@@ -162,7 +162,7 @@
     <!-- Settings: visible date range -->
     <string name="settings_section_range">Visible period</string>
     <string name="settings_range_enabled">Limit to a period</string>
-    <string name="settings_range_enabled_subtitle">When on, only records in the period below appear in the list, charts and summaries</string>
+    <string name="settings_range_enabled_subtitle">When on, only records in the period below appear in the list, charts and summaries. Without a start date it begins on your sign-up day</string>
     <string name="settings_range_dates">Start ~ end</string>
     <string name="settings_range_not_set">Pick</string>
     <string name="settings_range_end_today">Until today</string>

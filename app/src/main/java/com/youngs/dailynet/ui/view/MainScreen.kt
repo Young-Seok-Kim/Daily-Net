@@ -429,7 +429,7 @@ fun MainScreen(
                         Text(
                             text = stringResource(
                                 R.string.record_list_range,
-                                dateRange.start.ifBlank { "…" },
+                                dateRange.start.ifBlank { mainViewModel.defaultStartDate().ifBlank { "…" } },
                                 dateRange.end.ifBlank { stringResource(R.string.range_today) }
                             ),
                             style = MaterialTheme.typography.labelMedium,

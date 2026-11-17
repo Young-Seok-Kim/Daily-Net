@@ -444,12 +444,18 @@ class MainViewModel @Inject constructor(
     // Room의 기록 자체는 그대로고(allDailyRecord), 화면이 보는 쪽(visibleRecords)만 거른다.
     data class DateRange(
         val enabled: Boolean = false,
-        /** yyyy-MM-dd. 비어 있으면 하한 없음 */
+        /** yyyy-MM-dd. 비어 있으면 가입일부터 ([defaultStartDate]) */
         val start: String = "",
         /** yyyy-MM-dd. 비어 있으면 오늘까지 */
         val end: String = ""
     ) {
-        val active: Boolean get() = enabled && (start.isNotBlank() || end.isNotBlank())
+        val active: Boolean get() = enabled
+    }
+
+    /** 시작일을 고르지 않았을 때 쓰는 날 = 가입일. 프로필이 아직 없으면 빈 문자열(하한 없음) */
+    fun defaultStartDate(): String {
+        val createdAt = userProfile.value?.createdAt ?: return ""
+        return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(createdAt))
     }
 
     private val _dateRange = MutableStateFlow(
@@ -473,8 +479,9 @@ class MainViewModel @Inject constructor(
     /** 기간 설정이 꺼져 있거나 비어 있으면 그대로, 아니면 날짜가 [start, end(없으면 오늘)] 안인 것만 */
     private fun filterByDateRange(list: List<DailyRecordModel>, range: DateRange): List<DailyRecordModel> {
         if (!range.active) return list
+        val start = range.start.ifBlank { defaultStartDate() }
         val end = range.end.ifBlank { today }
-        return list.filter { (range.start.isBlank() || it.date >= range.start) && it.date <= end }
+        return list.filter { (start.isBlank() || it.date >= start) && it.date <= end }
     }
 
     // ── 주·월·연 AI 평가 ──────────────────────────────────────────
@@ -977,7 +984,8 @@ class MainViewModel @Inject constructor(
      * 목록·추이 차트·누적 결산·주/월/연 요약·월 정산·체중 추이가 전부 이걸 본다.
      * 분석 요청의 대체 체중처럼 "기록 전체"가 필요한 곳만 [allDailyRecord]를 쓴다.
      */
-    val visibleRecords: StateFlow<List<DailyRecordModel>> = combine(allDailyRecord, _dateRange) { list, range ->
+    val visibleRecords: StateFlow<List<DailyRecordModel>> = combine(allDailyRecord, _dateRange, userProfile) { list, range, _ ->
+        // 프로필(가입일)도 같이 본다. 시작일을 비워 두면 가입일부터라 프로필이 늦게 오면 다시 걸러야 한다
         filterByDateRange(list, range)
     }.stateIn(
         scope = viewModelScope,

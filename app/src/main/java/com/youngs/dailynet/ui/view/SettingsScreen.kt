@@ -265,10 +265,11 @@ fun SettingsScreen(
                     // 시작일 ~ 종료일을 한 줄에. 각 칸을 누르면 그 날짜를 고른다.
                     // 종료일 칸을 길게 누르면 비워서 "오늘까지"로 돌아간다.
                     DateRangeRow(
-                        start = range.start,
+                        // 시작일을 안 골랐으면 가입일이 기본값이다. 칸에도 그 날짜를 보여준다
+                        start = range.start.ifBlank { mainViewModel.defaultStartDate() },
                         end = range.end,
                         onPickStart = {
-                            showDatePicker(context, range.start) { picked ->
+                            showDatePicker(context, range.start.ifBlank { mainViewModel.defaultStartDate() }) { picked ->
                                 mainViewModel.setDateRange(range.copy(start = picked, enabled = true))
                             }
                         },

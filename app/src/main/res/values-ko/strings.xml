@@ -160,7 +160,7 @@
     <!-- 설정: 표시 기간 -->
     <string name="settings_section_range">표시 기간</string>
     <string name="settings_range_enabled">기간만 보기</string>
-    <string name="settings_range_enabled_subtitle">켜면 아래 기간의 기록만 목록·그래프·정산 요약에 보입니다</string>
+    <string name="settings_range_enabled_subtitle">켜면 아래 기간의 기록만 목록·그래프·정산 요약에 보입니다. 시작일을 고르지 않으면 가입일부터입니다</string>
     <string name="settings_range_dates">시작일 ~ 종료일</string>
     <string name="settings_range_not_set">선택</string>
     <string name="settings_range_end_today">오늘까지</string>
