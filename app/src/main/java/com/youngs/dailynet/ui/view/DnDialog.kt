@@ -644,7 +644,8 @@ object DnDatePickerDefaults {
  * 오른쪽 위 연필 버튼을 누르면 숫자로 직접 입력하는 모드로 바뀐다.
  *
  * @param initial "yyyy-MM-dd". 비었거나 못 읽으면 오늘에서 시작한다 (예전 DatePickerDialog와 같다)
- * @param onPick 고른 날을 "yyyy-MM-dd"로 돌려준다. 형식과 콜백 동작은 예전과 같다
+ * @param onPick 고른 날을 "yyyy-MM-dd"로 돌려준다. 형식과 콜백 동작은 예전과 같다.
+ *   창은 여기서 닫지 않으므로 부른 쪽이 보임 상태를 내린다 (예: `picking = false`)
  * @param yearRange 고를 수 있는 연도. 기본은 [DnDatePickerDefaults.YearRange]
  */
 @OptIn(ExperimentalMaterial3Api::class)
