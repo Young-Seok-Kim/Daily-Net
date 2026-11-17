@@ -166,7 +166,7 @@
     <string name="settings_range_dates">Start ~ end</string>
     <string name="settings_range_not_set">Pick</string>
     <string name="settings_range_end_today">Until today</string>
-    <string name="settings_range_clear_end_hint">Long-press the end date to clear it and go back to today</string>
+    <string name="settings_range_long_press_hint">Long-press to reset: start date to your sign-up day, end date to today</string>
     <string name="record_list_range">Period %1$s ~ %2$s</string>
     <string name="range_today">today</string>
 

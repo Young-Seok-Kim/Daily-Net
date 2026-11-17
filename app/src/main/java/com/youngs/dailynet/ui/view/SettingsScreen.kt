@@ -278,7 +278,10 @@ fun SettingsScreen(
                                 mainViewModel.setDateRange(range.copy(end = picked, enabled = true))
                             }
                         },
-                        onClearEnd = { mainViewModel.setDateRange(range.copy(end = "")) }
+                        onClearEnd = { mainViewModel.setDateRange(range.copy(end = "")) },
+                        // 시작일을 길게 누르면 비워서 가입일로 돌아간다 (빈 값 = 가입일)
+                        onClearStart = { mainViewModel.setDateRange(range.copy(start = "")) },
+                        startIsDefault = range.start.isBlank()
                     )
                 }
 
@@ -463,7 +466,10 @@ private fun DateRangeRow(
     end: String,
     onPickStart: () -> Unit,
     onPickEnd: () -> Unit,
-    onClearEnd: () -> Unit
+    onClearEnd: () -> Unit,
+    onClearStart: () -> Unit,
+    /** 시작일을 따로 고르지 않아 가입일이 보이는 상태인지. 그러면 길게 눌러도 할 일이 없다 */
+    startIsDefault: Boolean
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
         Text(text = stringResource(R.string.settings_range_dates), style = MaterialTheme.typography.bodyLarge)
@@ -473,7 +479,7 @@ private fun DateRangeRow(
                 text = start.ifBlank { stringResource(R.string.settings_range_not_set) },
                 filled = start.isNotBlank(),
                 onClick = onPickStart,
-                onLongClick = null,
+                onLongClick = if (startIsDefault) null else onClearStart,
                 modifier = Modifier.weight(1f)
             )
             Text(
@@ -490,14 +496,12 @@ private fun DateRangeRow(
                 modifier = Modifier.weight(1f)
             )
         }
-        if (end.isNotBlank()) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = stringResource(R.string.settings_range_clear_end_hint),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.settings_range_long_press_hint),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
