@@ -14,6 +14,19 @@
 
 ---
 
+## v1.15.1 (b57) — 2026-11-17
+
+### 스토어 문구
+
+입력칸 아래의 "어제와 같게" 버튼을 없앴습니다. 자주 쓴 메뉴 칩이 같은 일을 하고, 칸마다 자리만 차지했습니다.
+
+### 상세 내역
+
+- `FavoriteChipRow`의 "어제와 같게" AssistChip과 `MainViewModel.copyFromYesterday`, 문구 2개(`fav_same_as_yesterday`, `fav_yesterday_empty`) 제거.
+  칩 줄은 고정(★) → 자주 쓴 순 → 더보기만 남는다
+
+---
+
 ## v1.15.0 (b56) — 2026-11-17
 
 ### 스토어 문구

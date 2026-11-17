@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AssistChip
@@ -65,13 +64,13 @@ import kotlinx.coroutines.launch
  * 따로 버튼을 두지 않는 이유: 칸 안에 카메라 아이콘이 이미 있어 아이콘 하나를 더 넣으면 좁아지고,
  * 무엇보다 한 번 더 눌러야 목록이 보인다. 칩은 보이는 즉시 한 번에 넣는다.
  *
- * 순서는 "어제와 같게" → 고정(★) → 자주 쓴 순 → "더보기". 정산이 끝난 날(읽기 전용)에는 부르지 않는다.
+ * 순서는 고정(★) → 자주 쓴 순 → "더보기". 정산이 끝난 날(읽기 전용)에는 부르지 않는다.
+ * 맨 앞에 있던 "어제와 같게" 칩은 b57에서 뺐다 — 자주 쓴 칩이 같은 일을 하고, 매 칸마다 자리만 차지했다.
  */
 @Composable
 fun FavoriteChipRow(
     field: String,
     items: List<FavoriteItemEntity>,
-    onSameAsYesterday: () -> Unit,
     onChip: (FavoriteItemEntity) -> Unit,
     onMore: () -> Unit,
     modifier: Modifier = Modifier
@@ -83,18 +82,6 @@ fun FavoriteChipRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AssistChip(
-            onClick = onSameAsYesterday,
-            label = { Text(stringResource(R.string.fav_same_as_yesterday)) },
-            leadingIcon = {
-                Icon(
-                    Icons.Default.Refresh,
-                    contentDescription = null,
-                    modifier = Modifier.size(AssistChipDefaults.IconSize)
-                )
-            }
-        )
-
         items.take(FavoriteRank.CHIP_LIMIT).forEach { item ->
             if (item.isPinnedFor(field)) {
                 SuggestionChip(

@@ -616,7 +616,6 @@ fun DailyRecordScreen(
                         FavoriteChipRow(
                             field = category.fieldName,
                             items = ranked,
-                            onSameAsYesterday = { mainViewModel.copyFromYesterday(category.fieldName) },
                             onChip = { mainViewModel.insertFavorites(category.fieldName, listOf(it.text)) },
                             onMore = { favoriteSheetField = category.fieldName },
                             modifier = Modifier.padding(bottom = 4.dp)

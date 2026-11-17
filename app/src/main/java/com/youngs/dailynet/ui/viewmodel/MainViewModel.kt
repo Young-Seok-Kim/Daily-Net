@@ -1044,43 +1044,6 @@ class MainViewModel @Inject constructor(
         updateField(fieldName, FavoriteRank.appendAll(fieldText(fieldName), items))
     }
 
-    /**
-     * "어제와 같게". 어제 같은 칸에 적은 내용을 통째로 가져온다.
-     *
-     * 칸이 비어 있으면 그대로 넣고, 이미 적은 게 있으면 뒤에 이어 붙인다. 어제 기록이 없거나
-     * 그 칸이 비어 있으면 토스트로 알린다. 어제 기록은 Room에 없으면 Firestore까지 찾아본다.
-     */
-    fun copyFromYesterday(fieldName: String) {
-        val date = _uiState.value.date
-        val yesterday = runCatching {
-            val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            Calendar.getInstance().apply {
-                time = fmt.parse(date)!!
-                add(Calendar.DAY_OF_MONTH, -1)
-            }.let { fmt.format(it.time) }
-        }.getOrNull() ?: return
-
-        viewModelScope.launch {
-            val record = repository.getDailyRecordByDate(yesterday)
-            val text = when (fieldName) {
-                "breakfast" -> record?.breakfast
-                "lunch" -> record?.lunch
-                "dinner" -> record?.dinner
-                "snack" -> record?.snack
-                "exercise" -> record?.exercise
-                else -> null
-            }.orEmpty()
-
-            if (text.isBlank()) {
-                val label = categoryList.firstOrNull { it.fieldName == fieldName }
-                    ?.let { context.getString(it.labelRes) } ?: fieldName
-                toast(R.string.fav_yesterday_empty, label)
-                return@launch
-            }
-            insertFavorites(fieldName, FavoriteRank.splitItems(text))
-        }
-    }
-
     /** [field] 칸에서만 고정/해제. 점심에서 고정해도 아침 칸에는 영향이 없다 */
     fun pinFavorite(item: FavoriteItemEntity, field: String, pinned: Boolean) {
         viewModelScope.launch { favoriteRepository.setPinned(item, field, pinned) }
