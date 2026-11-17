@@ -668,10 +668,13 @@ fun DnDatePickerDialog(
         yearRange = yearRange
     )
 
+    // 창과 달력 본체에 **같은** 색을 넘겨야 한다. 창에만 주면 본체는 기본 surfaceContainerHigh(연녹색)로 그려져
+    // 버튼이 있는 아래쪽만 흰색으로 남는다 (b59에서 그렇게 나갔다)
+    val colors = DnDatePickerDefaults.colors()
     DatePickerDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(DnDialogDefaults.Radius),
-        colors = DnDatePickerDefaults.colors(),
+        colors = colors,
         // 다른 다이얼로그와 같이 취소(텍스트) → 확인(잉크 채움). 확인은 고른 날이 있어야 눌린다
         confirmButton = {
             DnPrimaryButton(
@@ -690,7 +693,7 @@ fun DnDatePickerDialog(
             }
         }
     ) {
-        DatePicker(state = state, showModeToggle = true)
+        DatePicker(state = state, showModeToggle = true, colors = colors)
     }
 }
 
