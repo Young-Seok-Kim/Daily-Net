@@ -110,6 +110,9 @@ object Constants {
     /** 제목 방식이 fixed일 때 쓸 제목. 비어 있으면 기본값(운동) */
     const val KEY_CALENDAR_FIXED_TITLE = "calendar_fixed_title"
 
+    /** 이용권을 캘린더에 넣는 방식. "edges"면 시작일·종료일만, "span"이면 기간 전체 띠 */
+    const val KEY_CALENDAR_PASS_MODE = "calendar_pass_mode"
+
     /**
      * 앱이 만든 보조 캘린더의 ID. 매번 목록을 뒤지지 않으려고 기억해 둔다.
      * 사용자가 캘린더를 지워 404가 나면 비우고 다시 만든다.

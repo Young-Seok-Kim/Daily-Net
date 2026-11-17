@@ -192,6 +192,11 @@
     <string name="calendar_pass_title_count">%1$s %2$d회권</string>
     <string name="calendar_pass_desc_period">%1$s ~ %2$s (%3$d일)</string>
     <string name="calendar_pass_desc_keyword">차감 키워드: %1$s</string>
+    <string name="calendar_pass_start">%1$s 시작</string>
+    <string name="calendar_pass_end">%1$s 종료</string>
+    <string name="settings_calendar_pass_span">이용권을 기간 전체로 표시</string>
+    <string name="settings_calendar_pass_span_on">시작일부터 종료일까지 띠 일정 하나로 들어갑니다</string>
+    <string name="settings_calendar_pass_span_off">시작일과 종료일에만 일정이 생깁니다</string>
 
     <!-- 설정: 표시 기간 -->
     <string name="settings_section_range">표시 기간</string>

@@ -1500,6 +1500,24 @@ class MainViewModel @Inject constructor(
     fun calendarFixedTitle(): String = calendarSync.fixedTitle()
     fun setCalendarTitleMode(mode: String) = calendarSync.setTitleMode(mode)
     fun setCalendarFixedTitle(title: String) = calendarSync.setFixedTitle(title)
+    fun calendarPassMode(): String = calendarSync.passMode()
+
+    /** 이용권 표시 방식을 바꾸고, 이미 승인된 계정이면 캘린더의 이용권 일정을 바로 새 방식으로 다시 만든다 */
+    fun setCalendarPassMode(mode: String) {
+        calendarSync.setPassMode(mode)
+        if (!calendarSync.isEnabled()) return
+        viewModelScope.launch {
+            try {
+                val access = calendarSync.requestAccess()
+                if (access is GoogleCalendarSync.Access.Granted) {
+                    calendarSync.syncAllPasses(access.token, passRepository.getAll())
+                }
+                // 동의가 필요한 상태면 다음 "지금 동기화" 때 따라온다
+            } catch (e: Exception) {
+                CrashReporter.report("setCalendarPassMode", e)
+            }
+        }
+    }
     fun disableCalendarSync() = calendarSync.setEnabled(false)
 
     /** 정산 저장 뒤 캘린더에 반영. 실패는 [GoogleCalendarSync.mirror] 안에서 삼키므로 정산 흐름을 막지 않는다. */

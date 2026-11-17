@@ -73,6 +73,13 @@ class GoogleCalendarSync @Inject constructor(
         private const val PROP_DATE = "dailynet_date"
         /** 운동 이용권에서 나온 일정. 값은 이용권 id. 운동 일정(PROP_DATE)과 섞이지 않게 따로 둔다 */
         private const val PROP_PASS = "dailynet_pass"
+        /** 이용권 일정의 조각. span(기간 전체 띠) / start(시작일) / end(종료일) */
+        private const val PROP_PASS_PART = "dailynet_pass_part"
+
+        /** 이용권을 시작일·종료일 두 날짜에만 */
+        const val PASS_MODE_EDGES = "edges"
+        /** 이용권을 시작일~종료일 띠 하나로 */
+        const val PASS_MODE_SPAN = "span"
 
         /** Firestore에 캘린더 ID를 두는 자리: users/{uid}/settings/calendar */
         private const val CLOUD_SUB = "settings"
@@ -123,6 +130,14 @@ class GoogleCalendarSync @Inject constructor(
     fun fixedTitle(): String =
         prefs.getString(Constants.KEY_CALENDAR_FIXED_TITLE, null)?.takeIf { it.isNotBlank() }
             ?: context.getString(R.string.calendar_default_title)
+
+    /** 이용권을 캘린더에 어떻게 넣을지. 기본은 시작일·종료일만 (띠는 한 달 내내 눈에 걸린다) */
+    fun passMode(): String =
+        prefs.getString(Constants.KEY_CALENDAR_PASS_MODE, PASS_MODE_EDGES) ?: PASS_MODE_EDGES
+
+    fun setPassMode(mode: String) {
+        prefs.edit().putString(Constants.KEY_CALENDAR_PASS_MODE, mode).apply()
+    }
 
     fun setFixedTitle(title: String) {
         prefs.edit().putString(Constants.KEY_CALENDAR_FIXED_TITLE, title.trim()).apply()
@@ -350,20 +365,20 @@ class GoogleCalendarSync @Inject constructor(
         }
     }
 
-    /** 이용권을 지울 때 그 일정도 지운다 */
+    /** 이용권을 지울 때 그 일정(조각 전부)도 지운다 */
     suspend fun removePass(passId: String) {
         if (!isEnabled()) return
         val token = tokenOrNull() ?: return
         try {
             withCalendar(token) { bearer, calendarId ->
-                findPassEvent(bearer, calendarId, passId)?.let { api.deleteEvent(bearer, calendarId, it.id) }
+                listPassEvents(bearer, calendarId, passId).forEach { api.deleteEvent(bearer, calendarId, it.id) }
             }
         } catch (e: Exception) {
             Log.w(TAG, "removePass failed for $passId", e)
         }
     }
 
-    /** "지금 동기화"에서 이용권 전부를 맞춘다. 없는 건 넣고 내용이 달라진 건 고친다 */
+    /** "지금 동기화"와 표시 방식 변경에서 이용권 전부를 맞춘다. 없는 건 넣고 달라진 건 고치고 남는 조각은 지운다 */
     suspend fun syncAllPasses(token: String, passes: List<ExercisePassEntity>): Int {
         if (passes.isEmpty()) return 0
         return withCalendar(token) { bearer, calendarId ->
@@ -375,31 +390,53 @@ class GoogleCalendarSync @Inject constructor(
         }
     }
 
-    private suspend fun findPassEvent(bearer: String, calendarId: String, passId: String): EventResource? =
+    private suspend fun listPassEvents(bearer: String, calendarId: String, passId: String): List<EventResource> =
         api.listEvents(
-            bearer, calendarId, "$PROP_PASS=$passId", 5, null, "items(id,summary,description)"
-        ).items.firstOrNull()
+            bearer, calendarId, "$PROP_PASS=$passId", 10, null, "items(id,summary,description,extendedProperties)"
+        ).items
 
-    /** 넣거나 고쳤으면 true, 이미 같아서 손대지 않았으면 false */
+    /**
+     * 이용권 하나의 일정 조각들을 지금 설정대로 맞춘다. 넣거나 고치거나 지운 게 있으면 true.
+     *
+     * 표시 방식을 바꾸면 조각 구성이 달라진다(띠 하나 ↔ 시작·종료 둘). 그래서 있는 조각을 전부 읽어
+     * 원하는 구성에 없는 건 지우고, 있어야 할 건 넣거나 고친다. 예전 빌드가 조각 표식 없이 넣은 띠는 span으로 본다.
+     */
     private suspend fun upsertPass(bearer: String, calendarId: String, pass: ExercisePassEntity): Boolean {
         if (pass.startDate.isBlank()) return false
-        val body = passEventBody(pass)
-        val existing = findPassEvent(bearer, calendarId, pass.id)
-        return when {
-            existing == null -> { api.insertEvent(bearer, calendarId, body); true }
-            existing.summary != body.summary || existing.description.orEmpty() != body.description.orEmpty() -> {
-                api.patchEvent(bearer, calendarId, existing.id, body); true
+        val desired = passEventBodies(pass)
+        val existing = listPassEvents(bearer, calendarId, pass.id)
+        val byPart = existing.groupBy { it.extendedProperties?.privateProps?.get(PROP_PASS_PART) ?: "span" }
+        var changed = false
+
+        // 원하지 않는 조각과 중복은 지운다
+        byPart.forEach { (part, events) ->
+            val keep = if (part in desired) events.firstOrNull() else null
+            events.filter { it.id != keep?.id }.forEach {
+                api.deleteEvent(bearer, calendarId, it.id)
+                changed = true
             }
-            else -> false
         }
+        // 있어야 할 조각은 넣거나, 내용이 달라졌으면 고친다
+        desired.forEach { (part, body) ->
+            val event = byPart[part]?.firstOrNull()
+            when {
+                event == null -> { api.insertEvent(bearer, calendarId, body); changed = true }
+                event.summary != body.summary || event.description.orEmpty() != body.description.orEmpty() -> {
+                    api.patchEvent(bearer, calendarId, event.id, body); changed = true
+                }
+            }
+        }
+        return changed
     }
 
     /**
-     * 이용권 일정. 시작일부터 종료일까지 하루 종일 일정 하나로 걸쳐 둔다 (캘린더에 띠로 보인다).
-     * 종료일이 없는 횟수권은 시작일 하루짜리. 구글은 종료일을 배타로 받아 하루를 더한다.
+     * 이용권 일정 조각들. 설정에 따라
+     * - span: 시작일~종료일 하루 종일 띠 하나 (종료일이 없으면 시작일 하루)
+     * - edges: 시작일에 "○○ 시작", 종료일에 "○○ 종료" 두 개 (종료일이 없거나 같은 날이면 하나)
+     * 구글은 종료일을 배타로 받아 하루를 더한다.
      */
-    private fun passEventBody(pass: ExercisePassEntity): EventBody {
-        val summary = if (pass.isCount) {
+    private fun passEventBodies(pass: ExercisePassEntity): Map<String, EventBody> {
+        val title = if (pass.isCount) {
             context.getString(R.string.calendar_pass_title_count, pass.name, pass.totalCount)
         } else {
             context.getString(R.string.calendar_pass_title_period, pass.name)
@@ -413,14 +450,26 @@ class GoogleCalendarSync @Inject constructor(
             pass.keyword.takeIf { pass.isCount && it.isNotBlank() }
                 ?.let { context.getString(R.string.calendar_pass_desc_keyword, it) }
         ).joinToString("\n")
-        val endExclusive = runCatching { LocalDate.parse(lastDay).plusDays(1).toString() }.getOrDefault(lastDay)
-        return EventBody(
-            summary = summary,
-            description = description,
-            start = EventDate(pass.startDate),
-            end = EventDate(endExclusive),
-            extendedProperties = ExtendedProperties(mapOf(PROP_PASS to pass.id))
-        )
+
+        fun body(part: String, summary: String, from: String, to: String): EventBody {
+            val endExclusive = runCatching { LocalDate.parse(to).plusDays(1).toString() }.getOrDefault(to)
+            return EventBody(
+                summary = summary,
+                description = description,
+                start = EventDate(from),
+                end = EventDate(endExclusive),
+                extendedProperties = ExtendedProperties(mapOf(PROP_PASS to pass.id, PROP_PASS_PART to part))
+            )
+        }
+
+        return if (passMode() == PASS_MODE_SPAN || lastDay == pass.startDate) {
+            mapOf("span" to body("span", title, pass.startDate, lastDay))
+        } else {
+            mapOf(
+                "start" to body("start", context.getString(R.string.calendar_pass_start, title), pass.startDate, pass.startDate),
+                "end" to body("end", context.getString(R.string.calendar_pass_end, title), lastDay, lastDay)
+            )
+        }
     }
 
     /**

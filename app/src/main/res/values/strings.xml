@@ -194,6 +194,11 @@
     <string name="calendar_pass_title_count">%1$s (%2$d sessions)</string>
     <string name="calendar_pass_desc_period">%1$s ~ %2$s (%3$d days)</string>
     <string name="calendar_pass_desc_keyword">Keywords: %1$s</string>
+    <string name="calendar_pass_start">%1$s starts</string>
+    <string name="calendar_pass_end">%1$s ends</string>
+    <string name="settings_calendar_pass_span">Show passes as a full-period bar</string>
+    <string name="settings_calendar_pass_span_on">One all-day event spanning start to end</string>
+    <string name="settings_calendar_pass_span_off">Events only on the start and end dates</string>
 
     <!-- Settings: visible date range -->
     <string name="settings_section_range">Visible period</string>
