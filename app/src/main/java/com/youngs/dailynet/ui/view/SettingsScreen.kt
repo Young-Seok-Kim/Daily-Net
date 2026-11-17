@@ -54,7 +54,8 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onNavigateToLogin: () -> Unit,
     onNavigateToWithdraw: () -> Unit,
-    onNavigateToInbody: () -> Unit
+    onNavigateToInbody: () -> Unit,
+    onNavigateToPasses: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val userProfile by mainViewModel.userProfile.collectAsState()
@@ -238,6 +239,15 @@ fun SettingsScreen(
                         subtitle = inbodySummary(inbodyRecords.firstOrNull()?.toData()),
                         enabled = userProfile != null,
                         onClick = onNavigateToInbody
+                    )
+                    val passUsages by mainViewModel.passUsages.collectAsState()
+                    val activePasses = passUsages.count { it.active }
+                    SettingsItem(
+                        title = stringResource(R.string.pass_title),
+                        subtitle = if (activePasses > 0) stringResource(R.string.pass_active_count, activePasses)
+                        else stringResource(R.string.settings_passes_subtitle),
+                        enabled = userProfile != null,
+                        onClick = onNavigateToPasses
                     )
                 }
 

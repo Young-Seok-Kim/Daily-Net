@@ -26,6 +26,10 @@ import com.youngs.dailynet.data.model.InbodyData
 import com.youngs.dailynet.data.model.PeriodEvaluation
 import com.youngs.dailynet.data.network.EvaluationLimitException
 import com.youngs.dailynet.data.repository.PeriodEvaluationRepository
+import com.youngs.dailynet.data.repository.ExercisePassRepository
+import com.youngs.dailynet.data.local.entity.ExercisePassEntity
+import com.youngs.dailynet.util.PassUsage
+import com.youngs.dailynet.util.computePassUsage
 import com.youngs.dailynet.ui.view.PeriodKind
 import com.youngs.dailynet.ui.view.buildPeriodEvalRequest
 import com.youngs.dailynet.ui.view.periodKeyOf
@@ -90,6 +94,7 @@ class MainViewModel @Inject constructor(
     private val favoriteRepository: FavoriteRepository, // 입력 즐겨찾기 (분석 결과에서 자동 수집)
     private val inbodyRepository: InbodyRepository,     // 인바디 측정 이력
     private val periodEvaluationRepository: PeriodEvaluationRepository, // 주·월·연 AI 평가 저장소
+    private val passRepository: ExercisePassRepository,   // 운동 이용권 (기간제·횟수권)
     private val dailyRecordDao: DailyRecordDao,
     private val userProfileDao: UserProfileDao,
     val auth: FirebaseAuth,
@@ -832,6 +837,8 @@ class MainViewModel @Inject constructor(
                     )
                     // 인바디 이력도 계정 기준으로 맞춘다 (다른 기기에서 넣은 것, 재설치 뒤 복원)
                     inbodyRepository.sync()
+                    // 운동 이용권도 같은 이유로
+                    passRepository.sync()
 
                     // 💡 기존 사용자 문서를 조용히 보정한다. (앱을 켜기만 하면 적용되고 재로그인 불필요)
                     //    쓰기는 한 번으로 묶고, 실패해도 로그인 흐름을 막지 않는다.
@@ -992,6 +999,44 @@ class MainViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
+
+    // ── 운동 이용권 ───────────────────────────────────────────────
+    // 저장된 건 이용권 자체뿐이고 "얼마나 남았나"는 기록에서 매번 센다 (util/PassUsage.kt).
+    // 표시 기간 설정과 무관하게 기록 전체(allDailyRecord)를 본다 — 필터를 켰다고 PT 횟수가 줄면 안 된다.
+    val passUsages: StateFlow<List<PassUsage>> = combine(passRepository.observe(), allDailyRecord) { passes, records ->
+        passes.map { computePassUsage(it, records, today) }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    fun syncPasses() {
+        if (currentUserId == null) return
+        viewModelScope.launch { passRepository.sync() }
+    }
+
+    fun savePass(pass: ExercisePassEntity) {
+        viewModelScope.launch {
+            try {
+                passRepository.save(pass)
+            } catch (e: Exception) {
+                CrashReporter.report("savePass", e)
+                toast(R.string.toast_pass_save_failed)
+            }
+        }
+    }
+
+    fun deletePass(id: String) {
+        viewModelScope.launch {
+            try {
+                passRepository.delete(id)
+            } catch (e: Exception) {
+                CrashReporter.report("deletePass", e)
+                toast(R.string.toast_pass_save_failed)
+            }
+        }
+    }
 
     val totalNetCalories: StateFlow<Int> = visibleRecords
         .map { list -> list.sumOf { it.netCalories } }

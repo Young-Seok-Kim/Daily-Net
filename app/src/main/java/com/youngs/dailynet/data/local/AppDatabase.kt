@@ -10,6 +10,8 @@ import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.local.entity.FavoriteItemEntity
 import com.youngs.dailynet.data.local.entity.InbodyRecordEntity
+import com.youngs.dailynet.data.local.entity.ExercisePassEntity
+import com.youngs.dailynet.data.local.entity.dao.ExercisePassDao
 import com.youngs.dailynet.data.local.entity.dao.InbodyDao
 import com.youngs.dailynet.data.local.entity.dao.FavoriteDao
 import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
@@ -30,9 +32,10 @@ import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
         DailyRecordModel::class,
         UserProfileEntity::class,
         FavoriteItemEntity::class,
-        InbodyRecordEntity::class
+        InbodyRecordEntity::class,
+        ExercisePassEntity::class
     ],
-    version = 15, // 👈 inbody_records.isDummy (추이 화면 확인용 더미, MIGRATION_14_15)
+    version = 16, // 👈 exercise_passes 테이블 (운동 이용권, MIGRATION_15_16)
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -41,6 +44,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun userProfileDao(): UserProfileDao
     abstract fun favoriteDao(): FavoriteDao
     abstract fun inbodyDao(): InbodyDao
+    abstract fun exercisePassDao(): ExercisePassDao
 }
 
 /**
@@ -233,5 +237,30 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
 val MIGRATION_14_15 = object : Migration(14, 15) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE inbody_records ADD COLUMN isDummy INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+/**
+ * 운동 이용권 테이블(exercise_passes) 추가. 기존 테이블은 건드리지 않는다.
+ * 컬럼 정의는 [com.youngs.dailynet.data.local.entity.ExercisePassEntity]와 글자 하나까지 같아야 한다 (MIGRATION_9_10 주석 참고).
+ */
+val MIGRATION_15_16 = object : Migration(15, 16) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `exercise_passes` (
+                `id` TEXT NOT NULL,
+                `name` TEXT NOT NULL,
+                `kind` TEXT NOT NULL,
+                `startDate` TEXT NOT NULL,
+                `endDate` TEXT NOT NULL,
+                `totalCount` INTEGER NOT NULL,
+                `keyword` TEXT NOT NULL,
+                `adjust` INTEGER NOT NULL,
+                `createdAt` INTEGER NOT NULL,
+                PRIMARY KEY(`id`)
+            )
+            """.trimIndent()
+        )
     }
 }

@@ -16,6 +16,8 @@ import com.youngs.dailynet.data.local.MIGRATION_11_12
 import com.youngs.dailynet.data.local.MIGRATION_12_13
 import com.youngs.dailynet.data.local.MIGRATION_13_14
 import com.youngs.dailynet.data.local.MIGRATION_14_15
+import com.youngs.dailynet.data.local.MIGRATION_15_16
+import com.youngs.dailynet.data.local.entity.dao.ExercisePassDao
 import com.youngs.dailynet.data.local.entity.dao.FavoriteDao
 import com.youngs.dailynet.data.local.entity.dao.InbodyDao
 import com.youngs.dailynet.data.network.DailyNetApiService
@@ -124,7 +126,7 @@ object AppModule {
         )
             // 정의된 마이그레이션이 있으면 데이터를 지우지 않는다.
             // 컬럼을 추가할 때마다 여기에 새 마이그레이션을 등록해야 한다.
-            .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+            .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
             .fallbackToDestructiveMigration() // 마이그레이션이 없는 버전 조합일 때만 초기화
             .build()
     }
@@ -140,6 +142,9 @@ object AppModule {
 
     @Provides
     fun provideInbodyDao(db: AppDatabase): InbodyDao = db.inbodyDao()
+
+    @Provides
+    fun provideExercisePassDao(db: AppDatabase): ExercisePassDao = db.exercisePassDao()
 
     @Provides
     @Singleton
