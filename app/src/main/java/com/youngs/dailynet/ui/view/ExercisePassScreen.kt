@@ -17,15 +17,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
@@ -33,7 +31,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -49,7 +46,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -62,9 +58,6 @@ import com.youngs.dailynet.ui.theme.DnTheme
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import com.youngs.dailynet.util.PassUsage
 import com.youngs.dailynet.util.passMatches
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
 
 /**
  * 운동 이용권 목록·등록 화면. 설정 > 내 정보 > 운동 이용권에서 들어온다.
@@ -354,19 +347,7 @@ fun PassHintRow(usages: List<PassUsage>, exerciseText: String, modifier: Modifie
     }
 }
 
-private fun showDatePicker(context: android.content.Context, initial: String, onPicked: (String) -> Unit) {
-    val cal = Calendar.getInstance()
-    runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(initial) }.getOrNull()?.let { cal.time = it }
-    android.app.DatePickerDialog(
-        context,
-        { _, year, month, day -> onPicked(String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, day)) },
-        cal.get(Calendar.YEAR),
-        cal.get(Calendar.MONTH),
-        cal.get(Calendar.DAY_OF_MONTH)
-    ).show()
-}
-
-/** 이용권 등록·수정 대화상자. 기간제/횟수권에 따라 칸이 달라진다 */
+/** 이용권 등록·수정 시트. 기간제/횟수권에 따라 칸이 달라진다. 삭제는 CTA 위 구분선 아래 행 → 확인은 DnDialog */
 @Composable
 private fun PassEditDialog(
     initial: ExercisePassEntity,
@@ -375,7 +356,6 @@ private fun PassEditDialog(
     onDelete: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val context = LocalContext.current
     var name by remember { mutableStateOf(initial.name) }
     var isCount by remember { mutableStateOf(initial.isCount) }
     var startDate by remember { mutableStateOf(initial.startDate) }
@@ -383,120 +363,129 @@ private fun PassEditDialog(
     var totalText by remember { mutableStateOf(if (initial.totalCount > 0) initial.totalCount.toString() else "") }
     var keyword by remember { mutableStateOf(initial.keyword) }
     var confirmDelete by remember { mutableStateOf(false) }
+    // 날짜 선택 창. 시작일과 종료일이 각각 하나씩 연다
+    var pickingStart by remember { mutableStateOf(false) }
+    var pickingEnd by remember { mutableStateOf(false) }
 
     val total = totalText.toIntOrNull() ?: 0
     val valid = name.isNotBlank() && startDate.isNotBlank() &&
         if (isCount) total > 0 else endDate.isNotBlank() && endDate >= startDate
 
     if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text(stringResource(R.string.pass_delete)) },
-            text = { Text(stringResource(R.string.pass_delete_confirm, name)) },
-            confirmButton = {
-                TextButton(onClick = onDelete) {
-                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.cancel)) }
-            }
+        DnDialog(
+            title = stringResource(R.string.pass_delete_title),
+            body = stringResource(R.string.pass_delete_confirm),
+            tone = DnDialogTone.Destructive,
+            icon = Icons.Default.Delete,
+            targetLabel = stringResource(R.string.delete_target),
+            targetValue = name,
+            primaryLabel = stringResource(R.string.delete),
+            onPrimary = onDelete,
+            onDismiss = { confirmDelete = false }
         )
-        return
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(if (isNew) R.string.pass_add else R.string.pass_edit)) },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text(stringResource(R.string.pass_name)) },
-                    placeholder = { Text(stringResource(R.string.pass_name_hint)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+    DnFormSheet(
+        title = stringResource(if (isNew) R.string.pass_add else R.string.pass_edit),
+        onDismiss = onDismiss,
+        primaryLabel = stringResource(R.string.save),
+        primaryEnabled = valid,
+        destructiveLabel = if (isNew) null else stringResource(R.string.pass_delete),
+        onDestructive = { confirmDelete = true },
+        onPrimary = {
+            onSave(
+                initial.copy(
+                    // 새 이용권이면 지금 적은 이름으로 id를 만든다. 수정이면 그대로
+                    id = if (isNew) ExercisePassEntity.newId(name) else initial.id,
+                    name = name.trim(),
+                    kind = if (isCount) ExercisePassEntity.KIND_COUNT else ExercisePassEntity.KIND_PERIOD,
+                    startDate = startDate,
+                    endDate = endDate,
+                    totalCount = if (isCount) total else 0,
+                    keyword = if (isCount) keyword.trim() else ""
                 )
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = !isCount,
-                        onClick = { isCount = false },
-                        label = { Text(stringResource(R.string.pass_kind_period)) }
-                    )
-                    FilterChip(
-                        selected = isCount,
-                        onClick = { isCount = true },
-                        label = { Text(stringResource(R.string.pass_kind_count)) }
-                    )
-                }
-
-                DateField(
-                    label = stringResource(R.string.pass_start),
-                    value = startDate,
-                    onClick = { showDatePicker(context, startDate) { startDate = it } }
-                )
-                DateField(
-                    label = stringResource(if (isCount) R.string.pass_end_optional else R.string.pass_end),
-                    value = endDate,
-                    onClick = { showDatePicker(context, endDate.ifBlank { startDate }) { endDate = it } },
-                    onClear = if (isCount && endDate.isNotBlank()) ({ endDate = "" }) else null
-                )
-
-                if (isCount) {
-                    OutlinedTextField(
-                        value = totalText,
-                        onValueChange = { totalText = it.filter { c -> c.isDigit() }.take(4) },
-                        label = { Text(stringResource(R.string.pass_total)) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = keyword,
-                        onValueChange = { keyword = it },
-                        label = { Text(stringResource(R.string.pass_keyword)) },
-                        placeholder = { Text(stringResource(R.string.pass_keyword_placeholder)) },
-                        supportingText = { Text(stringResource(R.string.pass_keyword_hint)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                if (!isNew) {
-                    OutlinedButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.pass_delete), color = MaterialTheme.colorScheme.error)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = valid,
-                onClick = {
-                    onSave(
-                        initial.copy(
-                            // 새 이용권이면 지금 적은 이름으로 id를 만든다. 수정이면 그대로
-                            id = if (isNew) ExercisePassEntity.newId(name) else initial.id,
-                            name = name.trim(),
-                            kind = if (isCount) ExercisePassEntity.KIND_COUNT else ExercisePassEntity.KIND_PERIOD,
-                            startDate = startDate,
-                            endDate = endDate,
-                            totalCount = if (isCount) total else 0,
-                            keyword = if (isCount) keyword.trim() else ""
-                        )
-                    )
-                }
-            ) { Text(stringResource(R.string.save)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+            )
         }
-    )
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = !isCount,
+                onClick = { isCount = false },
+                label = { Text(stringResource(R.string.pass_kind_period)) }
+            )
+            FilterChip(
+                selected = isCount,
+                onClick = { isCount = true },
+                label = { Text(stringResource(R.string.pass_kind_count)) }
+            )
+        }
+
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = { Text(stringResource(R.string.pass_name)) },
+            placeholder = { Text(stringResource(R.string.pass_name_hint)) },
+            singleLine = true,
+            shape = RoundedCornerShape(DnDimens.RadiusChip),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        DateField(
+            label = stringResource(R.string.pass_start),
+            value = startDate,
+            onClick = { pickingStart = true }
+        )
+        DateField(
+            label = stringResource(if (isCount) R.string.pass_end_optional else R.string.pass_end),
+            value = endDate,
+            onClick = { pickingEnd = true },
+            onClear = if (isCount && endDate.isNotBlank()) ({ endDate = "" }) else null
+        )
+
+        if (isCount) {
+            OutlinedTextField(
+                value = totalText,
+                onValueChange = { totalText = it.filter { c -> c.isDigit() }.take(4) },
+                label = { Text(stringResource(R.string.pass_total)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                shape = RoundedCornerShape(DnDimens.RadiusChip),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = keyword,
+                onValueChange = { keyword = it },
+                label = { Text(stringResource(R.string.pass_keyword)) },
+                placeholder = { Text(stringResource(R.string.pass_keyword_placeholder)) },
+                supportingText = { Text(stringResource(R.string.pass_keyword_hint)) },
+                singleLine = true,
+                shape = RoundedCornerShape(DnDimens.RadiusChip),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+
+    if (pickingStart) {
+        DnDatePickerDialog(
+            initial = startDate,
+            onPick = {
+                startDate = it
+                pickingStart = false
+            },
+            onDismiss = { pickingStart = false }
+        )
+    }
+    if (pickingEnd) {
+        DnDatePickerDialog(
+            // 종료일이 비어 있으면 시작일에서 시작한다 (예전과 같다)
+            initial = endDate.ifBlank { startDate },
+            onPick = {
+                endDate = it
+                pickingEnd = false
+            },
+            onDismiss = { pickingEnd = false }
+        )
+    }
 }
 
 /** 누르면 날짜 선택 창이 뜨는 읽기 전용 칸. [onClear]가 있으면 끝에 지우기 버튼 */
@@ -511,6 +500,7 @@ private fun DateField(label: String, value: String, onClick: () -> Unit, onClear
                 readOnly = true,
                 enabled = false,
                 singleLine = true,
+                shape = RoundedCornerShape(DnDimens.RadiusChip),
                 colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                     disabledTextColor = MaterialTheme.colorScheme.onSurface,
                     disabledBorderColor = MaterialTheme.colorScheme.outline,

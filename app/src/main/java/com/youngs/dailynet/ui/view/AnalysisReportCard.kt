@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -511,40 +510,24 @@ fun EditKcalDialog(
     val parsed = text.trim().toIntOrNull()
     val valid = parsed != null && parsed >= 0
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(DnDimens.RadiusHero),
-        title = { Text(stringResource(R.string.edit_kcal_title)) },
-        text = {
-            Column {
-                Text(target.item.name, style = MaterialTheme.typography.titleMedium)
-                if (target.item.aiKcal > 0) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = stringResource(R.string.report_ai_kcal, target.item.aiKcal),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it.filter { ch -> ch.isDigit() } },
-                    label = { Text(stringResource(R.string.edit_kcal_label)) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(DnDimens.RadiusChip),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { parsed?.let(onConfirm) }, enabled = valid) {
-                Text(stringResource(R.string.save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
-        }
-    )
+    // 항목 이름이 제목, AI 추정값이 본문(부제). 입력은 한 칸이라 content로 끼운다
+    DnDialog(
+        title = target.item.name.ifBlank { stringResource(R.string.edit_kcal_title) },
+        body = if (target.item.aiKcal > 0) stringResource(R.string.report_ai_kcal, target.item.aiKcal) else null,
+        onDismiss = onDismiss,
+        primaryLabel = stringResource(R.string.save),
+        primaryEnabled = valid,
+        onPrimary = { parsed?.let(onConfirm) }
+    ) {
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it.filter { ch -> ch.isDigit() } },
+            label = { Text(stringResource(R.string.edit_kcal_label)) },
+            singleLine = true,
+            shape = RoundedCornerShape(DnDimens.RadiusChip),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            textStyle = MaterialTheme.typography.bodyLarge.tabular(),
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
 }

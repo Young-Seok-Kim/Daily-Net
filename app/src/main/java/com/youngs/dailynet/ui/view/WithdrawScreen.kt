@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -50,51 +51,23 @@ fun WithdrawScreen(
     BackHandler(enabled = true) { if (!processing) onBack() }
 
     if (showFinalConfirm) {
-        AlertDialog(
-            onDismissRequest = { showFinalConfirm = false },
-            title = { Text(stringResource(R.string.withdraw_final_title)) },
-            text = {
-                Column {
-                    Text(stringResource(R.string.withdraw_final_message))
-
-                    if (accountEmail.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = stringResource(R.string.withdraw_target_account),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = accountEmail,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
+        DnDialog(
+            title = stringResource(R.string.withdraw_final_title),
+            body = stringResource(R.string.withdraw_final_message),
+            tone = DnDialogTone.Destructive,
+            icon = Icons.Default.Delete,
+            targetLabel = stringResource(R.string.withdraw_target_account),
+            targetValue = accountEmail.ifBlank { null },
+            primaryLabel = stringResource(R.string.withdraw_confirm_action),
+            onPrimary = {
+                showFinalConfirm = false
+                processing = true
+                mainViewModel.withdrawAccount(context) { success ->
+                    processing = false
+                    if (success) onNavigateToLogin()
                 }
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    showFinalConfirm = false
-                    processing = true
-                    mainViewModel.withdrawAccount(context) { success ->
-                        processing = false
-                        if (success) onNavigateToLogin()
-                    }
-                }) {
-                    Text(
-                        stringResource(R.string.withdraw_confirm_action),
-                        color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showFinalConfirm = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
+            onDismiss = { showFinalConfirm = false }
         )
     }
 
@@ -196,22 +169,7 @@ fun WithdrawScreen(
             }
 
             if (processing) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
-                        .clickable(enabled = false) {},   // 뒷배경 클릭 방지
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator()
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            stringResource(R.string.withdraw_processing),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                }
+                DnBlockingOverlay(stringResource(R.string.withdraw_processing))
             }
         }
     }

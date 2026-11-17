@@ -19,8 +19,8 @@
     <string name="login_reauth_failed">구글 계정 재인증에 실패했습니다. 다시 시도하거나 기기 설정에서 구글 계정을 재확인해 주세요.</string>
 
     <!-- 업데이트 안내 -->
-    <string name="update_title_forced">업데이트가 필요합니다</string>
-    <string name="update_title_recommend">새 버전이 있습니다</string>
+    <string name="update_title_forced">업데이트가 필요해요</string>
+    <string name="update_title_recommend">새 버전이 있어요</string>
     <string name="update_action">업데이트</string>
     <string name="update_later">나중에</string>
     <string name="update_message_forced">지금 버전은 더 이상 지원되지 않습니다.\n최신 버전으로 업데이트해 주세요.</string>
@@ -48,7 +48,7 @@
     <string name="inbody_date_label">측정일</string>
     <string name="inbody_clear">지우기</string>
     <string name="inbody_photo_source_title">인바디 결과지 사진</string>
-    <string name="inbody_photo_source_desc">결과지를 찍거나 갤러리에서 고르세요. 숫자가 선명하게 보이게 찍어 주세요.</string>
+    <string name="inbody_photo_source_desc">숫자가 선명하게 보이게 찍어 주세요.</string>
     <string name="inbody_photo_filled">사진에서 값을 읽었어요. 확인하고 저장하세요.</string>
     <string name="inbody_photo_not_found">인바디 결과지를 알아보지 못했어요. 숫자가 잘 보이게 다시 찍어 주세요.</string>
     <string name="toast_inbody_saved">인바디 결과를 저장했습니다.</string>
@@ -67,7 +67,8 @@
     <string name="inbody_list_empty">아직 인바디 결과가 없어요. 아래 버튼으로 추가하세요.</string>
     <string name="inbody_applied">분석에 적용 중</string>
     <string name="inbody_delete_title">이 결과를 지울까요?</string>
-    <string name="inbody_delete_message">%1$s 측정과 그 해석이 지워집니다.</string>
+    <string name="inbody_delete_message">측정값과 해석이 함께 삭제됩니다.</string>
+    <string name="inbody_delete_target_value">%1$s 측정</string>
     <string name="inbody_visceral_label">내장지방 레벨</string>
     <string name="inbody_score_label">인바디 점수</string>
     <string name="inbody_water_label">체수분 (L)</string>
@@ -97,7 +98,8 @@
 
     <!-- 로그아웃 -->
     <string name="logout">로그아웃</string>
-    <string name="logout_confirm_message">로그아웃하시겠습니까?\n기록은 서버에 남아 있어 다시 로그인하면 그대로 복구됩니다.</string>
+    <string name="logout_confirm_message">기록은 서버에 남아 있어요.\n다시 로그인하면 그대로 복구됩니다.</string>
+    <string name="logout_confirm_title">로그아웃할까요?</string>
     <string name="logout_in_progress">로그아웃 중입니다...</string>
 
     <!-- 메인 화면 -->
@@ -109,8 +111,9 @@
     <string name="save">저장</string>
     <string name="save_and_start">저장 및 시작</string>
     <string name="open_settings">설정 열기</string>
-    <string name="delete_record_title">기록 삭제</string>
-    <string name="delete_record_message">%1$s의 정산 기록을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.</string>
+    <string name="delete_record_title">이 기록을 지울까요?</string>
+    <string name="delete_record_message">정산 기록과 AI 리포트가 함께 삭제됩니다.\n삭제한 기록은 되돌릴 수 없습니다.</string>
+    <string name="delete_target">삭제 대상</string>
     <string name="cd_profile">프로필</string>
     <string name="cd_profile_photo">프로필 사진</string>
     <string name="cd_expand">펼치기</string>
@@ -185,7 +188,10 @@
     <string name="pass_no_keyword">키워드가 없어 자동으로 세지 않습니다. +1/−1로 직접 세세요.</string>
     <string name="pass_today_deducted">오늘 차감</string>
     <string name="pass_delete">이용권 삭제</string>
-    <string name="pass_delete_confirm">\"%1$s\" 이용권을 삭제할까요? 기록은 그대로 남습니다.</string>
+    <string name="pass_delete_confirm">기록은 그대로 남습니다.</string>
+    <string name="pass_delete_title">이용권을 삭제할까요?</string>
+    <string name="dialog_close">닫기</string>
+    <string name="birth_date_pick">눌러서 선택</string>
     <string name="toast_pass_save_failed">이용권을 저장하지 못했어요. 다시 시도해 주세요.</string>
     <!-- 이용권 캘린더 일정 (구글 캘린더 연동이 켜져 있을 때) -->
     <string name="calendar_pass_title_period">%1$s 이용권</string>
@@ -304,9 +310,12 @@
     <string name="steps_load_failed">걸음 수를 불러오지 못했어요</string>
     <string name="steps_reloaded">걸음 수를 새로 불러왔어요 (%1$d보)</string>
     <string name="photo_source_title">음식 사진 넣기</string>
-    <string name="photo_source_desc">새로 찍거나, 이미 찍어둔 사진을 고를 수 있어요. 갤러리에서는 한 끼 사진을 여러 장(최대 5장) 골라도 돼요.</string>
-    <string name="photo_source_camera">카메라</string>
-    <string name="photo_source_gallery">갤러리</string>
+    <string name="photo_source_desc">한 끼 사진은 최대 5장까지 고를 수 있어요.</string>
+    <string name="photo_source_camera">사진 찍기</string>
+    <string name="photo_source_gallery">갤러리에서 고르기</string>
+    <string name="photo_source_camera_desc">지금 바로 촬영</string>
+    <string name="photo_source_gallery_desc_meal">찍어둔 사진 최대 5장</string>
+    <string name="photo_source_gallery_desc_inbody">결과지 사진 한 장</string>
     <string name="camera_permission_denied">사진을 찍으려면 카메라 권한이 필요해요. 갤러리에서 고르는 건 가능해요.</string>
     <string name="camera_unavailable">카메라를 열지 못했어요.</string>
     <string name="camera_capture_failed">사진을 찍지 못했어요. 다시 시도해 주세요.</string>
@@ -355,9 +364,9 @@
     <string name="weight_stat_days_value">%1$d일</string>
 
     <!-- 회원탈퇴 -->
-    <string name="withdraw_final_title">마지막 확인</string>
-    <string name="withdraw_final_message">정말 탈퇴하시겠습니까?\n지금까지의 모든 정산 기록이 영구 삭제되며, 복구할 수 없습니다.</string>
-    <string name="withdraw_confirm_action">탈퇴하기</string>
+    <string name="withdraw_final_title">정말 탈퇴할까요?</string>
+    <string name="withdraw_final_message">지금까지의 모든 정산 기록이 영구 삭제됩니다.\n복구할 수 없습니다.</string>
+    <string name="withdraw_confirm_action">탈퇴</string>
     <string name="withdraw_target_account">탈퇴할 계정</string>
     <string name="withdraw_heading">탈퇴하면 아래 내용이 모두 삭제됩니다.</string>
     <string name="withdraw_bullet_records">지금까지 기록한 모든 정산 내역</string>

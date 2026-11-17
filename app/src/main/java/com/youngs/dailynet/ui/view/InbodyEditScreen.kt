@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -61,7 +62,6 @@ import com.youngs.dailynet.data.model.InbodyData
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import com.youngs.dailynet.util.MealPhoto
 import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -108,6 +108,8 @@ fun InbodyEditScreen(
     var dateText by remember {
         mutableStateOf(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()))
     }
+    // 날짜 선택 창이 열려 있는지. 플랫폼 창을 직접 띄우던 자리를 Compose 다이얼로그로 바꿨다
+    var pickingDate by remember { mutableStateOf(false) }
     // 저장된 값을 한 번 채웠는지. 이력이 늦게 도착해도 사용자가 치던 값을 덮지 않기 위해서다
     var loaded by remember { mutableStateOf(isNew) }
 
@@ -144,14 +146,6 @@ fun InbodyEditScreen(
         measuredAt = dateText.trim()
     )
 
-    fun calendarOf(dateStr: String): Calendar {
-        val cal = Calendar.getInstance()
-        runCatching {
-            SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateStr)?.let { cal.time = it }
-        }
-        return cal
-    }
-
     // ── 결과지 사진 ──
     var showPhotoSource by remember { mutableStateOf(false) }
     var cameraOpen by remember { mutableStateOf(false) }
@@ -183,46 +177,55 @@ fun InbodyEditScreen(
     }
 
     if (showPhotoSource) {
-        AlertDialog(
-            onDismissRequest = { showPhotoSource = false },
-            title = { Text(stringResource(R.string.inbody_photo_source_title)) },
-            text = { Text(stringResource(R.string.inbody_photo_source_desc)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showPhotoSource = false
-                    val granted = ContextCompat.checkSelfPermission(
-                        context, Manifest.permission.CAMERA
-                    ) == PackageManager.PERMISSION_GRANTED
-                    if (granted) cameraOpen = true
-                    else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                }) { Text(stringResource(R.string.photo_source_camera)) }
+        // 음식 사진과 같은 시트. 인바디는 결과지 한 장이라 갤러리 설명만 다르다
+        PhotoSourceSheet(
+            title = stringResource(R.string.inbody_photo_source_title),
+            subtitle = stringResource(R.string.inbody_photo_source_desc),
+            gallerySubtitle = stringResource(R.string.photo_source_gallery_desc_inbody),
+            onCamera = {
+                showPhotoSource = false
+                val granted = ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.CAMERA
+                ) == PackageManager.PERMISSION_GRANTED
+                if (granted) cameraOpen = true
+                else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    showPhotoSource = false
-                    galleryLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
-                }) { Text(stringResource(R.string.photo_source_gallery)) }
-            }
+            onGallery = {
+                showPhotoSource = false
+                galleryLauncher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                )
+            },
+            onDismiss = { showPhotoSource = false }
         )
     }
 
     var showDeleteConfirm by remember { mutableStateOf(false) }
     if (showDeleteConfirm && !isNew) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text(stringResource(R.string.inbody_delete_title)) },
-            text = { Text(stringResource(R.string.inbody_delete_message, measuredAt)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showDeleteConfirm = false
-                    mainViewModel.deleteInbody(measuredAt) { ok -> if (ok) onBack() }
-                }) { Text(stringResource(R.string.inbody_clear), color = MaterialTheme.colorScheme.error) }
+        DnDialog(
+            title = stringResource(R.string.inbody_delete_title),
+            body = stringResource(R.string.inbody_delete_message),
+            tone = DnDialogTone.Destructive,
+            icon = Icons.Default.Delete,
+            targetLabel = stringResource(R.string.delete_target),
+            targetValue = stringResource(R.string.inbody_delete_target_value, measuredAt),
+            primaryLabel = stringResource(R.string.delete),
+            onPrimary = {
+                showDeleteConfirm = false
+                mainViewModel.deleteInbody(measuredAt) { ok -> if (ok) onBack() }
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text(stringResource(R.string.cancel)) }
-            }
+            onDismiss = { showDeleteConfirm = false }
+        )
+    }
+
+    if (pickingDate) {
+        DnDatePickerDialog(
+            initial = dateText,
+            onPick = {
+                dateText = it
+                pickingDate = false
+            },
+            onDismiss = { pickingDate = false }
         )
     }
 
@@ -281,18 +284,7 @@ fun InbodyEditScreen(
                 label = { Text(stringResource(R.string.inbody_date_label)) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable {
-                        val cal = calendarOf(dateText)
-                        android.app.DatePickerDialog(
-                            context,
-                            { _, year, month, day ->
-                                dateText = String.format(Locale.getDefault(), "%d-%02d-%02d", year, month + 1, day)
-                            },
-                            cal.get(Calendar.YEAR),
-                            cal.get(Calendar.MONTH),
-                            cal.get(Calendar.DAY_OF_MONTH)
-                        ).show()
-                    },
+                    .clickable { pickingDate = true },
                 enabled = false,
                 colors = OutlinedTextFieldDefaults.colors(
                     disabledTextColor = MaterialTheme.colorScheme.onSurface,
