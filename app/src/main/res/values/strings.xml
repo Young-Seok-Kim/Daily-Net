@@ -140,6 +140,8 @@
 
     <!-- Yearly summary (tap the year divider) -->
     <string name="year_summary_total">Year total</string>
+    <string name="week_summary_total">Week total</string>
+    <string name="period_report_empty">No records for this period.</string>
 
     <!-- AI review of a week / month / year -->
     <string name="period_eval_title">AI review</string>

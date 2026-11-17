@@ -205,6 +205,8 @@ fun MainScreen(
     onNavigateToSettings: () -> Unit,
     /** "yyyy-MM"을 받아 그 달 정산 화면을 연다 */
     onNavigateToMonth: (String) -> Unit,
+    /** 주("202646")·연("2026") 정산 상세를 연다. AI 평가 전문은 거기서 본다 */
+    onNavigateToPeriod: (PeriodKind, String) -> Unit = { _, _ -> },
 ) {
     val dailyRecords by mainViewModel.allDailyRecord.collectAsState()
     val totalCalories by mainViewModel.totalNetCalories.collectAsState()
@@ -450,12 +452,12 @@ fun MainScreen(
                                     if (currentYear in open) open - currentYear else open + currentYear
                             },
                             evaluation = {
-                                PeriodEvaluationSection(
+                                PeriodEvaluationRow(
                                     mainViewModel = mainViewModel,
                                     kind = PeriodKind.YEAR,
                                     label = currentYear,
-                                    title = yearTitle,
-                                    records = yearRecords[currentYear].orEmpty()
+                                    records = yearRecords[currentYear].orEmpty(),
+                                    onOpen = { onNavigateToPeriod(PeriodKind.YEAR, currentYear) }
                                 )
                             }
                         )
@@ -484,13 +486,14 @@ fun MainScreen(
                                 }
                             },
                             onOpenReport = { onNavigateToMonth(currentMonth) },
+                            // 월의 전문은 월 정산 화면에 있다. 줄을 누르면 거기로 간다
                             evaluation = {
-                                PeriodEvaluationSection(
+                                PeriodEvaluationRow(
                                     mainViewModel = mainViewModel,
                                     kind = PeriodKind.MONTH,
                                     label = currentMonth,
-                                    title = monthTitle,
-                                    records = monthRecords[currentMonth].orEmpty()
+                                    records = monthRecords[currentMonth].orEmpty(),
+                                    onOpen = { onNavigateToMonth(currentMonth) }
                                 )
                             }
                         )
@@ -514,12 +517,12 @@ fun MainScreen(
                                 }
                             },
                             evaluation = {
-                                PeriodEvaluationSection(
+                                PeriodEvaluationRow(
                                     mainViewModel = mainViewModel,
                                     kind = PeriodKind.WEEK,
                                     label = currentWeekId.toString(),
-                                    title = weekDisplayText,
-                                    records = weekRecords[currentWeekId].orEmpty()
+                                    records = weekRecords[currentWeekId].orEmpty(),
+                                    onOpen = { onNavigateToPeriod(PeriodKind.WEEK, currentWeekId.toString()) }
                                 )
                             }
                         )
@@ -676,7 +679,7 @@ fun WeekDivider(
     summary: PeriodSummary? = null,
     expanded: Boolean = false,
     onToggle: (() -> Unit)? = null,
-    /** 패널 아래에 붙는 AI 평가 카드. 펼쳤을 때만 그린다 */
+    /** 패널 아래에 붙는 AI 평가 줄. 펼쳤을 때만 그린다 */
     evaluation: (@Composable () -> Unit)? = null
 ) {
     SectionDivider(

@@ -1,5 +1,7 @@
 package com.youngs.dailynet.ui.view
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,7 +11,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -22,7 +28,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -218,7 +226,75 @@ fun buildPeriodEvalRequest(
 }
 
 /**
- * 주·월·연 요약 패널과 월 정산 화면에 붙는 AI 평가 카드.
+ * 목록의 주·월·연 요약 패널에 붙는 **한 줄짜리** AI 평가. 누르면 [onOpen]으로 상세 화면에 간다.
+ *
+ * 평가 전이면 "AI 평가 받기 ›", 평가 뒤면 점수 pill과 한 줄 제목만 보인다. 평가 전문(총평·식단·운동·할 일)은
+ * 열 줄이 넘어 목록 패널 안에 두면 기록이 한참 밀린다. 그래서 받는 것도 보는 것도 상세 화면 몫이고,
+ * 여기는 "있다/없다/몇 점"만 알린다. 기록이 바뀐 뒤면 제목 대신 바뀌었다는 안내를 붉게 보인다.
+ */
+@Composable
+fun PeriodEvaluationRow(
+    mainViewModel: MainViewModel,
+    kind: PeriodKind,
+    label: String,
+    records: List<DailyRecordModel>,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val key = remember(kind, label) { periodKeyOf(kind, label) }
+    LaunchedEffect(key) { mainViewModel.loadPeriodEvaluation(key) }
+
+    val evaluations by mainViewModel.periodEvaluations.collectAsState()
+    val evaluation = evaluations[key]
+    val fingerprint = remember(records) { recordsFingerprint(records) }
+    val outdated = evaluation != null && evaluation.fingerprint.isNotEmpty() && evaluation.fingerprint != fingerprint
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(DnDimens.RadiusTile))
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable(onClick = onOpen)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = stringResource(R.string.period_eval_title),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        if (evaluation == null) {
+            Text(
+                text = stringResource(R.string.period_eval_button),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+        } else {
+            ScoreChip(evaluation.score)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (outdated) stringResource(R.string.period_eval_outdated) else evaluation.headline,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (outdated) DnTheme.net.coral else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+/**
+ * 상세 화면(월 정산·주/연 정산)에 붙는 AI 평가 카드 전문.
  *
  * 처음 보이면 저장된 평가를 한 번 읽어 오고(없으면 버튼만), 버튼을 누르면 서버에 평가를 받아
  * 저장한다. 그 뒤 기록이 바뀌면 "기록이 바뀌었습니다"와 함께 다시 받을 수 있게 둔다.

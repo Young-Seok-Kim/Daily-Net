@@ -138,6 +138,8 @@
 
     <!-- 연간 요약 (연 구분선을 누르면 펼쳐짐) -->
     <string name="year_summary_total">연 합계</string>
+    <string name="week_summary_total">주 합계</string>
+    <string name="period_report_empty">이 기간에는 정산 기록이 없습니다.</string>
 
     <!-- 주·월·연 AI 평가 -->
     <string name="period_eval_title">AI 평가</string>
