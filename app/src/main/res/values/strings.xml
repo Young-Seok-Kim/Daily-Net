@@ -269,6 +269,7 @@
     <string name="ai_report_title">AI analysis report</string>
     <string name="badge_just_done">Just finished</string>
     <string name="analyzing_wait">Analysis in progress. Please wait a moment</string>
+    <string name="analyze_wait_photo">Reading the photo…</string>
     <string name="analyzing_title">🤖 AI is analyzing</string>
     <string name="analyzing_inline">AI is analyzing</string>
     <string name="analyzing_elapsed">%1$d s elapsed · usually takes 10–30 s</string>

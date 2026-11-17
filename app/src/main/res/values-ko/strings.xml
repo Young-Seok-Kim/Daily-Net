@@ -267,6 +267,7 @@
     <string name="ai_report_title">AI 분석 레포트</string>
     <string name="badge_just_done">방금 완료</string>
     <string name="analyzing_wait">분석 중이에요. 잠시만 기다려주세요</string>
+    <string name="analyze_wait_photo">사진을 읽는 중이에요…</string>
     <string name="analyzing_title">🤖 AI가 분석 중이에요</string>
     <string name="analyzing_inline">AI가 분석 중이에요</string>
     <string name="analyzing_elapsed">%1$d초 경과 · 보통 10~30초 걸려요</string>
