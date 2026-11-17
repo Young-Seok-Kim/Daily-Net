@@ -28,7 +28,8 @@
   지문이 바뀌어 "기록이 바뀌었습니다"가 뜬다
 - **시작 몸무게는 마지막 대체값으로만.** 분석 요청의 체중은 그날 체중 → 최근 기록 체중 → 인바디 체중 → 시작 몸무게 순
   (`DailyRecordRepository.analyzeAndSave`, `GeminiManager`). 인바디 해석과 인바디 화면의 BMI도 같은 순서.
-  프로필 창에 "현재 체중 (시작 대비 ±)" 칸 추가
+  프로필 창에 "현재 체중 (시작 대비 ±)" 칸 추가. 표시 기간이 켜져 있으면 프로필 창의 시작 몸무게 자리에 그 기간의 첫 체중을 보여
+  시작일부터 다시 시작한 것처럼 읽힌다 (저장된 시작 몸무게는 그대로, 끄면 원래 값)
 
 - `FavoriteChipRow`의 "어제와 같게" AssistChip과 `MainViewModel.copyFromYesterday`, 문구 2개(`fav_same_as_yesterday`, `fav_yesterday_empty`) 제거.
   칩 줄은 고정(★) → 자주 쓴 순 → 더보기만 남는다

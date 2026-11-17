@@ -637,9 +637,17 @@ fun MainScreen(
                                     value = String.format(Locale.getDefault(), "%.1f cm", p.height),
                                     modifier = Modifier.weight(1f)
                                 )
+                                // 기준이 되는 시작 몸무게. 표시 기간이 켜져 있으면 가입 때 적은 값이 아니라
+                                // 그 기간에 처음 적은 체중이다 — 사용자에게는 시작일부터 다시 시작한 것처럼 보여야 한다.
+                                // (dailyRecords는 최신순이라 lastOrNull이 가장 이른 날이다)
+                                val baselineWeight = if (dateRange.active) {
+                                    dailyRecords.lastOrNull { it.weight > 0f }?.weight ?: p.initialWeight
+                                } else {
+                                    p.initialWeight
+                                }
                                 StatCell(
                                     label = stringResource(R.string.profile_start_weight),
-                                    value = String.format(Locale.getDefault(), "%.1f kg", p.initialWeight),
+                                    value = String.format(Locale.getDefault(), "%.1f kg", baselineWeight),
                                     modifier = Modifier.weight(1f)
                                 )
                                 // 시작 몸무게가 "기준점"이려면 지금 어디까지 왔는지가 옆에 있어야 한다.
@@ -648,10 +656,10 @@ fun MainScreen(
                                     StatCell(
                                         label = stringResource(
                                             R.string.profile_current_weight,
-                                            String.format(Locale.getDefault(), "%+.1f", current - p.initialWeight)
+                                            String.format(Locale.getDefault(), "%+.1f", current - baselineWeight)
                                         ),
                                         value = String.format(Locale.getDefault(), "%.1f kg", current),
-                                        valueColor = DnTheme.net.of(current - p.initialWeight),
+                                        valueColor = DnTheme.net.of(current - baselineWeight),
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
