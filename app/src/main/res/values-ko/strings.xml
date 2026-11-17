@@ -454,6 +454,8 @@
     <string name="calendar_sync_done">캘린더에 %1$d건 추가, %2$d건 갱신했습니다</string>
     <string name="calendar_sync_nothing">바꿀 것이 없습니다. 캘린더가 기록과 이미 같습니다</string>
     <string name="calendar_sync_failed">동기화에 실패했습니다: %1$s</string>
+    <string name="calendar_sync_failed_network">네트워크 문제로 구글에 연결하지 못했습니다. 잠시 뒤 다시 시도해 주세요.</string>
+    <string name="calendar_sync_partial">운동 일정은 %1$d건 추가, %2$d건 갱신했지만 이용권 일정은 네트워크 문제로 넣지 못했습니다. 다시 시도해 주세요.</string>
 
     <!-- 리디자인(b53)에서 추가: 홈 히어로·추이·월 정산·AI 리포트 카드 -->
     <string name="hero_badge_today">오늘 %1$d</string>

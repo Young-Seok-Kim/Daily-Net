@@ -65,7 +65,6 @@ import com.youngs.dailynet.util.passMatches
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import java.util.UUID
 
 /**
  * 운동 이용권 목록·등록 화면. 설정 > 내 정보 > 운동 이용권에서 들어온다.
@@ -125,7 +124,8 @@ fun ExercisePassScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = {
-                    editing = ExercisePassEntity(id = UUID.randomUUID().toString(), startDate = today)
+                    // id는 저장할 때 이름으로 만든다 (PassEditDialog). 여기서는 자리만
+                    editing = ExercisePassEntity(id = "", startDate = today)
                     editingIsNew = true
                 },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
@@ -480,6 +480,8 @@ private fun PassEditDialog(
                 onClick = {
                     onSave(
                         initial.copy(
+                            // 새 이용권이면 지금 적은 이름으로 id를 만든다. 수정이면 그대로
+                            id = if (isNew) ExercisePassEntity.newId(name) else initial.id,
                             name = name.trim(),
                             kind = if (isCount) ExercisePassEntity.KIND_COUNT else ExercisePassEntity.KIND_PERIOD,
                             startDate = startDate,

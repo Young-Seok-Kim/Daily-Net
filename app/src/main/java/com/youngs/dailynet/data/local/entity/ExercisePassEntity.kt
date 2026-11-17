@@ -51,6 +51,17 @@ data class ExercisePassEntity(
         const val KIND_PERIOD = "period"
         const val KIND_COUNT = "count"
 
+        /**
+         * 새 이용권의 id. Firestore 콘솔에서 문서 이름만 보고도 무엇인지 알 수 있게 "이름_만든시각"으로 만든다.
+         * 이름은 나중에 바꿔도 id는 그대로다(캘린더 일정·Firestore 문서가 이 값으로 묶여 있다).
+         * "/"는 Firestore 문서 id에 못 쓰고, 공백은 보기 싫어 밑줄로 바꾼다.
+         */
+        fun newId(name: String, now: Long = System.currentTimeMillis()): String {
+            val base = name.trim().replace(Regex("[/\s]+"), "_").take(20).ifBlank { "pass" }
+            val stamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date(now))
+            return "${base}_$stamp"
+        }
+
         /** Firestore 문서 → 엔티티. id나 이름이 없으면 null */
         fun fromMap(raw: Map<String, Any?>?): ExercisePassEntity? {
             val map = raw ?: return null

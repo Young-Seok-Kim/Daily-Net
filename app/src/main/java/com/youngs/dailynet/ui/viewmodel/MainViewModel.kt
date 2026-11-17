@@ -1596,10 +1596,21 @@ class MainViewModel @Inject constructor(
                     is GoogleCalendarSync.Access.Granted -> {
                         repository.fetchAllFromFirebase()
                         val result = calendarSync.syncAll(access.token, dailyRecordDao.getAllWithExercise())
-                        // 이용권 띠 일정도 같이 맞춘다 (연동을 켜기 전에 등록한 것이 여기서 들어간다)
-                        val passesChanged = calendarSync.syncAllPasses(access.token, passRepository.getAll())
-                        if (result.added == 0 && result.updated == 0 && passesChanged == 0) toast(R.string.calendar_sync_nothing)
-                        else toast(R.string.calendar_sync_done, result.added, result.updated + passesChanged)
+                        // 이용권 일정도 같이 맞춘다 (연동을 켜기 전에 등록한 것이 여기서 들어간다).
+                        // 여기서 실패해도 앞의 운동 일정은 이미 들어갔으니 전체를 실패로 보고하지 않는다.
+                        val passesChanged = try {
+                            calendarSync.syncAllPasses(access.token, passRepository.getAll())
+                        } catch (e: Exception) {
+                            Log.w("GoogleCalendarSync", "pass sync failed: ${e.message}", e)
+                            null
+                        }
+                        when {
+                            passesChanged == null ->
+                                toast(R.string.calendar_sync_partial, result.added, result.updated)
+                            result.added == 0 && result.updated == 0 && passesChanged == 0 ->
+                                toast(R.string.calendar_sync_nothing)
+                            else -> toast(R.string.calendar_sync_done, result.added, result.updated + passesChanged)
+                        }
                     }
                     is GoogleCalendarSync.Access.NeedsConsent -> onNeedsConsent(access.pendingIntent)
                     is GoogleCalendarSync.Access.Failed ->
@@ -1611,7 +1622,9 @@ class MainViewModel @Inject constructor(
             } catch (e: Exception) {
                 val body = (e as? retrofit2.HttpException)?.response()?.errorBody()?.string()
                 Log.w("GoogleCalendarSync", "sync failed: ${e.message} ${body.orEmpty()}", e)
-                toast(R.string.calendar_sync_failed, e.message.orEmpty())
+                // "Unable to resolve host" 같은 영어 원문 대신, 네트워크 오류면 그렇다고 말한다
+                if (e is java.io.IOException) toast(R.string.calendar_sync_failed_network)
+                else toast(R.string.calendar_sync_failed, e.message.orEmpty())
             }
             onDone()
         }

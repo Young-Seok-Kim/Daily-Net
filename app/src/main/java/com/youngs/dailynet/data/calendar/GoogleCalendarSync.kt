@@ -521,13 +521,16 @@ class GoogleCalendarSync @Inject constructor(
      */
     private suspend fun <T> retryOnNetworkError(block: suspend () -> T): T {
         var lastError: IOException? = null
-        repeat(3) { attempt ->
+        // 2026-11-17 폰의 DNS(AdGuard)가 www.googleapis.com 조회를 몇 초씩 못 하는 일이 있었다.
+        // 1.5·3·4.5초로는 못 넘겨서 2·4·8·12초, 네 번 더(총 26초) 기다린다. DNS가 풀리면 바로 이어진다.
+        val waits = longArrayOf(2000L, 4000L, 8000L, 12000L)
+        repeat(waits.size + 1) { attempt ->
             try {
                 return block()
             } catch (e: IOException) {
                 lastError = e
                 Log.w(TAG, "network error (attempt ${attempt + 1}): ${e.message}")
-                delay(1500L * (attempt + 1))
+                if (attempt < waits.size) delay(waits[attempt])
             }
         }
         throw lastError!!
