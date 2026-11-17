@@ -205,6 +205,8 @@ fun MainScreen(
     onNavigateToSettings: () -> Unit,
     /** "yyyy-MM"을 받아 그 달 정산 화면을 연다 */
     onNavigateToMonth: (String) -> Unit,
+    /** 주("202646")·연("2026") 정산 상세를 연다. AI 평가 전문은 거기서 본다 */
+    onNavigateToPeriod: (PeriodKind, String) -> Unit = { _, _ -> },
 ) {
     val dailyRecords by mainViewModel.allDailyRecord.collectAsState()
     val totalCalories by mainViewModel.totalNetCalories.collectAsState()
@@ -238,6 +240,18 @@ fun MainScreen(
         dailyRecords.groupBy { it.date.take(7) }
             .mapValues { (_, records) -> buildPeriodSummary(records, latestWeight) }
     }
+    // 연 요약. 키는 "yyyy". 연 구분선 패널과 AI 평가가 쓴다
+    val yearRecords = remember(dailyRecords) { dailyRecords.groupBy { it.date.take(4) } }
+    val yearSummaries = remember(yearRecords, latestWeight) {
+        yearRecords.mapValues { (_, records) -> buildPeriodSummary(records, latestWeight) }
+    }
+    val weekRecords = remember(dailyRecords) { dailyRecords.groupBy { getWeekIdentifier(it.date) } }
+    val monthRecords = remember(dailyRecords) { dailyRecords.groupBy { it.date.take(7) } }
+
+    // 설정에서 끈 구분선은 그리지 않는다. 접힌 상태가 아니라 줄 자체가 없다
+    val showWeek = mainViewModel.showWeekDivider
+    val showMonth = mainViewModel.showMonthDivider
+    val showYear = mainViewModel.showYearDivider
 
     // 페이징 제거: 첫 로그인 시 checkProfile에서 전체를 한 번에 로드하고 이후엔 캐시를 사용한다.
     // (스크롤 페이징이 먼저 돌아 전체 로드를 건너뛰던 경쟁 상태를 방지)
@@ -284,6 +298,29 @@ fun MainScreen(
 
     var showSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
+
+    // 프로필 시트의 로그아웃. 설정 화면과 같은 확인 창·같은 진행 표시를 쓴다.
+    var showLogoutConfirm by remember { mutableStateOf(false) }
+    val isLoggingOut by mainViewModel.isLoggingOut.collectAsState()
+    val context = LocalContext.current
+    if (showLogoutConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLogoutConfirm = false },
+            title = { Text(stringResource(R.string.logout)) },
+            text = { Text(stringResource(R.string.logout_confirm_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showLogoutConfirm = false
+                    mainViewModel.logout(context) { success ->
+                        if (success) onNavigateToLogin()
+                    }
+                }) { Text(stringResource(R.string.logout), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutConfirm = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
 
     SystemUiController(false)
 
@@ -395,14 +432,46 @@ fun MainScreen(
 
                     val totalWeeklyNet = weeklyCaloriesMap[currentWeekId] ?: 0
 
-                    // 달이 바뀌는 자리에 월 구분선을 먼저 깐다. 주차 구분선보다 한 단계 위 계층이라
+                    // 해가 바뀌는 자리에 연 구분선을 맨 먼저 깐다. 월 구분선보다 한 단계 위 계층이라
+                    // 같은 날 셋 다 나오면 연 → 월 → 주 순서로 쌓인다.
+                    // 올해 첫 기록 위에도 나온다. 올해를 평가하는 자리가 거기뿐이기 때문이다.
+                    // (설정의 "연 구분선"을 끄면 사라진다)
+                    val currentYear = item.date.take(4)
+                    val isYearHead = index == 0 || currentYear != dailyRecords[index - 1].date.take(4)
+                    if (showYear && isYearHead) {
+                        val yearSummary = yearSummaries[currentYear]
+                        val yearTitle = getYearHeaderText(item.date)
+                        YearDivider(
+                            headerText = yearTitle,
+                            yearlyCalories = yearSummary?.netTotal ?: 0,
+                            summary = yearSummary,
+                            expanded = currentYear in mainViewModel.expandedYears,
+                            onToggle = {
+                                val open = mainViewModel.expandedYears
+                                mainViewModel.expandedYears =
+                                    if (currentYear in open) open - currentYear else open + currentYear
+                            },
+                            evaluation = {
+                                PeriodEvaluationRow(
+                                    mainViewModel = mainViewModel,
+                                    kind = PeriodKind.YEAR,
+                                    label = currentYear,
+                                    records = yearRecords[currentYear].orEmpty(),
+                                    onOpen = { onNavigateToPeriod(PeriodKind.YEAR, currentYear) }
+                                )
+                            }
+                        )
+                    }
+
+                    // 달이 바뀌는 자리에 월 구분선을 깐다. 주차 구분선보다 한 단계 위 계층이라
                     // 같은 날 둘 다 나오면 월 → 주 순서로 쌓인다.
                     val currentMonth = item.date.take(7)
                     val isMonthHead = index == 0 || currentMonth != dailyRecords[index - 1].date.take(7)
-                    if (isMonthHead) {
+                    if (showMonth && isMonthHead) {
                         val monthSummary = monthSummaries[currentMonth]
+                        val monthTitle = getMonthHeaderText(item.date)
                         MonthDivider(
-                            headerText = getMonthHeaderText(item.date),
+                            headerText = monthTitle,
                             // 월 합계는 요약이 이미 들고 있어서 따로 집계하지 않는다
                             monthlyCalories = monthSummary?.netTotal ?: 0,
                             summary = monthSummary,
@@ -416,12 +485,22 @@ fun MainScreen(
                                     open + currentMonth
                                 }
                             },
-                            onOpenReport = { onNavigateToMonth(currentMonth) }
+                            onOpenReport = { onNavigateToMonth(currentMonth) },
+                            // 월의 전문은 월 정산 화면에 있다. 줄을 누르면 거기로 간다
+                            evaluation = {
+                                PeriodEvaluationRow(
+                                    mainViewModel = mainViewModel,
+                                    kind = PeriodKind.MONTH,
+                                    label = currentMonth,
+                                    records = monthRecords[currentMonth].orEmpty(),
+                                    onOpen = { onNavigateToMonth(currentMonth) }
+                                )
+                            }
                         )
                     }
 
                     val isWeekHead = index == 0 || currentWeekId != getWeekIdentifier(dailyRecords[index - 1].date)
-                    if (isWeekHead) {
+                    if (showWeek && isWeekHead) {
                         WeekDivider(
                             headerText = weekDisplayText,
                             weeklyCalories = totalWeeklyNet,
@@ -436,14 +515,25 @@ fun MainScreen(
                                     // 하나만 열리면 오히려 불편하다.
                                     open + currentWeekId
                                 }
+                            },
+                            evaluation = {
+                                PeriodEvaluationRow(
+                                    mainViewModel = mainViewModel,
+                                    kind = PeriodKind.WEEK,
+                                    label = currentWeekId.toString(),
+                                    records = weekRecords[currentWeekId].orEmpty(),
+                                    onOpen = { onNavigateToPeriod(PeriodKind.WEEK, currentWeekId.toString()) }
+                                )
                             }
                         )
                     }
 
+                    // 구분선 바로 아래 첫 줄에는 위 선을 긋지 않는다 (구분선과 겹쳐 두 줄이 된다).
+                    // 설정에서 끈 구분선은 없는 것이므로 그 자리엔 선을 긋는다.
+                    val underDivider = (showWeek && isWeekHead) || (showMonth && isMonthHead) || (showYear && isYearHead)
                     DailyRecordHistoryItem(
                         item = item,
-                        // 구분선 바로 아래 첫 줄에는 위 선을 긋지 않는다 (구분선과 겹쳐 두 줄이 된다)
-                        showTopLine = !isWeekHead,
+                        showTopLine = !underDivider,
                         onClick = { onNavigateToDetail(item.date) },
                         onLongClick = { selectedDateToDelete = item.date }
                     )
@@ -540,14 +630,16 @@ fun MainScreen(
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
+                        // 로그아웃은 설정 화면에도 있지만, 프로필을 열어 "내가 누구인지" 본 자리에서
+                        // 바로 나갈 수 있어야 한다. 실수로 눌러도 확인 창이 한 번 더 막는다.
                         FilledTonalButton(
                             onClick = {
                                 showSheet = false
-                                onNavigateToSettings()
+                                showLogoutConfirm = true
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(stringResource(R.string.open_settings))
+                            Text(stringResource(R.string.logout))
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                     }
@@ -555,6 +647,22 @@ fun MainScreen(
             }
         }
 
+        // 로그아웃 진행 표시. 로컬 기록을 지우는 동안 뒤를 누르지 못하게 덮는다 (설정 화면과 같은 모양)
+        if (isLoggingOut) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
+                    .clickable(enabled = false) {},
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(stringResource(R.string.logout_in_progress), style = MaterialTheme.typography.bodyLarge)
+                }
+            }
+        }
     }
 }
 
@@ -570,16 +678,52 @@ fun WeekDivider(
     weeklyCalories: Int,
     summary: PeriodSummary? = null,
     expanded: Boolean = false,
-    onToggle: (() -> Unit)? = null
+    onToggle: (() -> Unit)? = null,
+    /** 패널 아래에 붙는 AI 평가 줄. 펼쳤을 때만 그린다 */
+    evaluation: (@Composable () -> Unit)? = null
 ) {
     SectionDivider(
         headerText = headerText,
         calories = weeklyCalories,
-        emphasized = false,
+        level = DividerLevel.WEEK,
         expanded = expanded,
         onToggle = onToggle
     ) {
-        summary?.let { WeekSummaryPanel(it, modifier = Modifier.padding(top = 8.dp)) }
+        summary?.let { WeekSummaryPanel(it, modifier = Modifier.padding(top = 8.dp), extra = evaluation) }
+    }
+}
+
+/**
+ * 연 구분선. 월 구분선 위 계층이라 민트 바탕으로 한 단계 더 띄운다.
+ *
+ * 패널은 월 패널과 같은 구성(합계·체중 변화·일수·평균·탄단지)이다. 연 정산 화면은 따로 없어서
+ * 열기 줄은 없고, 대신 AI 평가 카드가 이 패널 안에 들어간다.
+ */
+@Composable
+fun YearDivider(
+    headerText: String,
+    yearlyCalories: Int,
+    summary: PeriodSummary? = null,
+    expanded: Boolean = false,
+    onToggle: (() -> Unit)? = null,
+    evaluation: (@Composable () -> Unit)? = null
+) {
+    SectionDivider(
+        headerText = headerText,
+        calories = yearlyCalories,
+        level = DividerLevel.YEAR,
+        expanded = expanded,
+        onToggle = onToggle
+    ) {
+        summary?.let {
+            MonthSummaryPanel(
+                summary = it,
+                modifier = Modifier.padding(top = 8.dp),
+                onOpen = null,
+                totalLabel = stringResource(R.string.year_summary_total),
+                extra = evaluation
+            )
+        }
     }
 }
 
@@ -596,12 +740,13 @@ fun MonthDivider(
     summary: PeriodSummary? = null,
     expanded: Boolean = false,
     onToggle: (() -> Unit)? = null,
-    onOpenReport: (() -> Unit)? = null
+    onOpenReport: (() -> Unit)? = null,
+    evaluation: (@Composable () -> Unit)? = null
 ) {
     SectionDivider(
         headerText = headerText,
         calories = monthlyCalories,
-        emphasized = true,
+        level = DividerLevel.MONTH,
         expanded = expanded,
         onToggle = onToggle
     ) {
@@ -609,31 +754,48 @@ fun MonthDivider(
             MonthSummaryPanel(
                 summary = it,
                 modifier = Modifier.padding(top = 8.dp),
-                onOpen = onOpenReport
+                onOpen = onOpenReport,
+                extra = evaluation
             )
         }
     }
 }
 
+/** 구분선의 계층. 위로 갈수록 두껍고 진하다 */
+private enum class DividerLevel { WEEK, MONTH, YEAR }
+
 /**
- * 주·월 구분선의 공통 몸통.
+ * 주·월·연 구분선의 공통 몸통.
  *
  * 월은 surfaceVariant 띠(좌측 제목 · 우측 합계 · 셰브론)로, 주는 띠 없이 작은 글자 한 줄로 그린다.
+ * 연은 월과 같은 모양에 민트 바탕(primaryContainer)이라 한 눈에 위 계층으로 보인다.
  * 예전의 "선-글자-선" 모양은 카드 테두리·펼침 패널과 겹쳐 한 화면에 선이 네 겹으로 쌓였다.
  *
- * @param emphasized 월 구분선처럼 한 단계 위 계층일 때.
+ * @param level 구분선 계층. 주 < 월 < 연 순으로 두껍고 진하다.
  * @param panel 펼쳤을 때 아래에 붙는 요약. 접혀 있으면 아예 호출하지 않는다.
  */
 @Composable
 private fun SectionDivider(
     headerText: String,
     calories: Int,
-    emphasized: Boolean,
+    level: DividerLevel,
     expanded: Boolean,
     onToggle: (() -> Unit)?,
     panel: @Composable () -> Unit
 ) {
+    val emphasized = level != DividerLevel.WEEK
     val shape = RoundedCornerShape(DnDimens.RadiusTile)
+    val band = when (level) {
+        DividerLevel.YEAR -> MaterialTheme.colorScheme.primaryContainer
+        DividerLevel.MONTH -> MaterialTheme.colorScheme.surfaceVariant
+        // 주에 아무 바탕도 없으면 기록 줄과 구분이 안 됐다
+        DividerLevel.WEEK -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+    }
+    val titleColor = when (level) {
+        DividerLevel.YEAR -> MaterialTheme.colorScheme.onPrimaryContainer
+        DividerLevel.MONTH -> MaterialTheme.colorScheme.onSurface
+        DividerLevel.WEEK -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -644,11 +806,7 @@ private fun SectionDivider(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(shape)
-                // 월은 진한 띠, 주는 옅은 띠. 주에 아무 바탕도 없으면 기록 줄과 구분이 안 됐다
-                .background(
-                    if (emphasized) MaterialTheme.colorScheme.surfaceVariant
-                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-                )
+                .background(band)
                 .let { if (onToggle != null) it.clickable(onClick = onToggle) else it }
                 .padding(
                     horizontal = if (emphasized) 16.dp else 14.dp,
@@ -659,8 +817,7 @@ private fun SectionDivider(
                 text = headerText,
                 style = if (emphasized) MaterialTheme.typography.titleMedium
                 else MaterialTheme.typography.labelLarge,
-                color = if (emphasized) MaterialTheme.colorScheme.onSurface
-                else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = titleColor,
                 modifier = Modifier.weight(1f)
             )
             KcalValue(
@@ -678,7 +835,7 @@ private fun SectionDivider(
                     contentDescription = stringResource(
                         if (expanded) R.string.cd_collapse else R.string.cd_expand
                     ),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (level == DividerLevel.YEAR) titleColor else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .padding(start = 6.dp)
                         .size(20.dp)

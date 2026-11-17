@@ -666,6 +666,9 @@ fun DailyRecordScreen(
 
                 // 💡 읽기 전용 모드에서는 분석 버튼 숨기기
                 if (!isReadOnly) {
+                    // 사진을 읽는 동안은 정산을 막는다. 사진 결과가 입력창에 들어오기 전에 분석이
+                    // 나가면 그 끼니가 빠진 채 정산되고, 뒤늦게 온 사진 텍스트는 결과와 어긋난다.
+                    val photoBusy = photoProcessingField != null
                     Spacer(modifier = Modifier.height(24.dp))
                     Button(
                         onClick = {
@@ -675,7 +678,7 @@ fun DailyRecordScreen(
                             .fillMaxWidth()
                             .height(56.dp),
                         shape = RoundedCornerShape(16.dp),
-                        enabled = !uiState.analyzing
+                        enabled = !uiState.analyzing && !photoBusy
                     ) {
                         if (uiState.analyzing) {
                             CircularProgressIndicator(
@@ -685,6 +688,16 @@ fun DailyRecordScreen(
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             AnimatedAnalyzingText()
+                        } else if (photoBusy) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(22.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                stringResource(R.string.analyze_wait_photo),
+                                style = MaterialTheme.typography.titleMedium
+                            )
                         } else {
                             Text(
                                 stringResource(

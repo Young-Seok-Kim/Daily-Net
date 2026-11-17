@@ -293,6 +293,15 @@ private fun MonthReportPage(
 
         MonthHeadlineCard(summary)
 
+        // 목록의 월 패널과 같은 평가(같은 저장 키)다. 여기서 받으면 목록에서도 바로 보인다.
+        PeriodEvaluationSection(
+            mainViewModel = mainViewModel,
+            kind = PeriodKind.MONTH,
+            label = yearMonth,
+            title = monthTitleOf(yearMonth),
+            records = records
+        )
+
         DailyNetChartCard(
             yearMonth = yearMonth,
             records = records,
@@ -315,9 +324,15 @@ private fun MonthReportPage(
 /** 화면 제목 "2026년 8월". 그 달 1일을 만들어 기존 표기 함수를 그대로 쓴다. */
 private fun monthTitleOf(yearMonth: String): String = getMonthHeaderText("$yearMonth-01")
 
-/** 맨 위 큰 숫자 카드: 월 합계 / 체중 변화 / 기록·운동 일수·평균 */
+/**
+ * 맨 위 큰 숫자 카드: 합계 / 체중 변화 / 기록·운동 일수·평균.
+ * 주·연 정산 상세(PeriodReportScreen)도 같은 카드를 쓴다. 다른 건 합계 라벨뿐이다.
+ */
 @Composable
-private fun MonthHeadlineCard(summary: PeriodSummary) {
+internal fun MonthHeadlineCard(
+    summary: PeriodSummary,
+    totalLabel: String = stringResource(R.string.month_summary_total)
+) {
     val net = DnTheme.net
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -329,7 +344,7 @@ private fun MonthHeadlineCard(summary: PeriodSummary) {
             Row(verticalAlignment = Alignment.Top) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = stringResource(R.string.month_summary_total),
+                        text = totalLabel,
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

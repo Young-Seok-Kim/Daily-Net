@@ -144,13 +144,19 @@ private fun List<DailyRecordModel>.averageOf(pick: (DailyRecordModel) -> Float):
  * 여기 담는 건 스크롤하다 흘깃 보는 몇 개까지다. 그래프처럼 자리를 많이 먹는 건
  * 목록을 밀어내므로 [onOpen]으로 여는 월 정산 화면 몫이다.
  *
+ * 연 구분선 패널도 이걸 그대로 쓴다. 합계·체중 변화·일수·평균이라는 구성은 연에서도 같고,
+ * 다른 건 "월 합계"가 "연 합계"로 바뀌는 라벨뿐이다 ([totalLabel]).
+ *
  * @param onOpen 월 정산 화면으로 가는 줄을 붙인다. null이면 줄을 붙이지 않는다.
+ * @param extra 탄단지 아래, 열기 줄 위에 끼우는 것. AI 평가 카드가 여기 들어간다.
  */
 @Composable
 fun MonthSummaryPanel(
     summary: PeriodSummary,
     modifier: Modifier = Modifier,
-    onOpen: (() -> Unit)? = null
+    onOpen: (() -> Unit)? = null,
+    totalLabel: String = stringResource(R.string.month_summary_total),
+    extra: (@Composable () -> Unit)? = null
 ) {
     Column(
         modifier = modifier
@@ -166,7 +172,7 @@ fun MonthSummaryPanel(
                     color = DnTheme.net.of(summary.netTotal)
                 )
                 Text(
-                    text = stringResource(R.string.month_summary_total),
+                    text = totalLabel,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -212,6 +218,11 @@ fun MonthSummaryPanel(
 
         MacroSection(summary)
 
+        extra?.let {
+            Spacer(modifier = Modifier.height(PeriodEvalCardSpacing))
+            it()
+        }
+
         // 눌러서 여는 자리라는 표시. 이 줄이 없으면 화면이 있어도 아무도 찾지 못한다.
         // (주차 구분선에 화살표를 둔 것과 같은 이유)
         onOpen?.let { open ->
@@ -245,9 +256,16 @@ fun MonthSummaryPanel(
     }
 }
 
-/** 주차 구분선을 눌렀을 때 아래로 펼쳐지는 요약 패널 */
+/**
+ * 주차 구분선을 눌렀을 때 아래로 펼쳐지는 요약 패널.
+ * @param extra 탄단지 아래에 끼우는 것. AI 평가 카드가 여기 들어간다.
+ */
 @Composable
-fun WeekSummaryPanel(summary: PeriodSummary, modifier: Modifier = Modifier) {
+fun WeekSummaryPanel(
+    summary: PeriodSummary,
+    modifier: Modifier = Modifier,
+    extra: (@Composable () -> Unit)? = null
+) {
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -274,6 +292,11 @@ fun WeekSummaryPanel(summary: PeriodSummary, modifier: Modifier = Modifier) {
         }
 
         MacroSection(summary)
+
+        extra?.let {
+            Spacer(modifier = Modifier.height(PeriodEvalCardSpacing))
+            it()
+        }
     }
 }
 

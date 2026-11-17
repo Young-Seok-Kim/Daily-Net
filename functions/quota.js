@@ -301,8 +301,41 @@ async function refundAnalysis(uid) {
     }
 }
 
+/**
+ * 기간 평가(evaluatePeriod)의 하루 상한. 사진 인식과 같은 성격의 **비용 사고 방지선**이다.
+ *
+ * 주·월·연 평가는 한 번 받으면 저장해 두고 다시 열어도 서버를 부르지 않는다. 기록이 바뀌어
+ * "다시 평가"를 눌러도 하루에 몇 번이면 끝이라, 사람이 이 숫자에 닿을 일은 없다.
+ * 한 달치 기록을 프롬프트에 넣어 식단 분석보다 토큰이 많이 드니 상한은 둔다.
+ */
+const DAILY_EVALUATION_LIMIT = 20;
+
+/**
+ * 기간 평가 한 번을 예약한다. 상한 안이면 올리고 allowed: true.
+ * 분석 횟수(reserveAnalysis)와 따로 센다. 하루 분석 한도를 평가가 갉아먹으면 안 된다.
+ */
+async function reserveEvaluation(user) {
+    const db = admin.firestore();
+    const userRef = db.collection("users").doc(user.uid);
+    const today = seoulToday();
+
+    return db.runTransaction(async (tx) => {
+        const snap = await tx.get(userRef);
+        const data = snap.exists ? snap.data() : {};
+        const used = data.periodEvalDate === today ? Number(data.periodEvalCount) || 0 : 0;
+
+        if (used >= DAILY_EVALUATION_LIMIT) {
+            return { allowed: false, count: used, limit: DAILY_EVALUATION_LIMIT };
+        }
+        tx.set(userRef, { periodEvalCount: used + 1, periodEvalDate: today }, { merge: true });
+        return { allowed: true, count: used + 1, limit: DAILY_EVALUATION_LIMIT };
+    });
+}
+
 module.exports = {
     REQUIRE_AUTH,
+    DAILY_EVALUATION_LIMIT,
+    reserveEvaluation,
     // 무료 개방 스위치와 그 상한. 테스트가 값을 고정해 두려고 함께 내보낸다.
     FREE_FOR_ALL,
     FREE_MODE_ANALYSIS_LIMIT,

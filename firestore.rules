@@ -24,6 +24,9 @@ service cloud.firestore {
         // 사진 인식 횟수. b24부터 서버만 쓰던 필드라 잠가도 앱이 깨지지 않는다.
         'todayPhotoCount', 'todayPhotoAttempts', 'lastPhotoDate',
 
+        // 기간(주·월·연) AI 평가 횟수. evaluatePeriod가 센다. 새 필드라 앱이 쓴 적이 없다.
+        'periodEvalCount', 'periodEvalDate',
+
         // 구독 검증 결과. verifySubscription과 RTDN이 쓴다.
         //
         // isSubscribed 본체는 아직 못 막지만 이 셋은 지금 막아야 한다.

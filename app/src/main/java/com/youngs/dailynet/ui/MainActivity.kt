@@ -26,6 +26,8 @@ import com.youngs.dailynet.ui.theme.DailyNetTheme
 import com.youngs.dailynet.ui.view.AppUpdateDialog
 import com.youngs.dailynet.ui.view.LoginScreen
 import com.youngs.dailynet.ui.view.MainScreen
+import com.youngs.dailynet.ui.view.PeriodKind
+import com.youngs.dailynet.ui.view.PeriodReportScreen
 import com.youngs.dailynet.ui.view.MonthReportScreen
 import com.youngs.dailynet.ui.view.DailyRecordScreen
 import com.youngs.dailynet.ui.view.WeightTrendScreen
@@ -266,6 +268,18 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
+                            // 주·연 정산 상세. date 칸에 "week:202646" / "year:2026" 꼴로 담는다
+                            "period" -> {
+                                val parts = current.date.split(":", limit = 2)
+                                PeriodReportScreen(
+                                    mainViewModel = mainViewModel,
+                                    kind = PeriodKind.entries.firstOrNull { it.type == parts.getOrNull(0) }
+                                        ?: PeriodKind.WEEK,
+                                    label = parts.getOrNull(1).orEmpty(),
+                                    onBack = { goBack() }
+                                )
+                            }
+
                             "month" -> {
                                 MonthReportScreen(
                                     mainViewModel = mainViewModel,
@@ -306,6 +320,9 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onNavigateToMonth = { yearMonth ->
                                         navigateTo(ScreenEntry("month", yearMonth))
+                                    },
+                                    onNavigateToPeriod = { kind, label ->
+                                        navigateTo(ScreenEntry("period", "${kind.type}:$label"))
                                     }
                                 )
                             }

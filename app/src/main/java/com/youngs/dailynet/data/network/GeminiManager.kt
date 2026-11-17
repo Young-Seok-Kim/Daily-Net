@@ -12,6 +12,8 @@ import com.youngs.dailynet.data.model.InbodyAnalysisRequest
 import com.youngs.dailynet.data.model.InbodyData
 import com.youngs.dailynet.data.model.InbodyPhotoRequest
 import com.youngs.dailynet.data.model.MealPhotoRequest
+import com.youngs.dailynet.data.model.PeriodEvalRequest
+import com.youngs.dailynet.data.model.PeriodEvaluation
 import com.youngs.dailynet.util.Constants
 import com.youngs.dailynet.util.CrashReporter
 import kotlinx.coroutines.Dispatchers
@@ -131,6 +133,37 @@ class GeminiManager @Inject constructor(
                 response.text.takeIf { it.isNotBlank() }
             } catch (e: Exception) {
                 CrashReporter.report("analyzeInbody", e)
+                null
+            }
+        }
+    }
+
+    /**
+     * 주·월·연 정산의 AI 평가. 실패하면 null.
+     * @throws EvaluationLimitException 오늘 평가 상한(서버 quota.reserveEvaluation)에 닿은 경우
+     */
+    suspend fun evaluatePeriod(request: PeriodEvalRequest): PeriodEvaluation? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val token = runCatching {
+                    auth.currentUser?.getIdToken(false)?.await()?.token
+                }.getOrNull()
+                val response = retryOnceIfRejectedFast("evaluatePeriod") {
+                    apiService.evaluatePeriod(
+                        url = Constants.EVALUATE_PERIOD_URL,
+                        authorization = token?.let { "Bearer $it" },
+                        request = request
+                    )
+                }
+                response.evaluation?.takeIf { it.hasContent }
+            } catch (e: HttpException) {
+                if (e.code() == HTTP_TOO_MANY_REQUESTS) {
+                    throw EvaluationLimitException()
+                }
+                CrashReporter.report("evaluatePeriod:http${e.code()}", e)
+                null
+            } catch (e: Exception) {
+                CrashReporter.report("evaluatePeriod", e)
                 null
             }
         }
