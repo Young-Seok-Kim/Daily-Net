@@ -31,9 +31,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.youngs.dailynet.ui.viewmodel.MainViewModel.DateRange
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
 import com.youngs.dailynet.BuildConfig
 import com.youngs.dailynet.R
 import com.youngs.dailynet.data.calendar.GoogleCalendarSync
@@ -63,6 +60,9 @@ fun SettingsScreen(
 
     var showProfileEditDialog by remember { mutableStateOf(false) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
+    // 표시 기간의 시작일·종료일 날짜 선택 창. 누른 칸 하나만 연다
+    var showRangeStartPicker by remember { mutableStateOf(false) }
+    var showRangeEndPicker by remember { mutableStateOf(false) }
     var loadingMessage by remember { mutableStateOf<String?>(null) }
 
     var reminderEnabled by remember { mutableStateOf(DailyReminder.isEnabled(context)) }
@@ -187,6 +187,32 @@ fun SettingsScreen(
         )
     }
 
+    // 표시 기간의 날짜 선택. 칸에 보이는 날짜에서 시작한다 (시작일을 안 골랐으면 가입일)
+    if (showRangeStartPicker) {
+        val range by mainViewModel.dateRange.collectAsState()
+        DnDatePickerDialog(
+            initial = range.start.ifBlank { mainViewModel.defaultStartDate() },
+            onPick = { picked ->
+                mainViewModel.setDateRange(range.copy(start = picked, enabled = true))
+                showRangeStartPicker = false
+            },
+            onDismiss = { showRangeStartPicker = false }
+        )
+    }
+
+    if (showRangeEndPicker) {
+        val range by mainViewModel.dateRange.collectAsState()
+        DnDatePickerDialog(
+            // 종료일이 비어 있으면 오늘부터 시작한다
+            initial = range.end,
+            onPick = { picked ->
+                mainViewModel.setDateRange(range.copy(end = picked, enabled = true))
+                showRangeEndPicker = false
+            },
+            onDismiss = { showRangeEndPicker = false }
+        )
+    }
+
     // ── 본문 ──────────────────────────────────────────────────────
     Scaffold(
         topBar = {
@@ -269,16 +295,8 @@ fun SettingsScreen(
                         // 시작일을 안 골랐으면 가입일이 기본값이다. 칸에도 그 날짜를 보여준다
                         start = range.start.ifBlank { mainViewModel.defaultStartDate() },
                         end = range.end,
-                        onPickStart = {
-                            showDatePicker(context, range.start.ifBlank { mainViewModel.defaultStartDate() }) { picked ->
-                                mainViewModel.setDateRange(range.copy(start = picked, enabled = true))
-                            }
-                        },
-                        onPickEnd = {
-                            showDatePicker(context, range.end) { picked ->
-                                mainViewModel.setDateRange(range.copy(end = picked, enabled = true))
-                            }
-                        },
+                        onPickStart = { showRangeStartPicker = true },
+                        onPickEnd = { showRangeEndPicker = true },
                         onClearEnd = { mainViewModel.setDateRange(range.copy(end = "")) },
                         // 시작일을 길게 누르면 비워서 가입일로 돌아간다 (빈 값 = 가입일)
                         onClearStart = { mainViewModel.setDateRange(range.copy(start = "")) },
@@ -533,19 +551,6 @@ private fun DateCell(
             color = if (filled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
-}
-
-/** 날짜 하나를 고르는 시스템 대화상자. [initial]이 비어 있거나 못 읽으면 오늘부터 시작한다 */
-private fun showDatePicker(context: android.content.Context, initial: String, onPicked: (String) -> Unit) {
-    val cal = Calendar.getInstance()
-    runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(initial) }.getOrNull()?.let { cal.time = it }
-    android.app.DatePickerDialog(
-        context,
-        { _, year, month, day -> onPicked(String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, day)) },
-        cal.get(Calendar.YEAR),
-        cal.get(Calendar.MONTH),
-        cal.get(Calendar.DAY_OF_MONTH)
-    ).show()
 }
 
 /** 제목 + 카드로 묶인 설정 그룹. 항목을 늘리려면 content 안에 SettingsItem만 더 넣으면 된다. */

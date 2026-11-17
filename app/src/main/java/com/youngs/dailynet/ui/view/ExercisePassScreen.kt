@@ -46,7 +46,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -59,9 +58,6 @@ import com.youngs.dailynet.ui.theme.DnTheme
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import com.youngs.dailynet.util.PassUsage
 import com.youngs.dailynet.util.passMatches
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
 
 /**
  * 운동 이용권 목록·등록 화면. 설정 > 내 정보 > 운동 이용권에서 들어온다.
@@ -351,18 +347,6 @@ fun PassHintRow(usages: List<PassUsage>, exerciseText: String, modifier: Modifie
     }
 }
 
-private fun showDatePicker(context: android.content.Context, initial: String, onPicked: (String) -> Unit) {
-    val cal = Calendar.getInstance()
-    runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(initial) }.getOrNull()?.let { cal.time = it }
-    android.app.DatePickerDialog(
-        context,
-        { _, year, month, day -> onPicked(String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, day)) },
-        cal.get(Calendar.YEAR),
-        cal.get(Calendar.MONTH),
-        cal.get(Calendar.DAY_OF_MONTH)
-    ).show()
-}
-
 /** 이용권 등록·수정 시트. 기간제/횟수권에 따라 칸이 달라진다. 삭제는 CTA 위 구분선 아래 행 → 확인은 DnDialog */
 @Composable
 private fun PassEditDialog(
@@ -372,7 +356,6 @@ private fun PassEditDialog(
     onDelete: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val context = LocalContext.current
     var name by remember { mutableStateOf(initial.name) }
     var isCount by remember { mutableStateOf(initial.isCount) }
     var startDate by remember { mutableStateOf(initial.startDate) }
@@ -380,6 +363,9 @@ private fun PassEditDialog(
     var totalText by remember { mutableStateOf(if (initial.totalCount > 0) initial.totalCount.toString() else "") }
     var keyword by remember { mutableStateOf(initial.keyword) }
     var confirmDelete by remember { mutableStateOf(false) }
+    // 날짜 선택 창. 시작일과 종료일이 각각 하나씩 연다
+    var pickingStart by remember { mutableStateOf(false) }
+    var pickingEnd by remember { mutableStateOf(false) }
 
     val total = totalText.toIntOrNull() ?: 0
     val valid = name.isNotBlank() && startDate.isNotBlank() &&
@@ -447,12 +433,12 @@ private fun PassEditDialog(
         DateField(
             label = stringResource(R.string.pass_start),
             value = startDate,
-            onClick = { showDatePicker(context, startDate) { startDate = it } }
+            onClick = { pickingStart = true }
         )
         DateField(
             label = stringResource(if (isCount) R.string.pass_end_optional else R.string.pass_end),
             value = endDate,
-            onClick = { showDatePicker(context, endDate.ifBlank { startDate }) { endDate = it } },
+            onClick = { pickingEnd = true },
             onClear = if (isCount && endDate.isNotBlank()) ({ endDate = "" }) else null
         )
 
@@ -477,6 +463,28 @@ private fun PassEditDialog(
                 modifier = Modifier.fillMaxWidth()
             )
         }
+    }
+
+    if (pickingStart) {
+        DnDatePickerDialog(
+            initial = startDate,
+            onPick = {
+                startDate = it
+                pickingStart = false
+            },
+            onDismiss = { pickingStart = false }
+        )
+    }
+    if (pickingEnd) {
+        DnDatePickerDialog(
+            // 종료일이 비어 있으면 시작일에서 시작한다 (예전과 같다)
+            initial = endDate.ifBlank { startDate },
+            onPick = {
+                endDate = it
+                pickingEnd = false
+            },
+            onDismiss = { pickingEnd = false }
+        )
     }
 }
 

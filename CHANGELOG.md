@@ -30,7 +30,14 @@
     업데이트 안내(강제면 Required), 음식·인바디 사진 소스 두 벌 → `PhotoSourceSheet` 하나, 이용권 등록·신체 정보 입력·수정 →
     `DnFormSheet`(생년월일 기본값 2000-01-01 제거), 일정 제목·칼로리 수정 → `DnDialog` + content, 즐겨찾기 시트 라운드 토큰,
     프로필 시트 skipPartiallyExpanded, 로그아웃·탈퇴·설정 처리 중 오버레이 → `DnBlockingOverlay`
-  - 문구는 질문형 제목("이 기록을 지울까요?"), 주액션은 동작 그대로("삭제", "로그아웃"). 플랫폼 DatePickerDialog 5곳은 이번 범위 밖
+  - 문구는 질문형 제목("이 기록을 지울까요?"), 주액션은 동작 그대로("삭제", "로그아웃"). 플랫폼 DatePickerDialog는 이번 커밋 범위 밖 (다음 항목)
+- **날짜 선택 다이얼로그** (`DnDatePickerDialog`, `ui/view/DnDialog.kt`, `util/IsoDate.kt`)
+  - 회원가입 생년월일·신체 정보 수정·인바디 측정일·이용권 기간·설정 표시 기간에서 쓰던 플랫폼 `android.app.DatePickerDialog`를
+    Compose `DatePickerDialog` 하나로 교체 (호출 지점 6곳)
+  - 기기가 다크 모드일 때 검은 바탕 + 기본 민트/시안 강조색으로 뜨던 문제 해결 — 플랫폼 창이 values-night의 Activity 테마
+    (`Theme.Material.NoActionBar`)를 따라갔다. 이제 DnDialog와 같이 surface 바탕, 잉크/민트 강조, r28, 취소 + 확인
+  - 연도는 헤더의 연도를 누르면 열리는 목록에서 바로 고른다 (생년월일은 여기서 1997년으로). 연필 버튼으로 숫자 입력 모드
+  - 날짜 형식 `yyyy-MM-dd`와 시작값(비었으면 오늘) 동작은 그대로. UTC millis 변환은 `util/IsoDate.kt`, 테스트 `IsoDateTest`
 - **운동 이용권** (`ExercisePassEntity`, Room `exercise_passes` v16 `MIGRATION_15_16`, Firestore `users/{uid}/passes/{id}`, `ExercisePassRepository`)
   - 기간제: 시작일·종료일. 횟수권: 전체 횟수·차감 키워드(쉼표로 여러 개)·유효기간(선택)
   - 쓴 횟수는 저장하지 않고 기록에서 센다 (`util/PassUsage.kt` `computePassUsage`): 기간 안의 기록 중 운동 칸에 키워드가 든 날을

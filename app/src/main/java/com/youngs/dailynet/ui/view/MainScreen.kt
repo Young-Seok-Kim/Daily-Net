@@ -879,7 +879,8 @@ private fun SectionDivider(
 
 /**
  * 신체 정보 입력 칸 묶음. 최초 입력([ProfileSetupDialog])과 수정([ProfileEditDialog])이 같은 칸을 쓴다.
- * 생년월일은 누르면 시스템 날짜 선택이 뜬다. 비어 있으면 오늘부터 고르게 둔다 (예전엔 2000-01-01이 기본값이었다).
+ * 생년월일은 누르면 앱 날짜 선택([DnDatePickerDialog])이 뜬다. 비어 있으면 오늘부터 고르게 둔다
+ * (예전엔 2000-01-01이 기본값이었다).
  */
 @Composable
 private fun BodyInfoFields(
@@ -892,7 +893,7 @@ private fun BodyInfoFields(
     weightText: String,
     onWeight: (String) -> Unit
 ) {
-    val context = LocalContext.current
+    var pickingBirthDate by remember { mutableStateOf(false) }
     Text(stringResource(R.string.gender), style = MaterialTheme.typography.labelMedium)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         FilterChip(
@@ -928,20 +929,18 @@ private fun BodyInfoFields(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .clickable {
-                    val cal = Calendar.getInstance()
-                    runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(birthDate) }
-                        .getOrNull()?.let { cal.time = it }
-                    android.app.DatePickerDialog(
-                        context,
-                        { _, year, month, dayOfMonth ->
-                            onBirthDate(String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, dayOfMonth))
-                        },
-                        cal.get(Calendar.YEAR),
-                        cal.get(Calendar.MONTH),
-                        cal.get(Calendar.DAY_OF_MONTH)
-                    ).show()
-                }
+                .clickable { pickingBirthDate = true }
+        )
+    }
+
+    if (pickingBirthDate) {
+        DnDatePickerDialog(
+            initial = birthDate,
+            onPick = {
+                onBirthDate(it)
+                pickingBirthDate = false
+            },
+            onDismiss = { pickingBirthDate = false }
         )
     }
 

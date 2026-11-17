@@ -29,6 +29,10 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerColors
+import androidx.compose.material3.DatePickerDefaults
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -36,10 +40,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetDefaults
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
@@ -60,6 +66,10 @@ import com.youngs.dailynet.R
 import com.youngs.dailynet.ui.theme.DnDimens
 import com.youngs.dailynet.ui.theme.Ink
 import com.youngs.dailynet.ui.theme.tabular
+import com.youngs.dailynet.util.isoDateToUtcMillis
+import com.youngs.dailynet.util.todayUtcMillis
+import com.youngs.dailynet.util.utcMillisToIsoDate
+import com.youngs.dailynet.util.utcMillisYear
 
 /*
  * 앱의 모달 부품. 2026-11-17 다이얼로그 디자인 기획서를 그대로 옮겼다.
@@ -72,6 +82,7 @@ import com.youngs.dailynet.ui.theme.tabular
  * ② 입력이 두 칸 이상 → [DnFormSheet]
  * ③ 선택지가 두 갈래 이상 → [DnActionSheet]
  * ④ 처리 중 차단 → [DnBlockingOverlay]
+ * ⑤ 날짜 하나 → [DnDatePickerDialog]
  */
 
 /** 다이얼로그의 톤. 주액션 색과 닫기 가능 여부가 달라진다 */
@@ -576,6 +587,109 @@ fun DnBlockingOverlay(message: String) {
                 Text(message, style = MaterialTheme.typography.bodyLarge)
             }
         }
+    }
+}
+
+/** 날짜 선택 창의 기본값 */
+object DnDatePickerDefaults {
+    /**
+     * 고를 수 있는 연도. 플랫폼 DatePickerDialog는 제한이 없었지만 Compose 쪽은 범위를 줘야 한다.
+     * 1900~2100이면 생년월일도 정산 날짜도 다 들어간다 (1세기 이전 생일은 없다고 본다)
+     */
+    val YearRange = 1900..2100
+
+    /** 달력 색. DnDialog와 같은 surface 바탕에 선택은 primary(라이트 잉크 / 다크 민트) */
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    fun colors(): DatePickerColors {
+        val scheme = MaterialTheme.colorScheme
+        return DatePickerDefaults.colors(
+            containerColor = scheme.surface,
+            titleContentColor = scheme.onSurfaceVariant,
+            headlineContentColor = scheme.onSurface,
+            weekdayContentColor = scheme.onSurfaceVariant,
+            subheadContentColor = scheme.onSurfaceVariant,
+            navigationContentColor = scheme.onSurfaceVariant,
+            yearContentColor = scheme.onSurface,
+            currentYearContentColor = scheme.primary,
+            selectedYearContainerColor = scheme.primary,
+            selectedYearContentColor = scheme.onPrimary,
+            dayContentColor = scheme.onSurface,
+            selectedDayContainerColor = scheme.primary,
+            selectedDayContentColor = scheme.onPrimary,
+            todayContentColor = scheme.primary,
+            todayDateBorderColor = scheme.primary,
+            dividerColor = scheme.outlineVariant,
+            dateTextFieldColors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = scheme.onSurface,
+                unfocusedTextColor = scheme.onSurface,
+                focusedBorderColor = scheme.outline,
+                unfocusedBorderColor = scheme.outline,
+                focusedLabelColor = scheme.onSurfaceVariant,
+                unfocusedLabelColor = scheme.onSurfaceVariant,
+                cursorColor = scheme.primary
+            )
+        )
+    }
+}
+
+/**
+ * 날짜 하나를 고르는 다이얼로그. 플랫폼 `android.app.DatePickerDialog`를 대신한다.
+ *
+ * 왜 바꿨나 — 플랫폼 창은 Activity 테마(values-night/themes.xml의 Theme.Material.NoActionBar)를 따라가서,
+ * 기기가 다크 모드면 검은 바탕에 민트/시안 기본 강조색으로 떴다. 회원가입에서 생년월일을 고를 때
+ * 앱 색과 따로 놀았다. 이제 바탕·강조색·라운드는 DailyNetTheme 토큰만 쓴다.
+ *
+ * 연도는 헤더의 "2026년" 글자를 누르면 열리는 연도 목록에서 바로 고른다 (생년월일은 여기서 1997년으로 간다).
+ * 오른쪽 위 연필 버튼을 누르면 숫자로 직접 입력하는 모드로 바뀐다.
+ *
+ * @param initial "yyyy-MM-dd". 비었거나 못 읽으면 오늘에서 시작한다 (예전 DatePickerDialog와 같다)
+ * @param onPick 고른 날을 "yyyy-MM-dd"로 돌려준다. 형식과 콜백 동작은 예전과 같다
+ * @param yearRange 고를 수 있는 연도. 기본은 [DnDatePickerDefaults.YearRange]
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DnDatePickerDialog(
+    initial: String,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit,
+    yearRange: IntRange = DnDatePickerDefaults.YearRange
+) {
+    // 범위 밖 연도가 들어오면 rememberDatePickerState가 IllegalArgumentException을 던진다.
+    // 저장된 값이 이상해도 앱이 죽지 않도록 그때는 오늘로 물러난다
+    val startMillis = remember(initial, yearRange) {
+        val parsed = isoDateToUtcMillis(initial)
+        if (parsed != null && utcMillisYear(parsed) in yearRange) parsed else todayUtcMillis()
+    }
+    val state = rememberDatePickerState(
+        initialSelectedDateMillis = startMillis,
+        initialDisplayedMonthMillis = startMillis,
+        yearRange = yearRange
+    )
+
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(DnDialogDefaults.Radius),
+        colors = DnDatePickerDefaults.colors(),
+        // 다른 다이얼로그와 같이 취소(텍스트) → 확인(잉크 채움). 확인은 고른 날이 있어야 눌린다
+        confirmButton = {
+            DnPrimaryButton(
+                label = stringResource(R.string.confirm),
+                enabled = state.selectedDateMillis != null,
+                onClick = { state.selectedDateMillis?.let { onPick(utcMillisToIsoDate(it)) } }
+            )
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = stringResource(R.string.cancel),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    ) {
+        DatePicker(state = state, showModeToggle = true)
     }
 }
 

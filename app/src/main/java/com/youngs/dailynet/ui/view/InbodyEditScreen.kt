@@ -62,7 +62,6 @@ import com.youngs.dailynet.data.model.InbodyData
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import com.youngs.dailynet.util.MealPhoto
 import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -109,6 +108,8 @@ fun InbodyEditScreen(
     var dateText by remember {
         mutableStateOf(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()))
     }
+    // 날짜 선택 창이 열려 있는지. 플랫폼 창을 직접 띄우던 자리를 Compose 다이얼로그로 바꿨다
+    var pickingDate by remember { mutableStateOf(false) }
     // 저장된 값을 한 번 채웠는지. 이력이 늦게 도착해도 사용자가 치던 값을 덮지 않기 위해서다
     var loaded by remember { mutableStateOf(isNew) }
 
@@ -144,14 +145,6 @@ fun InbodyEditScreen(
         bodyWater = waterText.trim().toFloatOrNull() ?: 0f,
         measuredAt = dateText.trim()
     )
-
-    fun calendarOf(dateStr: String): Calendar {
-        val cal = Calendar.getInstance()
-        runCatching {
-            SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateStr)?.let { cal.time = it }
-        }
-        return cal
-    }
 
     // ── 결과지 사진 ──
     var showPhotoSource by remember { mutableStateOf(false) }
@@ -225,6 +218,17 @@ fun InbodyEditScreen(
         )
     }
 
+    if (pickingDate) {
+        DnDatePickerDialog(
+            initial = dateText,
+            onPick = {
+                dateText = it
+                pickingDate = false
+            },
+            onDismiss = { pickingDate = false }
+        )
+    }
+
     val busy = photoProcessing || analyzing
     val draft = current()
 
@@ -280,18 +284,7 @@ fun InbodyEditScreen(
                 label = { Text(stringResource(R.string.inbody_date_label)) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable {
-                        val cal = calendarOf(dateText)
-                        android.app.DatePickerDialog(
-                            context,
-                            { _, year, month, day ->
-                                dateText = String.format(Locale.getDefault(), "%d-%02d-%02d", year, month + 1, day)
-                            },
-                            cal.get(Calendar.YEAR),
-                            cal.get(Calendar.MONTH),
-                            cal.get(Calendar.DAY_OF_MONTH)
-                        ).show()
-                    },
+                    .clickable { pickingDate = true },
                 enabled = false,
                 colors = OutlinedTextFieldDefaults.colors(
                     disabledTextColor = MaterialTheme.colorScheme.onSurface,
