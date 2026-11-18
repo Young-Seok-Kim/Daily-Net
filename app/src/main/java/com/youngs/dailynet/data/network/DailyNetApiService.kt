@@ -12,6 +12,8 @@ import com.youngs.dailynet.data.model.PeriodEvalRequest
 import com.youngs.dailynet.data.model.PeriodEvalResponse
 import com.youngs.dailynet.data.model.SubscriptionVerifyRequest
 import com.youngs.dailynet.data.model.SubscriptionVerifyResponse
+import com.youngs.dailynet.data.model.WithdrawRequest
+import com.youngs.dailynet.data.model.WithdrawResponse
 import retrofit2.http.POST
 import retrofit2.http.Body
 import retrofit2.http.Header
@@ -78,4 +80,17 @@ interface DailyNetApiService {
         @Header("Authorization") authorization: String?,
         @Body request: SubscriptionVerifyRequest
     ): SubscriptionVerifyResponse
+
+    /**
+     * 회원탈퇴. 서버가 Firestore의 users/{uid} 트리(서브컬렉션 포함)와 Auth 계정을 지운다.
+     *
+     * 앱이 문서를 직접 지우면 서브컬렉션이 남아 탈퇴자의 기록이 유령 문서 밑에 남는다.
+     * 클라이언트 SDK는 서브컬렉션 목록을 읽지 못하므로 서버에 맡긴다.
+     */
+    @POST
+    suspend fun withdrawAccount(
+        @Url url: String,
+        @Header("Authorization") authorization: String?,
+        @Body request: WithdrawRequest
+    ): WithdrawResponse
 }

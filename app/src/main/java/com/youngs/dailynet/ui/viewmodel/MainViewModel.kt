@@ -104,6 +104,8 @@ class MainViewModel @Inject constructor(
     private val geminiManager: GeminiManager, // 음식 사진 → 메뉴 텍스트 변환
     // 구독 여부는 앱이 정하지 않고 서버가 Play에 확인해서 정한다
     private val subscriptionVerifier: com.youngs.dailynet.data.network.SubscriptionVerifier,
+    // 회원탈퇴는 서버가 한다. 앱이 문서만 지우면 서브컬렉션이 남아 탈퇴자 기록이 유령 문서 밑에 남는다
+    private val accountWithdrawer: com.youngs.dailynet.data.network.AccountWithdrawer,
     private val calendarSync: GoogleCalendarSync // 운동 기록을 구글 캘린더에 넣는다 (설정에서 켠 경우만)
 ) : BaseViewModel() {
 
@@ -1083,7 +1085,12 @@ class MainViewModel @Inject constructor(
             _shouldStreamResult.value = false
 
             val savedDraft = repository.getDailyRecordByDate(targetDate)
-            val lastRecordedWeight = repository.getLatestWeight(targetDate)
+            // 이 날짜 전에 적은 체중이 없으면(가입 직후 첫 정산) 프로필에 넣은 초기 체중을 쓴다.
+            // 프로필 저장 직후 uiState에 넣어 두긴 하지만, 입력 화면을 열 때 여기서 다시 채우므로
+            // 여기서도 같은 값으로 떨어지지 않으면 첫 정산의 체중 칸이 빈칸이 된다.
+            val lastRecordedWeight = repository.getLatestWeight(targetDate).takeIf { it > 0f }
+                ?: userProfileDao.getProfile()?.initialWeight?.takeIf { it > 0f }
+                ?: 0f
 
             if (savedDraft != null) {
                 if (savedDraft.weight > 0f) {
@@ -1218,49 +1225,66 @@ class MainViewModel @Inject constructor(
     }
 
 
+    /**
+     * 회원탈퇴.
+     *
+     * 원격 삭제는 서버([AccountWithdrawer])가 한다. 예전처럼 앱이 users/{uid} 문서와 Auth 계정을
+     * 직접 지우면 서브컬렉션(settlements, settings 등)이 남아서, 탈퇴 화면이 약속한
+     * "모든 기록 영구 삭제"가 지켜지지 않았다. 클라이언트 SDK는 서브컬렉션 목록을 읽을 수 없다.
+     *
+     * 서버가 성공하면 Auth 계정은 이미 없으므로 여기서는 로컬 세션만 정리한다.
+     * 로컬 정리는 [logout]과 같은 이유로 같은 항목을 지운다.
+     */
     fun withdrawAccount(context: android.content.Context, onResult: (Boolean) -> Unit) =
         viewModelScope.launch {
-            try {
-                val currentUser = auth.currentUser
-                if (currentUser != null) {
-                    val userId = currentUser.uid
-
-                    // 1. 원격 Firebase Firestore 데이터 삭제
-                    // (유저 메타데이터 및 하위 정산 기록 컬렉션 삭제)
-                    // 주의: 프로덕션 환경에서 하위 컬렉션이 많다면 Cloud Functions나 반복문 분할 삭제가 안전합니다.
-                    firestore.collection("users").document(userId)
-                        .delete()
-                        .await()
-
-                    // 2. 로컬 Room DB 데이터 전체 삭제 (현재 로그인했던 유저의 기록 초기화)
-                    // 데이터 혼선을 방지하기 위해 clearAllTables 또는 기존 Dao의 삭제 메서드를 호출합니다.
-                    // 예: settlementDao.deleteAll()이 구현되어 있다면 사용, 없다면 아래 쿼리 기반 메서드 추가 필요
-                    dailyRecordDao.clearAllDailyRecord()
-                    userProfileDao.clearProfile()
-                    inbodyRepository.clearLocal()
-                    calendarSync.clear()
-                    // 로그아웃과 같은 이유로 직접 부른다.
-                    // 탈퇴한 계정의 기록이 홈 화면에 남는 것은 관찰에 맡길 문제가 아니다.
-                    TodayWidget.refresh(context)
-
-                    // 3. Firebase Authentication 유저 계정 탈퇴 처리
-                    currentUser.delete().await()
-
-                    toast(R.string.toast_withdraw_success)
-                    onResult(true)
-                } else {
-                    toast(R.string.toast_auth_expired)
-                    onResult(false)
-                }
-            } catch (e: Exception) {
-                // Firebase 보안 규칙 상, 로그인한 지 오래된 유저는 계정 삭제 시 '상대적 최근 인증(Requires Recent Login)' 에러가 발생할 수 있습니다.
-                if (e.message?.contains("CREDENTIAL_TOO_OLD_LOGIN_AGAIN") == true) {
-                    toast(R.string.toast_reauth_required)
-                } else {
-                    toast(R.string.toast_withdraw_failed, e.localizedMessage.orEmpty())
-                }
+            if (auth.currentUser == null) {
+                toast(R.string.toast_auth_expired)
                 onResult(false)
+                return@launch
             }
+
+            when (val result = accountWithdrawer.withdraw()) {
+                is com.youngs.dailynet.data.network.AccountWithdrawer.Result.Unauthenticated -> {
+                    toast(R.string.toast_reauth_required)
+                    onResult(false)
+                    return@launch
+                }
+                is com.youngs.dailynet.data.network.AccountWithdrawer.Result.Failed -> {
+                    toast(R.string.toast_withdraw_failed, result.message)
+                    onResult(false)
+                    return@launch
+                }
+                com.youngs.dailynet.data.network.AccountWithdrawer.Result.Success -> Unit
+            }
+
+            try {
+                // 서버가 Auth 계정을 지웠으니 로컬에 남은 로그인 상태를 비운다.
+                // 안 비우면 다음 토큰 갱신 때 "사용자 없음"으로 터지면서 앱이 이상한 화면에 멈춘다.
+                auth.signOut()
+                try {
+                    CredentialManager.create(context).clearCredentialState(ClearCredentialStateRequest())
+                } catch (e: Exception) {
+                    // 다음 로그인 때 계정 선택창이 안 뜰 수 있을 뿐이라 무시한다
+                    e.printStackTrace()
+                }
+
+                dailyRecordDao.clearAllDailyRecord()
+                userProfileDao.clearProfile()
+                inbodyRepository.clearLocal()
+                calendarSync.clear()
+                _periodEvaluations.value = emptyMap()
+                loadedEvaluationKeys.clear()
+                recentRecordsSynced = false
+                // 로그아웃과 같은 이유로 직접 부른다.
+                // 탈퇴한 계정의 기록이 홈 화면에 남는 것은 관찰에 맡길 문제가 아니다.
+                TodayWidget.refresh(context)
+            } catch (e: Exception) {
+                // 원격은 이미 지워졌다. 로컬 정리가 일부 실패해도 탈퇴 자체는 끝난 것이므로 성공으로 보고한다.
+                CrashReporter.report("withdrawLocalCleanup", e)
+            }
+
+            toast(R.string.toast_withdraw_success)
+            onResult(true)
         }
 
 

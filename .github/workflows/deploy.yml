@@ -121,7 +121,7 @@ jobs:
         run: |
           # --force: index.js 에서 뺀 함수가 있으면 묻지 않고 지운다. 묻는 프롬프트가 뜨면 CI 가 멈춘다.
           npx --yes firebase-tools@15 deploy \
-            --only functions,hosting \
+            --only functions,hosting,firestore:rules \
             --project daily-net-95d28 \
             --non-interactive \
             --force

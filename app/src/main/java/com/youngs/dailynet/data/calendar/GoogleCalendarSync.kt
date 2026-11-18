@@ -69,7 +69,16 @@ class GoogleCalendarSync @Inject constructor(
         const val TITLE_MODE_CONTENT = "content"
         const val TITLE_MODE_FIXED = "fixed"
 
-        private const val PROP_APP = "dailynet"
+        /**
+         * 일정 종류. 값이 [KIND_EXERCISE] 같은 단어라서, 나중에 식단 등 다른 종류를 넣어도
+         * 같은 날짜 키([PROP_DATE])를 쓰면서 종류로 가를 수 있다.
+         * 예전(b60 이하)에는 운동 일정에만 "1"을 넣어 "앱이 만든 일정" 표시로 썼다([KIND_LEGACY]).
+         */
+        private const val PROP_KIND = "dailynet"
+        const val KIND_EXERCISE = "exercise"
+        const val KIND_PASS = "pass"
+        /** b60 이하가 운동 일정에 넣던 값. 동기화 때 만나면 [KIND_EXERCISE]로 고쳐 쓴다 */
+        private const val KIND_LEGACY = "1"
         private const val PROP_DATE = "dailynet_date"
         /** 운동 이용권에서 나온 일정. 값은 이용권 id. 운동 일정(PROP_DATE)과 섞이지 않게 따로 둔다 */
         private const val PROP_PASS = "dailynet_pass"
@@ -81,10 +90,20 @@ class GoogleCalendarSync @Inject constructor(
         /** 이용권을 시작일~종료일 띠 하나로 */
         const val PASS_MODE_SPAN = "span"
 
-        /** Firestore에 캘린더 ID를 두는 자리: users/{uid}/settings/calendar */
-        private const val CLOUD_SUB = "settings"
-        private const val CLOUD_DOC = "calendar"
+        /**
+         * Firestore에 캘린더 ID를 두는 자리: calendar_ids/{구글 계정 ID}.
+         *
+         * users/{uid} 밖에 두는 이유: 탈퇴하면 users 트리가 지워지고 재가입하면 uid가 바뀐다.
+         * 구글 계정은 그대로이므로 그 ID로 찾으면 기존 "데일리넷" 캘린더에 이어서 쓴다.
+         * (이 범위로는 캘린더 목록을 못 읽어 저장해 둔 ID가 되찾을 유일한 단서다)
+         */
+        private const val CLOUD_COLLECTION = "calendar_ids"
         private const val CLOUD_FIELD = "calendarId"
+        /** 콘솔에서 어느 계정인지 알아보려고 같이 적는 이메일. 조회 키로는 안 쓴다 */
+        private const val CLOUD_EMAIL_FIELD = "email"
+        /** b60까지 쓰던 자리: users/{uid}/settings/calendar. 읽어서 새 자리로 옮기고 지운다 */
+        private const val LEGACY_SUB = "settings"
+        private const val LEGACY_DOC = "calendar"
     }
 
     sealed class Access {
@@ -143,13 +162,17 @@ class GoogleCalendarSync @Inject constructor(
         prefs.edit().putString(Constants.KEY_CALENDAR_FIXED_TITLE, title.trim()).apply()
     }
 
-    /** 로그아웃·탈퇴 때. 다른 계정의 캘린더 ID가 남으면 엉뚱한 곳에 쓴다. */
+    /**
+     * 로그아웃·탈퇴 때. 연동 설정은 비우되 캘린더 ID는 남긴다.
+     *
+     * ID는 계정 이메일별로 저장하므로([calendarIdKey]) 다른 계정이 로그인해도 섞이지 않는다.
+     * 본 저장소는 Firestore의 calendar_ids/{구글 계정 ID}이고 기기 사본은 캐시라 지울 이유가 없다.
+     */
     fun clear() {
         prefs.edit()
             .remove(Constants.KEY_CALENDAR_SYNC_ENABLED)
             .remove(Constants.KEY_CALENDAR_TITLE_MODE)
             .remove(Constants.KEY_CALENDAR_FIXED_TITLE)
-            .remove(Constants.KEY_CALENDAR_ID)
             .apply()
     }
 
@@ -218,18 +241,36 @@ class GoogleCalendarSync @Inject constructor(
      * 켜자마자 불러서 사용자가 구글 캘린더 앱에서 바로 확인할 수 있게 한다.
      */
     suspend fun ensureCalendar(token: String): String = calendarMutex.withLock {
-        prefs.getString(Constants.KEY_CALENDAR_ID, null)?.let { return@withLock it }
-
-        // 로그인이 안 돼 있으면 Firestore 의 캘린더 ID를 못 읽는다. 그 상태에서 새로 만들면
-        // 같은 계정에 "데일리넷 운동"이 하나 더 생긴다(실제로 났다). 만들지 않고 멈춘다.
+        // 로그인이 안 돼 있으면 어느 계정의 ID인지도, Firestore 의 캘린더 ID도 모른다. 그 상태에서
+        // 새로 만들면 같은 계정에 "데일리넷 운동"이 하나 더 생긴다(실제로 났다). 만들지 않고 멈춘다.
         if (auth.currentUser == null) throw IllegalStateException(context.getString(R.string.calendar_not_signed_in))
 
+        storedCalendarId()?.let { id ->
+            // 기기에는 있는데 Firestore 에 없는 경우(옛 빌드에서 올라온 사용자)를 메운다.
+            // 한 프로세스에서 한 번이면 충분하다(매번 쓰면 쓰기 비용만 든다).
+            if (!cloudBackfilled) {
+                cloudBackfilled = true
+                runCatching { cloudDoc()?.set(cloudFields(id), SetOptions.merge())?.await() }
+                    .onFailure { Log.w(TAG, "cloud calendarId backfill failed", it) }
+            }
+            return@withLock id
+        }
+
         // Firestore 읽기가 실패하면(오프라인·권한 오류) 모른다는 뜻이지 없다는 뜻이 아니다. 만들지 않는다.
-        val cloudId = cloudDoc()!!.get().await().getString(CLOUD_FIELD)
+        val cloudId = cloudDoc()?.get()?.await()?.getString(CLOUD_FIELD)
         if (!cloudId.isNullOrBlank()) {
             Log.d(TAG, "calendarId from cloud")
-            prefs.edit().putString(Constants.KEY_CALENDAR_ID, cloudId).apply()
+            prefs.edit().putString(calendarIdKey()!!, cloudId).apply()
             return@withLock cloudId
+        }
+
+        // b60까지는 users/{uid}/settings/calendar 에 뒀다. 있으면 새 자리로 옮기고 옛 문서는 지운다.
+        val legacyId = legacyDoc()!!.get().await().getString(CLOUD_FIELD)
+        if (!legacyId.isNullOrBlank()) {
+            Log.d(TAG, "calendarId from legacy doc")
+            saveCalendarId(legacyId)
+            runCatching { legacyDoc()?.delete()?.await() }
+            return@withLock legacyId
         }
 
         val id = api.createCalendar(
@@ -244,20 +285,63 @@ class GoogleCalendarSync @Inject constructor(
         id
     }
 
-    private fun cloudDoc() = auth.currentUser?.uid?.let { uid ->
-        firestore.collection("users").document(uid).collection(CLOUD_SUB).document(CLOUD_DOC)
+    /** 로그인한 구글 계정의 ID(sub). 파이어베이스 uid와 달리 탈퇴·재가입을 거쳐도 같다 */
+    private fun googleAccountId(): String? =
+        auth.currentUser?.providerData?.firstOrNull { it.providerId == "google.com" }?.uid?.takeIf { it.isNotBlank() }
+
+    private fun cloudDoc() = googleAccountId()?.let { firestore.collection(CLOUD_COLLECTION).document(it) }
+
+    private fun legacyDoc() = auth.currentUser?.uid?.let { uid ->
+        firestore.collection("users").document(uid).collection(LEGACY_SUB).document(LEGACY_DOC)
+    }
+
+    /** 이 프로세스에서 기기의 캘린더 ID를 Firestore 에 한 번 맞춰 뒀는지 */
+    private var cloudBackfilled = false
+
+    /**
+     * 기기에 캘린더 ID를 두는 자리. 계정 이메일별로 나눈다 (calendar_id_<email>).
+     * 로그아웃·탈퇴 때 지우지 않아도 다른 계정과 섞이지 않게 하려는 것이다. 로그인 전엔 null.
+     */
+    private fun calendarIdKey(): String? =
+        auth.currentUser?.email?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
+            ?.let { "${Constants.KEY_CALENDAR_ID}_$it" }
+
+    /**
+     * 기기에 저장된 이 계정의 캘린더 ID.
+     * b61 전에는 계정 구분 없이 calendar_id 한 칸에 뒀고 로그아웃 때마다 지웠으므로,
+     * 그 칸에 값이 남아 있으면 지금 로그인한 계정 것이다. 계정별 칸으로 옮기고 옛 칸은 비운다.
+     */
+    private fun storedCalendarId(): String? {
+        val key = calendarIdKey() ?: return null
+        prefs.getString(key, null)?.let { return it }
+        val legacy = prefs.getString(Constants.KEY_CALENDAR_ID, null) ?: return null
+        prefs.edit().putString(key, legacy).remove(Constants.KEY_CALENDAR_ID).apply()
+        return legacy
     }
 
     private suspend fun saveCalendarId(id: String) {
-        prefs.edit().putString(Constants.KEY_CALENDAR_ID, id).apply()
-        runCatching { cloudDoc()?.set(mapOf(CLOUD_FIELD to id), SetOptions.merge())?.await() }
+        calendarIdKey()?.let { prefs.edit().putString(it, id).apply() }
+        runCatching { cloudDoc()?.set(cloudFields(id), SetOptions.merge())?.await() }
             .onFailure { Log.w(TAG, "cloud calendarId write failed", it) }
+    }
+
+    /**
+     * calendar_ids 문서 내용. 문서 ID가 구글 계정 ID(숫자)라 콘솔에서 누구 것인지 알 수 없어
+     * 이메일을 같이 적는다. 찾는 데는 안 쓰고 사람이 볼 때만 쓴다.
+     */
+    private fun cloudFields(id: String): Map<String, Any> = buildMap {
+        put(CLOUD_FIELD, id)
+        auth.currentUser?.email?.takeIf { it.isNotBlank() }?.let { put(CLOUD_EMAIL_FIELD, it) }
     }
 
     /** 캘린더가 지워져 404가 났을 때. 기기와 Firestore 양쪽을 비워 다음에 새로 만든다. */
     private suspend fun forgetCalendarId() {
-        prefs.edit().remove(Constants.KEY_CALENDAR_ID).apply()
+        prefs.edit()
+            .apply { calendarIdKey()?.let { remove(it) } }
+            .remove(Constants.KEY_CALENDAR_ID)
+            .apply()
         runCatching { cloudDoc()?.delete()?.await() }
+        runCatching { legacyDoc()?.delete()?.await() }
     }
 
     /**
@@ -330,9 +414,10 @@ class GoogleCalendarSync @Inject constructor(
         }
         try {
             withCalendar(token) { bearer, calendarId ->
+                // 날짜 키는 종류가 늘면 공유되므로 종류는 코드에서 가른다. 옛 "1" 표식도 운동으로 본다.
                 val existing = api.listEvents(
-                    bearer, calendarId, "$PROP_DATE=${record.date}", 5, null, "items(id)"
-                ).items.firstOrNull()
+                    bearer, calendarId, "$PROP_DATE=${record.date}", 5, null, "items(id,extendedProperties)"
+                ).items.firstOrNull { isExercise(it) }
                 if (record.exercise.isBlank()) {
                     existing?.let { api.deleteEvent(bearer, calendarId, it.id) }
                 } else {
@@ -458,7 +543,9 @@ class GoogleCalendarSync @Inject constructor(
                 description = description,
                 start = EventDate(from),
                 end = EventDate(endExclusive),
-                extendedProperties = ExtendedProperties(mapOf(PROP_PASS to pass.id, PROP_PASS_PART to part))
+                extendedProperties = ExtendedProperties(
+                    mapOf(PROP_KIND to KIND_PASS, PROP_PASS to pass.id, PROP_PASS_PART to part)
+                )
             )
         }
 
@@ -480,18 +567,22 @@ class GoogleCalendarSync @Inject constructor(
     suspend fun syncAll(token: String, records: List<DailyRecordModel>): SyncResult {
         val targets = records.filter { it.exercise.isNotBlank() }
         return withCalendar(token) { bearer, calendarId ->
+            // 옛 빌드가 "1"로 넣은 일정도 함께 모은다. 안 그러면 같은 날짜에 하나 더 만든다.
+            // 옛 표식 조회는 다 옮겨진 뒤엔 빈 결과라 요청 한 번만 더 드는 셈이다.
             val existing = HashMap<String, EventResource>()
-            var pageToken: String? = null
-            do {
-                val page = api.listEvents(
-                    bearer, calendarId, "$PROP_APP=1", 2500, pageToken,
-                    "items(id,summary,description,extendedProperties),nextPageToken"
-                )
-                page.items.forEach { event ->
-                    event.extendedProperties?.privateProps?.get(PROP_DATE)?.let { existing[it] = event }
-                }
-                pageToken = page.nextPageToken
-            } while (pageToken != null)
+            listOf(KIND_EXERCISE, KIND_LEGACY).forEach { kind ->
+                var pageToken: String? = null
+                do {
+                    val page = api.listEvents(
+                        bearer, calendarId, "$PROP_KIND=$kind", 2500, pageToken,
+                        "items(id,summary,description,extendedProperties),nextPageToken"
+                    )
+                    page.items.forEach { event ->
+                        event.extendedProperties?.privateProps?.get(PROP_DATE)?.let { existing[it] = event }
+                    }
+                    pageToken = page.nextPageToken
+                } while (pageToken != null)
+            }
             Log.d(TAG, "syncAll: local=${targets.size} remote=${existing.size}")
 
             var added = 0
@@ -504,7 +595,9 @@ class GoogleCalendarSync @Inject constructor(
                         retryOnNetworkError { api.insertEvent(bearer, calendarId, body) }
                         added++
                     }
-                    event.summary != body.summary || event.description.orEmpty() != body.description.orEmpty() -> {
+                    event.summary != body.summary || event.description.orEmpty() != body.description.orEmpty()
+                        // 옛 "1" 표식은 내용이 같아도 한 번 고쳐 써서 새 종류 값으로 옮긴다
+                        || kindOf(event) != KIND_EXERCISE -> {
                         retryOnNetworkError { api.patchEvent(bearer, calendarId, event.id, body) }
                         updated++
                     }
@@ -552,10 +645,15 @@ class GoogleCalendarSync @Inject constructor(
             start = EventDate(record.date),
             end = EventDate(nextDay),
             extendedProperties = ExtendedProperties(
-                mapOf(PROP_APP to "1", PROP_DATE to record.date)
+                mapOf(PROP_KIND to KIND_EXERCISE, PROP_DATE to record.date)
             )
         )
     }
+
+    private fun kindOf(event: EventResource) = event.extendedProperties?.privateProps?.get(PROP_KIND)
+
+    /** 운동 일정인가. 옛 빌드의 "1" 표식도 운동으로 친다 (그때는 운동만 있었다) */
+    private fun isExercise(event: EventResource) = kindOf(event).let { it == KIND_EXERCISE || it == KIND_LEGACY }
 
     private fun bearer(token: String) = "Bearer $token"
 }

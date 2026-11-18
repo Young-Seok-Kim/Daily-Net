@@ -18,3 +18,6 @@ exports.evaluatePeriod = require("./evaluatePeriod").evaluatePeriod;
 // 구독 검증. 앱이 보낸 "나 구독자야"를 믿지 않고 서버가 Play에 직접 확인한다.
 exports.verifySubscription = require("./subscription").verifySubscription;
 exports.playSubscriptionEvent = require("./subscription").playSubscriptionEvent;
+
+// 회원탈퇴. 서브컬렉션까지 통째로 지워야 해서 서버가 한다 (앱은 서브컬렉션 목록을 못 읽는다).
+exports.withdrawAccount = require("./withdraw").withdrawAccount;

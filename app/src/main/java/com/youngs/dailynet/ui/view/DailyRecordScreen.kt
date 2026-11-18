@@ -519,16 +519,9 @@ fun DailyRecordScreen(
         }
     }
 
+    // ViewModel 토스트는 MainActivity가 한 곳에서 받는다 (화면마다 받으면 안 받는 화면에서 묵힌다).
+    // 분석이 끝나도 자동으로 뒤로가지 않는다. 기록은 이미 저장됐고, 결과를 읽은 뒤 직접 뒤로간다.
     Box(modifier = Modifier.fillMaxSize()) {
-
-        LaunchedEffect(mainViewModel.toastMessage) {
-            mainViewModel.toastMessage?.let { message ->
-                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                mainViewModel.onToastShown()
-                // 💡 분석 결과를 볼 수 있도록 자동으로 뒤로가지 않는다.
-                //    (기록은 이미 저장되어 있으며, 사용자가 결과를 읽은 뒤 직접 뒤로가기)
-            }
-        }
 
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,

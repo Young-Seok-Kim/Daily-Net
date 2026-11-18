@@ -29,6 +29,10 @@ object Constants {
     const val VERIFY_SUBSCRIPTION_URL =
         "https://asia-northeast3-daily-net-95d28.cloudfunctions.net/verifySubscription"
 
+    /** 회원탈퇴. 서버가 users/{uid} 트리와 Auth 계정을 통째로 지운다 */
+    const val WITHDRAW_ACCOUNT_URL =
+        "https://asia-northeast3-daily-net-95d28.cloudfunctions.net/withdrawAccount"
+
     /** 연결 수립 타임아웃 */
     const val CONNECT_TIMEOUT_MS = 15000L
 
@@ -116,6 +120,11 @@ object Constants {
     /**
      * 앱이 만든 보조 캘린더의 ID. 매번 목록을 뒤지지 않으려고 기억해 둔다.
      * 사용자가 캘린더를 지워 404가 나면 비우고 다시 만든다.
+     */
+    /**
+     * b61부터는 이 이름 뒤에 "_<계정 이메일>"을 붙여 계정별로 저장한다 (GoogleCalendarSync.calendarIdKey).
+     * 로그아웃·탈퇴 때 지우지 않고 남겨서 같은 계정이 다시 들어오면 기존 캘린더를 이어 쓴다.
+     * 접미사 없는 옛 칸은 처음 읽을 때 계정별 칸으로 옮긴다.
      */
     const val KEY_CALENDAR_ID = "calendar_id"
 }
