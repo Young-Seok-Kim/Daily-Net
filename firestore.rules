@@ -77,7 +77,8 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // 앱이 만든 구글 캘린더("데일리넷")의 ID. 문서 ID = 구글 계정 ID(sub), 내용은 { calendarId }.
+    // 앱이 만든 구글 캘린더("데일리넷")의 ID. 문서 ID = 구글 계정 ID(sub), 내용은 { calendarId, email }.
+    // email은 콘솔에서 어느 계정인지 알아보기 위한 것이고 조회 키는 문서 ID다.
     //
     // users/{uid} 밖에 두는 이유: 탈퇴하면 users 트리가 통째로 지워지고 재가입하면 uid도 바뀐다.
     // 그래도 구글 계정은 그대로이므로, 구글 계정 ID로 찾으면 기존 캘린더에 이어서 쓸 수 있다.

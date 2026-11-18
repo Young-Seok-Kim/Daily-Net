@@ -99,6 +99,8 @@ class GoogleCalendarSync @Inject constructor(
          */
         private const val CLOUD_COLLECTION = "calendar_ids"
         private const val CLOUD_FIELD = "calendarId"
+        /** 콘솔에서 어느 계정인지 알아보려고 같이 적는 이메일. 조회 키로는 안 쓴다 */
+        private const val CLOUD_EMAIL_FIELD = "email"
         /** b60까지 쓰던 자리: users/{uid}/settings/calendar. 읽어서 새 자리로 옮기고 지운다 */
         private const val LEGACY_SUB = "settings"
         private const val LEGACY_DOC = "calendar"
@@ -248,7 +250,7 @@ class GoogleCalendarSync @Inject constructor(
             // 한 프로세스에서 한 번이면 충분하다(매번 쓰면 쓰기 비용만 든다).
             if (!cloudBackfilled) {
                 cloudBackfilled = true
-                runCatching { cloudDoc()?.set(mapOf(CLOUD_FIELD to id), SetOptions.merge())?.await() }
+                runCatching { cloudDoc()?.set(cloudFields(id), SetOptions.merge())?.await() }
                     .onFailure { Log.w(TAG, "cloud calendarId backfill failed", it) }
             }
             return@withLock id
@@ -319,8 +321,17 @@ class GoogleCalendarSync @Inject constructor(
 
     private suspend fun saveCalendarId(id: String) {
         calendarIdKey()?.let { prefs.edit().putString(it, id).apply() }
-        runCatching { cloudDoc()?.set(mapOf(CLOUD_FIELD to id), SetOptions.merge())?.await() }
+        runCatching { cloudDoc()?.set(cloudFields(id), SetOptions.merge())?.await() }
             .onFailure { Log.w(TAG, "cloud calendarId write failed", it) }
+    }
+
+    /**
+     * calendar_ids 문서 내용. 문서 ID가 구글 계정 ID(숫자)라 콘솔에서 누구 것인지 알 수 없어
+     * 이메일을 같이 적는다. 찾는 데는 안 쓰고 사람이 볼 때만 쓴다.
+     */
+    private fun cloudFields(id: String): Map<String, Any> = buildMap {
+        put(CLOUD_FIELD, id)
+        auth.currentUser?.email?.takeIf { it.isNotBlank() }?.let { put(CLOUD_EMAIL_FIELD, it) }
     }
 
     /** 캘린더가 지워져 404가 났을 때. 기기와 Firestore 양쪽을 비워 다음에 새로 만든다. */
