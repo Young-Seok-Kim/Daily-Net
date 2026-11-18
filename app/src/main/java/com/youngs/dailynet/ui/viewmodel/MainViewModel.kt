@@ -1085,7 +1085,12 @@ class MainViewModel @Inject constructor(
             _shouldStreamResult.value = false
 
             val savedDraft = repository.getDailyRecordByDate(targetDate)
-            val lastRecordedWeight = repository.getLatestWeight(targetDate)
+            // 이 날짜 전에 적은 체중이 없으면(가입 직후 첫 정산) 프로필에 넣은 초기 체중을 쓴다.
+            // 프로필 저장 직후 uiState에 넣어 두긴 하지만, 입력 화면을 열 때 여기서 다시 채우므로
+            // 여기서도 같은 값으로 떨어지지 않으면 첫 정산의 체중 칸이 빈칸이 된다.
+            val lastRecordedWeight = repository.getLatestWeight(targetDate).takeIf { it > 0f }
+                ?: userProfileDao.getProfile()?.initialWeight?.takeIf { it > 0f }
+                ?: 0f
 
             if (savedDraft != null) {
                 if (savedDraft.weight > 0f) {
