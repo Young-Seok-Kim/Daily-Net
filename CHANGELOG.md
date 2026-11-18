@@ -14,6 +14,34 @@
 
 ---
 
+## v1.16.4 (b62) — 2026-11-18
+
+### 스토어 문구
+
+회원탈퇴 시 서버에 남은 기록까지 모두 지워지도록 했습니다. 가입 직후 첫 정산의 체중 칸에 처음 입력한 체중이 미리 들어가고, 안내 메시지가 제때 뜨지 않던 문제를 고쳤습니다. 구글 캘린더 연동은 탈퇴 후 다시 가입해도 기존 "데일리넷" 캘린더를 그대로 이어 씁니다.
+
+### 상세 내역
+
+- **회원탈퇴를 서버로 이전** (`functions/withdraw.js`, `data/network/AccountWithdrawer.kt`, `data/model/WithdrawModels.kt`)
+  - 앱이 `users/{uid}` 문서만 지우던 탓에 settlements·settings 서브컬렉션이 남아 콘솔에 "필드 없는 문서"(유령)가 쌓였다.
+    클라이언트 SDK는 서브컬렉션 목록을 못 읽으므로 Admin SDK `recursiveDelete`로 서버가 통째로 지운다.
+    순서는 Firestore 트리 → `purchase_tokens` 매핑(안 지우면 RTDN이 유령 문서를 되살린다) → Auth 계정.
+    Auth 삭제를 서버가 하므로 "최근 로그인 필요" 오류가 사라졌다
+  - 함수 실행 계정에 `roles/firebaseauth.admin` 필요(2026-11-18 부여). `firestore.rules`의 users delete 허용은 b60 이하 때문에 유지
+  - 심사관·로봇 계정 정리 스크립트 `tools/cleanup_reviewer_accounts.py` 추가 (미리보기 기본, `--apply`로 삭제, 유령 uid도 정리)
+- **캘린더 ID 보관 위치 변경** (`data/calendar/GoogleCalendarSync.kt`, `firestore.rules`)
+  - `users/{uid}/settings/calendar` → 최상위 `calendar_ids/{구글 계정 ID}` (`calendarId`, `email`). 탈퇴로 users 트리가 지워지고
+    uid가 바뀌어도 구글 계정 ID는 같아 기존 캘린더를 이어 쓴다. 옛 자리는 처음 읽을 때 옮기고 지운다. 기기 사본은 계정 이메일별 캐시
+- **캘린더 일정 표식을 종류 값으로**: `dailynet=1` → `exercise`, 이용권은 `pass`. 식단 등 종류가 늘어도 같은 날짜 키로 가를 수 있다.
+  전체 동기화는 옛 값도 함께 모아 중복을 만들지 않고, 옛 표식 일정은 한 번 고쳐 써서 옮긴다
+- **토스트 표시를 MainActivity 한 곳으로** (`ui/MainActivity.kt`): 기록·설정 화면만 받던 탓에 탈퇴 화면에서 띄운 메시지가
+  재로그인 뒤 메인 화면에서 뜨고, 탈퇴 실패 메시지는 아예 안 보였다
+- **첫 정산 체중 미리 채움** (`MainViewModel.prepareDailyRecordData`): 이전 기록의 체중이 없으면 프로필 초기 체중을 쓴다
+- **CI**: `deploy.yml`의 firebase deploy 대상에 `firestore:rules` 추가. 그동안 규칙은 배포되지 않아 b56의 `periodEvalCount` 잠금이
+  7월 30일자 살아 있는 규칙에 없었다(2026-11-18 수동 배포로 적용)
+
+---
+
 ## v1.16.3 (b61) — 2026-11-17
 
 ### 스토어 문구
