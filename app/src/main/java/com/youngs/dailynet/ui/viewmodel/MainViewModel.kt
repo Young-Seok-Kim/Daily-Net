@@ -596,6 +596,15 @@ class MainViewModel @Inject constructor(
     var showProfileDialog by mutableStateOf(false)
         private set
 
+    /**
+     * 가입(온보딩) 2단계 — AI 분석 참고 정보 시트를 띄울지.
+     *
+     * 1단계 신체 정보가 **서버와 로컬에 다 쓰인 뒤에만** 켜진다([saveInitialProfile]).
+     * 그래서 2단계에서 앱을 끄거나 건너뛰어도 필수 정보는 남고, 다시 켰을 때 1단계가 또 뜨지 않는다.
+     */
+    var showAiContextSetupDialog by mutableStateOf(false)
+        private set
+
     private val currentUserId: String?
         get() = auth.currentUser?.uid
 
@@ -698,6 +707,9 @@ class MainViewModel @Inject constructor(
                 _isMale.value = isMale
                 showProfileDialog = false
                 _uiState.update { it.copy(weight = weight) }
+                // 1단계를 저장했으니 바로 2단계(AI 분석 참고 정보)로 넘어간다.
+                // 저장에 실패하면 여기까지 오지 않으므로 1단계가 그대로 열려 있다
+                showAiContextSetupDialog = true
             } catch (e: Exception) {
                 e.printStackTrace()
                 toast(R.string.toast_profile_save_failed, e.message.orEmpty())
@@ -814,6 +826,24 @@ class MainViewModel @Inject constructor(
                 onDone(false)
             }
         }
+    }
+
+    /**
+     * 가입 2단계(AI 분석 참고 정보)의 '저장하고 시작'.
+     *
+     * 저장은 설정 화면과 같은 [updateAiContext]를 그대로 쓴다. 성공했을 때만 시트를 닫고,
+     * 실패하면 열어 둔다 — 여기서 닫아 버리면 방금 고른 목표·메모가 토스트 한 줄만 남기고
+     * 사라진다. 시트가 열려 있으면 '다시 저장'과 '건너뛰기' 중에 고를 수 있다.
+     */
+    fun saveInitialAiContext(goal: AiGoal?, activity: AiActivity?, note: String) {
+        updateAiContext(goal, activity, note) { success ->
+            if (success) showAiContextSetupDialog = false
+        }
+    }
+
+    /** 가입 2단계의 '건너뛰기'. 아무것도 저장하지 않고 닫는다(빈 값으로 덮어쓰지 않는다) */
+    fun skipAiContextSetup() {
+        showAiContextSetupDialog = false
     }
 
     /**
@@ -1734,6 +1764,8 @@ class MainViewModel @Inject constructor(
                 calendarSync.clear()
                 // 메모리에 든 AI 평가도 비운다. 남의 평가가 다음 계정 패널에 보이면 안 된다
                 _periodEvaluations.value = emptyMap()
+                // 가입 도중(2단계)에 로그아웃한 상태가 다음 계정에 남지 않게 한다
+                showAiContextSetupDialog = false
                 loadedEvaluationKeys.clear()
                 recentRecordsSynced = false
                 expandedWeeks = emptySet()

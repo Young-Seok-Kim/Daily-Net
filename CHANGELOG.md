@@ -14,6 +14,32 @@
 
 ---
 
+## v1.16.7 (b65) — 2026-11-18
+
+### 스토어 문구
+
+처음 가입할 때 신체 정보를 넣은 뒤, AI 분석 참고 정보(목표·평소 활동량·메모)를 이어서 정할 수 있습니다. 선택 사항이라 건너뛰어도 되고, 나중에 설정에서 언제든 바꿀 수 있습니다.
+
+### 상세 내역
+
+- **가입 2단계 온보딩** (`ui/view/MainScreen.kt`, `ui/view/AiContextSheet.kt`, `ui/viewmodel/MainViewModel.kt`)
+  - 1단계(신체 정보) 버튼을 '저장 및 시작' → **'다음'**. 누르면 기존 `saveInitialProfile`이 그대로 서버(set·merge)와 Room에 쓰고
+    성공했을 때만 2단계를 연다(`showAiContextSetupDialog`). 저장이 먼저 끝나므로 2단계에서 앱을 죽여도 필수 신체 정보는 남고,
+    다시 켜면 `checkProfile`이 height를 보고 1단계를 다시 띄우지 않는다
+  - 2단계는 설정 > AI 분석 참고 정보와 **같은 칸**을 쓴다(`AiContextFields`로 묶어 양쪽 시트가 공유). 목표 3·활동량 3 선택 칩,
+    메모 200자 카운터. 선택 단계라 '건너뛰기'·'닫기'·바깥 터치/뒤로가기가 모두 저장 없이 닫힌다(`skipAiContextSetup`)
+  - '저장하고 시작'은 설정과 같은 `updateAiContext`를 쓴다(Room `user_profile` + Firestore `users/{uid}` aiGoal·aiActivity·aiNote).
+    성공했을 때만 시트를 닫고, 실패하면 열어 둔 채 토스트만 띄워 다시 저장하거나 건너뛸 수 있게 했다
+  - 두 시트는 `when`으로 이어 겹쳐 뜨지 않는다. 이미 1단계를 마친 계정은 2단계가 열리지 않는다(기존 사용자 온보딩 변화 없음)
+- **시트 보조 버튼** (`ui/view/DnDialog.kt` `DnFormSheet`): `secondaryLabel`/`onSecondary` 추가 — 주액션 CTA **아래**에 글자만 있는
+  버튼 한 줄. 2단계의 '건너뛰기'가 유일한 사용처다
+- **입력 조건 분리** (`ui/view/ProfileInput.kt`): 키>0·체중>0·생년월일 선택을 `isProfileInputValid`로 빼서 1단계·수정 시트·테스트가
+  같은 규칙을 보게 했다(전에는 두 시트에 같은 조건이 각각 적혀 있었다)
+- **문자열**: `profile_setup_next`, `ai_context_setup_title`·`_subtitle`·`_save`·`_skip` 추가(ko·en). 쓰지 않게 된 `save_and_start` 삭제
+- 테스트 `ProfileOnboardingTest` 3건: 완전한 입력 통과(소수점 포함), 빈 값·0·글자 거부, 생년월일 미선택 거부
+
+---
+
 ## v1.16.6 (b64) — 2026-11-18
 
 ### 스토어 문구

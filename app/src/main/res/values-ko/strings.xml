@@ -52,6 +52,11 @@
     <string name="ai_context_note_counter">%1$d / %2$d</string>
     <string name="ai_context_summary_note">메모 있음</string>
     <string name="ai_context_chip_clear_hint">고른 칩을 다시 누르면 선택이 해제됩니다</string>
+    <!-- 가입 2단계(온보딩). 신체 정보를 저장한 직후 한 번 열린다 -->
+    <string name="ai_context_setup_title">AI 분석 참고 정보</string>
+    <string name="ai_context_setup_subtitle">선택 사항이에요. 정해 두면 하루·주간 AI 리포트가 내 기준에 맞춰지고, 나중에 설정에서 바꿀 수 있어요.</string>
+    <string name="ai_context_setup_save">저장하고 시작</string>
+    <string name="ai_context_setup_skip">건너뛰기</string>
     <string name="inbody_summary_bmr">기초대사량 %1$d kcal</string>
     <string name="inbody_summary_muscle">골격근 %1$.1f kg</string>
     <string name="inbody_summary_fat_pct">체지방 %1$.1f%%</string>
@@ -128,7 +133,7 @@
     <string name="week_of_month">%1$02d월 %2$d주차</string>
     <string name="delete">삭제</string>
     <string name="save">저장</string>
-    <string name="save_and_start">저장 및 시작</string>
+    <string name="profile_setup_next">다음</string>
     <string name="open_settings">설정 열기</string>
     <string name="delete_record_title">이 기록을 지울까요?</string>
     <string name="delete_record_message">정산 기록과 AI 리포트가 함께 삭제됩니다.\n삭제한 기록은 되돌릴 수 없습니다.</string>
