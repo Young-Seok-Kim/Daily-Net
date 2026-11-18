@@ -69,7 +69,16 @@ class GoogleCalendarSync @Inject constructor(
         const val TITLE_MODE_CONTENT = "content"
         const val TITLE_MODE_FIXED = "fixed"
 
-        private const val PROP_APP = "dailynet"
+        /**
+         * 일정 종류. 값이 [KIND_EXERCISE] 같은 단어라서, 나중에 식단 등 다른 종류를 넣어도
+         * 같은 날짜 키([PROP_DATE])를 쓰면서 종류로 가를 수 있다.
+         * 예전(b60 이하)에는 운동 일정에만 "1"을 넣어 "앱이 만든 일정" 표시로 썼다([KIND_LEGACY]).
+         */
+        private const val PROP_KIND = "dailynet"
+        const val KIND_EXERCISE = "exercise"
+        const val KIND_PASS = "pass"
+        /** b60 이하가 운동 일정에 넣던 값. 동기화 때 만나면 [KIND_EXERCISE]로 고쳐 쓴다 */
+        private const val KIND_LEGACY = "1"
         private const val PROP_DATE = "dailynet_date"
         /** 운동 이용권에서 나온 일정. 값은 이용권 id. 운동 일정(PROP_DATE)과 섞이지 않게 따로 둔다 */
         private const val PROP_PASS = "dailynet_pass"
@@ -330,9 +339,10 @@ class GoogleCalendarSync @Inject constructor(
         }
         try {
             withCalendar(token) { bearer, calendarId ->
+                // 날짜 키는 종류가 늘면 공유되므로 종류는 코드에서 가른다. 옛 "1" 표식도 운동으로 본다.
                 val existing = api.listEvents(
-                    bearer, calendarId, "$PROP_DATE=${record.date}", 5, null, "items(id)"
-                ).items.firstOrNull()
+                    bearer, calendarId, "$PROP_DATE=${record.date}", 5, null, "items(id,extendedProperties)"
+                ).items.firstOrNull { isExercise(it) }
                 if (record.exercise.isBlank()) {
                     existing?.let { api.deleteEvent(bearer, calendarId, it.id) }
                 } else {
@@ -458,7 +468,9 @@ class GoogleCalendarSync @Inject constructor(
                 description = description,
                 start = EventDate(from),
                 end = EventDate(endExclusive),
-                extendedProperties = ExtendedProperties(mapOf(PROP_PASS to pass.id, PROP_PASS_PART to part))
+                extendedProperties = ExtendedProperties(
+                    mapOf(PROP_KIND to KIND_PASS, PROP_PASS to pass.id, PROP_PASS_PART to part)
+                )
             )
         }
 
@@ -480,18 +492,22 @@ class GoogleCalendarSync @Inject constructor(
     suspend fun syncAll(token: String, records: List<DailyRecordModel>): SyncResult {
         val targets = records.filter { it.exercise.isNotBlank() }
         return withCalendar(token) { bearer, calendarId ->
+            // 옛 빌드가 "1"로 넣은 일정도 함께 모은다. 안 그러면 같은 날짜에 하나 더 만든다.
+            // 옛 표식 조회는 다 옮겨진 뒤엔 빈 결과라 요청 한 번만 더 드는 셈이다.
             val existing = HashMap<String, EventResource>()
-            var pageToken: String? = null
-            do {
-                val page = api.listEvents(
-                    bearer, calendarId, "$PROP_APP=1", 2500, pageToken,
-                    "items(id,summary,description,extendedProperties),nextPageToken"
-                )
-                page.items.forEach { event ->
-                    event.extendedProperties?.privateProps?.get(PROP_DATE)?.let { existing[it] = event }
-                }
-                pageToken = page.nextPageToken
-            } while (pageToken != null)
+            listOf(KIND_EXERCISE, KIND_LEGACY).forEach { kind ->
+                var pageToken: String? = null
+                do {
+                    val page = api.listEvents(
+                        bearer, calendarId, "$PROP_KIND=$kind", 2500, pageToken,
+                        "items(id,summary,description,extendedProperties),nextPageToken"
+                    )
+                    page.items.forEach { event ->
+                        event.extendedProperties?.privateProps?.get(PROP_DATE)?.let { existing[it] = event }
+                    }
+                    pageToken = page.nextPageToken
+                } while (pageToken != null)
+            }
             Log.d(TAG, "syncAll: local=${targets.size} remote=${existing.size}")
 
             var added = 0
@@ -504,7 +520,9 @@ class GoogleCalendarSync @Inject constructor(
                         retryOnNetworkError { api.insertEvent(bearer, calendarId, body) }
                         added++
                     }
-                    event.summary != body.summary || event.description.orEmpty() != body.description.orEmpty() -> {
+                    event.summary != body.summary || event.description.orEmpty() != body.description.orEmpty()
+                        // 옛 "1" 표식은 내용이 같아도 한 번 고쳐 써서 새 종류 값으로 옮긴다
+                        || kindOf(event) != KIND_EXERCISE -> {
                         retryOnNetworkError { api.patchEvent(bearer, calendarId, event.id, body) }
                         updated++
                     }
@@ -552,10 +570,15 @@ class GoogleCalendarSync @Inject constructor(
             start = EventDate(record.date),
             end = EventDate(nextDay),
             extendedProperties = ExtendedProperties(
-                mapOf(PROP_APP to "1", PROP_DATE to record.date)
+                mapOf(PROP_KIND to KIND_EXERCISE, PROP_DATE to record.date)
             )
         )
     }
+
+    private fun kindOf(event: EventResource) = event.extendedProperties?.privateProps?.get(PROP_KIND)
+
+    /** 운동 일정인가. 옛 빌드의 "1" 표식도 운동으로 친다 (그때는 운동만 있었다) */
+    private fun isExercise(event: EventResource) = kindOf(event).let { it == KIND_EXERCISE || it == KIND_LEGACY }
 
     private fun bearer(token: String) = "Bearer $token"
 }
