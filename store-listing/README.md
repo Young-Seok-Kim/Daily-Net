@@ -18,6 +18,7 @@
   간단한 설명 첫 단어로 두고, 자세한 설명에서 자연스럽게 8번 쓴다. 칼로리·식단은 그대로 핵심 키워드.
 - **이 폴더가 곧 Play Console 등록정보다.** `store-listing/` 이 바뀐 커밋이 main 에 들어가면
   `deploy.yml` 의 listing 잡이 `.github/scripts/play_listing.py` 로 API 에 올린다. 콘솔에서 손으로 넣지 않는다.
+  아이콘·그래픽·스크린샷은 그 커밋에서 실제로 바뀐 칸만 다시 올린다(문안만 고친 커밋에서는 이미지를 건드리지 않는다).
   서비스 계정에 "스토어 등록정보 관리" 권한이 있어야 하고, 없으면 그 잡이 403 으로 실패하며 안내를 남긴다.
 - hosting의 검색 메타데이터, canonical, SoftwareApplication 구조화 데이터, robots.txt, sitemap.xml 은 배포됨.
 
@@ -30,7 +31,7 @@
 - 자세한 설명: ko-KR/full-description.txt (4,000자)
 - 앱 아이콘: ko-KR/icon.png (512×512. `tools/make_icons.py` 가 앱 안의 벡터 아이콘과 같은 원본에서 뽑는다)
 - 그래픽 이미지: ko-KR/feature-graphic.png (1024×500. `tools/make_store_shots.py` 가 만든다)
-- 휴대전화 스크린샷: ko-KR/screenshots/01.png … (1080×1920, 최대 8장, 파일명 순서대로. 올릴 때 기존 것을 전부 지우고 다시 올린다)
+- 휴대전화 스크린샷: ko-KR/screenshots/01.png … (1080×1920, 최대 8장, 파일명 순서대로. 그 칸의 파일이 바뀐 커밋에서만 기존 것을 전부 지우고 다시 올린다 — 순서를 바꾸는 API 가 없어 한 장만 바뀌어도 칸 전체를 다시 올린다)
 - 태블릿 스크린샷: ko-KR/screenshots-tablet/01.png … (1200×1920, 7인치·10인치 칸에 같은 파일을 올린다)
 
 스크린샷은 실제 폰 캡처(상태바 제거)를 민트·딥틸 배경에 번갈아 얹고 제목·부제를 붙인 것이다 (2026-11-16 리디자인 뒤 재촬영).
