@@ -16,6 +16,7 @@ const { LABELS, resolveLang } = require("./labels");
 const { generateAndParse, paidModel } = require("./gemini");
 const { verifyUser, reserveEvaluation, withTimeout, QUOTA_TIMEOUT_MS } = require("./quota");
 const { normalizeInbody, ageFrom, inbodyPromptLine } = require("./inbody");
+const { normalizeAiContext, aiContextPromptBlock } = require("./aiContext");
 const {
     PERIOD_TYPES, normalizeDays, normalizeTopItems, periodStats, factLines, dayLines, normalizeEvaluation
 } = require("./periodEval");
@@ -60,6 +61,9 @@ exports.evaluatePeriod = onRequest({
         const topFoods = normalizeTopItems(body.topFoods);
         const topExercises = normalizeTopItems(body.topExercises);
         const today = typeof body.today === "string" ? body.today : "";
+        // 설정의 참고 정보(b64). 없으면 빈 문자열 — 프롬프트가 예전과 같다
+        const aiContext = normalizeAiContext(body.aiContext);
+        const aiContextBlock = aiContextPromptBlock(aiContext);
 
         const stats = periodStats(days, { type, start: period.start, end: period.end }, today, profile.weight);
 
@@ -94,7 +98,7 @@ exports.evaluatePeriod = onRequest({
             [사용자]
             ${bodyLine}
             ${inbodyLine}
-
+${aiContextBlock ? "\n" + aiContextBlock + "\n" : ""}
             [기간 집계 — 서버가 계산한 값]
 ${facts.map((l) => "            " + l).join("\n")}
 ${daily.length ? `
@@ -118,6 +122,7 @@ ${daily.map((l) => "        " + l).join("\n")}` : ""}
             8. 기록하지 않은 날을 굶은 날로 보지 마십시오. 기록률이 낮으면 그것 자체를 지적하십시오.
             9. 없는 항목(0인 값·없는 줄)은 언급하지 마십시오. 겁주지 말고, 과장하지 말고, 냉철하게.
             10. 모든 문장은 반드시 **${L.outputLanguage}**로 쓰십시오. Markdown 없이 순수 JSON만 응답하십시오.
+            ${aiContext && aiContext.goal ? "11. score의 무게를 위 [사용자 기준]의 목표에 맞추십시오. 목표가 근육 증량이면 적자 대신 단백질·운동을 보고, 체중 유지면 균형과 지속 가능성을 보십시오." : ""}
 
             {
               "score": 0,

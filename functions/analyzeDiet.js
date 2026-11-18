@@ -14,6 +14,7 @@ const { settleItemKcal } = require("./shareItems");
 const { mealCalories, mealMacros } = require("./dailyTotals");
 const { implausibleItems, statedKcals } = require("./kcalCheck");
 const { implausibleExercises } = require("./exerciseCheck");
+const { normalizeAiContext, aiContextPromptBlock } = require("./aiContext");
 const { buildExercises } = require("./exerciseCalc");
 const {
     REQUIRE_AUTH,
@@ -85,9 +86,15 @@ exports.analyzeDiet = onRequest({
             breakfast, lunch, dinner, snack,
             exercise: exerciseInput, remark, steps,
             // b39부터. 설정에 인바디를 넣은 사용자만 보낸다. 구버전 앱은 없다 → 공식으로 계산
-            inbody: inbodyRaw
+            inbody: inbodyRaw,
+            // b64부터. 설정의 'AI 분석 참고 정보'(목표·활동량·메모). 구버전 앱은 없다 → 블록이 빈다
+            aiContext: aiContextRaw
         } = req.body;
         const stepCount = Number(steps) || 0;
+
+        // 설정의 참고 정보. 없으면 빈 문자열이라 프롬프트가 예전과 글자까지 같다
+        const aiContext = normalizeAiContext(aiContextRaw);
+        const aiContextBlock = aiContextPromptBlock(aiContext);
 
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         const generationConfig = {
@@ -172,7 +179,7 @@ const prompt = `
             [사용자 데이터]
             - 신체: ${height}cm, ${weight}kg, ${genderText} (만 ${age}세)
             ${inbodyPromptLine(inbody)}
-            - 식사 (번호 붙은 줄 하나가 사용자가 적은 항목 하나입니다):
+${aiContextBlock ? aiContextBlock + "\n" : ""}            - 식사 (번호 붙은 줄 하나가 사용자가 적은 항목 하나입니다):
 ${mealsBlock}
             - 활동 (같은 형식):
 ${exerciseBlock}

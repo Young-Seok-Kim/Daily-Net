@@ -6,6 +6,7 @@ import com.youngs.dailynet.BuildConfig
 import com.youngs.dailynet.data.model.AnalysisUsage
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.model.AnalysisRequest
+import com.youngs.dailynet.data.model.AiContext
 import com.youngs.dailynet.data.model.AnalysisResponse
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.data.model.InbodyAnalysisRequest
@@ -67,7 +68,9 @@ class GeminiManager @Inject constructor(
                     // 기기 언어를 그대로 보낸다. 앱 화면과 분석 리포트의 언어를 일치시키기 위함이다.
                     language = Locale.getDefault().toLanguageTag(),
                     // 인바디를 넣어 뒀으면 같이 보낸다. 서버가 기초대사량을 이 값으로 바꿔 쓴다
-                    inbody = inbody?.takeIf { it.hasData }
+                    inbody = inbody?.takeIf { it.hasData },
+                    // 설정에서 정해 둔 목표·활동량·메모. 프로필 행에 있으니 따로 받지 않고 꺼내 쓴다
+                    aiContext = AiContext.of(userProfile)
                 )
 
                 // 서버가 사용자를 확인하고 하루 횟수를 세는 데 쓴다.

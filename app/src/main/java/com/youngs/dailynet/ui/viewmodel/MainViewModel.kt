@@ -20,6 +20,9 @@ import com.google.firebase.firestore.SetOptions
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.local.entity.dao.DailyRecordDao
 import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
+import com.youngs.dailynet.data.model.AiActivity
+import com.youngs.dailynet.data.model.AiContext
+import com.youngs.dailynet.data.model.AiGoal
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.data.model.AnalysisUsage
 import com.youngs.dailynet.data.model.InbodyData
@@ -768,6 +771,52 @@ class MainViewModel @Inject constructor(
     }
 
     /**
+     * 설정 > AI 분석 참고 정보(목표·활동량·메모)를 저장한다.
+     *
+     * 신체 정보와 같은 규칙이다 — 서버에는 update()로 쓴다(set()이면 구독·횟수 같은 다른 필드가 날아간다).
+     * 셋 다 비어 있어도 **빈 값으로 써서 지운다.** 필드를 빼고 쓰면 다른 기기에서 예전 값이 되살아난다.
+     * 로컬 행이 없으면(동기화가 한 번도 성공하지 못한 기기) 만들지 않고 넘어간다 —
+     * 다음 checkProfile이 서버 값으로 채운다.
+     */
+    fun updateAiContext(
+        goal: AiGoal?,
+        activity: AiActivity?,
+        note: String,
+        onDone: (Boolean) -> Unit = {}
+    ) {
+        val uid = currentUserId
+        if (uid == null) {
+            onDone(false)
+            return
+        }
+        val context = AiContext(goal = goal, activity = activity, note = AiContext.normalizeNote(note))
+
+        viewModelScope.launch {
+            try {
+                firestore.collection("users").document(uid)
+                    .update(context.toProfileFields())
+                    .await()
+
+                userProfileDao.getProfile()?.let { current ->
+                    userProfileDao.insertProfile(
+                        current.copy(
+                            aiGoal = goal?.code.orEmpty(),
+                            aiActivity = activity?.code.orEmpty(),
+                            aiNote = context.note
+                        )
+                    )
+                }
+                toast(R.string.toast_ai_context_saved)
+                onDone(true)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                toast(R.string.toast_ai_context_save_failed)
+                onDone(false)
+            }
+        }
+    }
+
+    /**
      * 로그인은 했지만 아직 신체 정보를 입력하지 않은 사용자를 기록해 둔다.
      *
      * 목적은 온보딩 이탈을 콘솔에서 볼 수 있게 하는 것뿐이라, 실패해도 로그인 흐름을 막지 않는다.
@@ -819,6 +868,10 @@ class MainViewModel @Inject constructor(
                     // 💡 서버에 저장되어 있던 마지막 분석일 획득
                     val lastAnalyzedDate = document.getString("lastAnalyzedDate") ?: ""
                     val isSubscribed = document.getBoolean("isSubscribed") == true
+                    // 설정 > AI 분석 참고 정보. 다른 기기에서 정한 값도 여기서 따라온다
+                    val aiGoal = document.getString(AiContext.FIELD_GOAL).orEmpty()
+                    val aiActivity = document.getString(AiContext.FIELD_ACTIVITY).orEmpty()
+                    val aiNote = document.getString(AiContext.FIELD_NOTE).orEmpty()
                     // 서버 값이 아직 없으면(기존 사용자) 로그인 계정 이메일을 쓴다
                     val profileEmail = document.getString("email")
                         ?: auth.currentUser?.email.orEmpty()
@@ -834,7 +887,10 @@ class MainViewModel @Inject constructor(
                             todayAnalysisCount = todayAnalysisCount,
                             createdAt = createdAt,
                             lastAnalyzedDate = lastAnalyzedDate,
-                            isSubscribed = isSubscribed
+                            isSubscribed = isSubscribed,
+                            aiGoal = aiGoal,
+                            aiActivity = aiActivity,
+                            aiNote = aiNote
                         )
                     )
                     // 인바디 이력도 계정 기준으로 맞춘다 (다른 기기에서 넣은 것, 재설치 뒤 복원)

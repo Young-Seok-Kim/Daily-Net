@@ -18,6 +18,13 @@ data class UserProfileEntity(
     val isSubscribed: Boolean = false,
     val todayAnalysisCount: Int = 0,
 
+    // 설정 > AI 분석 참고 정보 (b64). 하루 분석·주월연 평가 프롬프트에 함께 실린다.
+    // 코드 문자열로 저장한다 ("lose", "sedentary" …). 화면에 보이는 말은 언어별 문자열 리소스가 정한다.
+    // Firestore users/{uid} 의 aiGoal·aiActivity·aiNote 와 같은 이름·같은 값이다.
+    val aiGoal: String = "",
+    val aiActivity: String = "",
+    val aiNote: String = "",
+
     // ⚠️ b39~b40이 쓰던 인바디 자리. b41부터 inbody_records 표로 옮겼고(MIGRATION_13_14) 지금은 읽지 않는다.
     //    컬럼을 빼려면 테이블을 다시 만들어야 해서 그대로 둔다. 값은 전부 기본값이다.
     val inbodyBmr: Int = 0,

@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import com.youngs.dailynet.BuildConfig
 import com.youngs.dailynet.R
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
+import com.youngs.dailynet.data.model.AiContext
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.data.model.InbodyData
 import com.youngs.dailynet.data.model.NamedCount
@@ -221,7 +222,9 @@ fun buildPeriodEvalRequest(
         topFoods = topNames(foods),
         topExercises = topNames(exercises),
         language = Locale.getDefault().toLanguageTag(),
-        appVersion = BuildConfig.VERSION_CODE
+        appVersion = BuildConfig.VERSION_CODE,
+        // 설정에서 정해 둔 목표·활동량·메모. 서버가 점수의 무게와 평가의 초점을 여기에 맞춘다
+        aiContext = AiContext.of(profile)
     )
 }
 

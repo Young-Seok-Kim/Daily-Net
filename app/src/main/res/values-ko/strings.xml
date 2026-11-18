@@ -33,6 +33,25 @@
     <string name="settings_body_info_summary">키 %1$scm · 시작 %2$skg · %3$s</string>
     <string name="settings_inbody">인바디 결과</string>
     <string name="settings_inbody_empty">결과지 사진을 찍거나 직접 입력하세요</string>
+
+    <!-- AI 분석 참고 정보 (설정 > 내 정보) -->
+    <string name="settings_ai_context">AI 분석 참고 정보</string>
+    <string name="settings_ai_context_empty">목표·활동량·메모를 정하면 AI 리포트가 내 기준에 맞춰집니다</string>
+    <string name="ai_context_title">AI 분석 참고 정보</string>
+    <string name="ai_context_subtitle">하루·주간 AI 리포트에 항상 반영되는 내 기준이에요.</string>
+    <string name="ai_context_goal">현재 목표</string>
+    <string name="ai_context_goal_lose">체중 감량</string>
+    <string name="ai_context_goal_maintain">체중 유지</string>
+    <string name="ai_context_goal_gain">근육 증량</string>
+    <string name="ai_context_activity">평소 활동량</string>
+    <string name="ai_context_activity_sedentary">사무직·좌식</string>
+    <string name="ai_context_activity_active">활동적</string>
+    <string name="ai_context_activity_labor">육체노동</string>
+    <string name="ai_context_note">AI에게 알려줄 메모</string>
+    <string name="ai_context_note_hint">예: 식단 제한(알레르기·채식), 복용 약, 집중하고 싶은 지표</string>
+    <string name="ai_context_note_counter">%1$d / %2$d</string>
+    <string name="ai_context_summary_note">메모 있음</string>
+    <string name="ai_context_chip_clear_hint">고른 칩을 다시 누르면 선택이 해제됩니다</string>
     <string name="inbody_summary_bmr">기초대사량 %1$d kcal</string>
     <string name="inbody_summary_muscle">골격근 %1$.1f kg</string>
     <string name="inbody_summary_fat_pct">체지방 %1$.1f%%</string>
@@ -276,6 +295,8 @@
     <string name="toast_profile_save_failed">프로필 저장 실패: %1$s</string>
     <string name="toast_profile_updated">프로필이 수정되었습니다.</string>
     <string name="toast_profile_update_failed">프로필 수정 실패: %1$s</string>
+    <string name="toast_ai_context_saved">AI 분석 참고 정보를 저장했습니다.</string>
+    <string name="toast_ai_context_save_failed">AI 분석 참고 정보를 저장하지 못했습니다. 네트워크를 확인해 주세요.</string>
     <string name="toast_record_deleted">정산 기록이 삭제 되었습니다.</string>
     <string name="toast_delete_failed">삭제 실패: %1$s</string>
     <string name="toast_withdraw_success">회원탈퇴가 정상적으로 처리되었습니다.</string>

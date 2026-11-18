@@ -35,6 +35,25 @@
     <string name="settings_body_info_summary">%1$s cm · start %2$s kg · %3$s</string>
     <string name="settings_inbody">InBody results</string>
     <string name="settings_inbody_empty">Scan your result sheet or enter the numbers</string>
+
+    <!-- AI context (Settings > My info) -->
+    <string name="settings_ai_context">AI context</string>
+    <string name="settings_ai_context_empty">Set your goal, activity level and notes so reports match your standards</string>
+    <string name="ai_context_title">AI context</string>
+    <string name="ai_context_subtitle">These standards are applied to every daily and weekly AI report.</string>
+    <string name="ai_context_goal">Current goal</string>
+    <string name="ai_context_goal_lose">Lose weight</string>
+    <string name="ai_context_goal_maintain">Maintain weight</string>
+    <string name="ai_context_goal_gain">Build muscle</string>
+    <string name="ai_context_activity">Usual activity</string>
+    <string name="ai_context_activity_sedentary">Desk job</string>
+    <string name="ai_context_activity_active">Active</string>
+    <string name="ai_context_activity_labor">Physical work</string>
+    <string name="ai_context_note">Notes for the AI</string>
+    <string name="ai_context_note_hint">e.g. diet limits (allergies, vegetarian), medication, metrics you care about</string>
+    <string name="ai_context_note_counter">%1$d / %2$d</string>
+    <string name="ai_context_summary_note">note added</string>
+    <string name="ai_context_chip_clear_hint">Tap a selected chip again to clear it</string>
     <string name="inbody_summary_bmr">BMR %1$d kcal</string>
     <string name="inbody_summary_muscle">muscle %1$.1f kg</string>
     <string name="inbody_summary_fat_pct">body fat %1$.1f%%</string>
@@ -278,6 +297,8 @@
     <string name="toast_profile_save_failed">Could not save profile: %1$s</string>
     <string name="toast_profile_updated">Profile updated.</string>
     <string name="toast_profile_update_failed">Could not update profile: %1$s</string>
+    <string name="toast_ai_context_saved">AI context saved.</string>
+    <string name="toast_ai_context_save_failed">Could not save AI context. Check your connection.</string>
     <string name="toast_record_deleted">Record deleted.</string>
     <string name="toast_delete_failed">Could not delete: %1$s</string>
     <string name="toast_withdraw_success">Your account has been deleted.</string>
