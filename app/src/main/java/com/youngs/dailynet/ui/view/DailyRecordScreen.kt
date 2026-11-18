@@ -820,18 +820,6 @@ fun DailyRecordScreen(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 JustCompletedBadge()
                             }
-                            Spacer(modifier = Modifier.weight(1f))
-                            // 결과를 읽자마자 공유로 이어지는 자리. 제목 줄에는 글자 없이
-                            // 공유 아이콘만 둔다(설명은 접근성 문구가 맡는다)
-                            IconButton(
-                                onClick = { shareReceipt() },
-                                enabled = !uiState.analyzing
-                            ) {
-                                Icon(
-                                    Icons.Default.Share,
-                                    contentDescription = stringResource(R.string.receipt_share)
-                                )
-                            }
                         }
                         // 항목별 결과(b33~)가 있으면 구조로 그려서 항목을 눌러 kcal을 고칠 수 있게 한다.
                         // 그 전에 분석한 기록은 텍스트뿐이라 장식만 걷어내고 카드 안에 보여준다.
