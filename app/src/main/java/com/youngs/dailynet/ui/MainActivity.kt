@@ -4,6 +4,7 @@ package com.youngs.dailynet.ui
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -91,6 +92,17 @@ class MainActivity : ComponentActivity() {
             DailyNetTheme {
                 val user by authViewModel.user.collectAsState()
                 val mainViewModel: MainViewModel = hiltViewModel()
+
+                // ViewModel이 띄운 토스트는 여기서 한 번만 받는다.
+                // 예전에는 기록 화면과 설정 화면이 각자 받았는데, 그러면 안 받는 화면(탈퇴 화면 등)에서
+                // 띄운 메시지가 묵혀 있다가 다음에 받는 화면이 뜰 때 나온다. 탈퇴 완료 토스트가
+                // 다시 로그인한 뒤 메인 화면에서 뜨고, 탈퇴 실패 토스트는 아예 안 보이던 이유다.
+                LaunchedEffect(mainViewModel.toastMessage) {
+                    mainViewModel.toastMessage?.let { message ->
+                        Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+                        mainViewModel.onToastShown()
+                    }
+                }
 
                 // 지나온 화면을 쌓아두고 뒤로가기 때 직전 화면으로 되돌린다.
                 // (그래프 → 정산 상세 → 뒤로가기 = 그래프 처럼, 들어온 경로 그대로 되짚기 위함)

@@ -115,14 +115,6 @@ fun SettingsScreen(
         calendarConsentLauncher.launch(IntentSenderRequest.Builder(pendingIntent.intentSender).build())
     }
 
-    // ViewModel이 띄운 토스트(캘린더 연결 결과 등)는 기록 화면만 보고 있어서 여기서도 받아야 보인다
-    LaunchedEffect(mainViewModel.toastMessage) {
-        mainViewModel.toastMessage?.let { message ->
-            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-            mainViewModel.onToastShown()
-        }
-    }
-
     // 시스템 뒤로가기로 앱이 종료되지 않고 이전 화면으로 돌아가도록
     BackHandler(enabled = true) { if (loadingMessage == null) onBack() }
 
