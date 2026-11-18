@@ -35,7 +35,7 @@ import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
         InbodyRecordEntity::class,
         ExercisePassEntity::class
     ],
-    version = 16, // 👈 exercise_passes 테이블 (운동 이용권, MIGRATION_15_16)
+    version = 17, // 👈 user_profile 에 AI 분석 참고 정보 3개 컬럼 (MIGRATION_16_17)
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -262,5 +262,20 @@ val MIGRATION_15_16 = object : Migration(15, 16) {
             )
             """.trimIndent()
         )
+    }
+}
+
+/**
+ * user_profile 에 'AI 분석 참고 정보' 3개 컬럼 추가 (b64).
+ *
+ * 목표·활동량은 코드 문자열, 메모는 사용자가 적은 글(최대 200자)이다.
+ * 컬럼 추가뿐이라 ALTER TABLE로 충분하고, 기존 행은 빈 문자열이 된다(= 미설정).
+ * 값은 Firestore users/{uid} 에도 있어 로그인하면 다시 채워진다 (checkProfile).
+ */
+val MIGRATION_16_17 = object : Migration(16, 17) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE user_profile ADD COLUMN aiGoal TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE user_profile ADD COLUMN aiActivity TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE user_profile ADD COLUMN aiNote TEXT NOT NULL DEFAULT ''")
     }
 }

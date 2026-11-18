@@ -128,7 +128,9 @@ data class PeriodEvalRequest(
     val topFoods: List<NamedCount>,
     val topExercises: List<NamedCount>,
     val language: String,
-    val appVersion: Int
+    val appVersion: Int,
+    /** 설정의 AI 분석 참고 정보. 없으면 null (서버는 프롬프트에 아무 줄도 넣지 않는다) */
+    val aiContext: AiContext? = null
 )
 
 data class PeriodEvalResponse(

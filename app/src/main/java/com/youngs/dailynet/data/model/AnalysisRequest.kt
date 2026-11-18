@@ -22,5 +22,8 @@ data class AnalysisRequest(
     val language: String,
     // 설정에 넣은 인바디 결과. 서버는 bmr이 있으면 공식 대신 그 값을 기초대사량으로 쓴다.
     // 없으면 null → Gson이 필드를 빼고 보내 구버전 서버에도 그대로 통한다.
-    val inbody: InbodyData? = null
+    val inbody: InbodyData? = null,
+    // 설정 > AI 분석 참고 정보(목표·활동량·메모). 서버가 프롬프트의 [사용자 기준]으로 싣는다.
+    // 셋 다 비어 있으면 null → 필드를 빼고 보낸다 (구버전 서버·앱과 그대로 통한다)
+    val aiContext: AiContext? = null
 )

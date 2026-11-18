@@ -34,6 +34,7 @@ import com.youngs.dailynet.ui.viewmodel.MainViewModel.DateRange
 import com.youngs.dailynet.BuildConfig
 import com.youngs.dailynet.R
 import com.youngs.dailynet.data.calendar.GoogleCalendarSync
+import com.youngs.dailynet.data.model.AiContext
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import com.youngs.dailynet.util.DailyReminder
 
@@ -59,6 +60,7 @@ fun SettingsScreen(
     val inbodyRecords by mainViewModel.inbodyRecords.collectAsState()
 
     var showProfileEditDialog by remember { mutableStateOf(false) }
+    var showAiContextSheet by remember { mutableStateOf(false) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
     // 표시 기간의 시작일·종료일 날짜 선택 창. 누른 칸 하나만 연다
     var showRangeStartPicker by remember { mutableStateOf(false) }
@@ -131,6 +133,19 @@ fun SettingsScreen(
             onConfirm = { h, w, male, birth ->
                 mainViewModel.updateProfile(h, w, male, birth) { success ->
                     if (success) showProfileEditDialog = false
+                }
+            }
+        )
+    }
+
+    // AI 분석 참고 정보 시트. 프로필이 로드된 뒤에만 연다 — 빈 값으로 열면 저장된 값을 덮어쓴다
+    userProfile?.takeIf { showAiContextSheet }?.let { p ->
+        AiContextSheet(
+            initial = AiContext.of(p.aiGoal, p.aiActivity, p.aiNote),
+            onDismiss = { showAiContextSheet = false },
+            onSave = { goal, activity, note ->
+                mainViewModel.updateAiContext(goal, activity, note) { success ->
+                    if (success) showAiContextSheet = false
                 }
             }
         )
@@ -257,6 +272,18 @@ fun SettingsScreen(
                         else stringResource(R.string.settings_passes_subtitle),
                         enabled = userProfile != null,
                         onClick = onNavigateToPasses
+                    )
+                    // AI 분석 참고 정보. 내 정보 섹션의 맨 아래다 — 신체·인바디를 본 뒤에 정하는 값이다
+                    val aiContext = remember(userProfile) {
+                        AiContext.of(
+                            userProfile?.aiGoal, userProfile?.aiActivity, userProfile?.aiNote
+                        )
+                    }
+                    SettingsItem(
+                        title = stringResource(R.string.settings_ai_context),
+                        subtitle = aiContextSummary(aiContext),
+                        enabled = userProfile != null,
+                        onClick = { showAiContextSheet = true }
                     )
                 }
 
