@@ -382,6 +382,7 @@ fun DnDestructiveRow(label: String, onClick: () -> Unit, modifier: Modifier = Mo
  *
  * @param dismissible false면(필수 단계) 바깥 터치·스와이프·뒤로가기로 닫히지 않고 "닫기"도 없다
  * @param destructiveLabel 있으면 CTA 위, 구분선 아래에 빨간 글자 행
+ * @param secondaryLabel 있으면 CTA 아래에 테두리 없는 보조 버튼 한 줄 (가입 2단계의 "건너뛰기")
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -395,6 +396,8 @@ fun DnFormSheet(
     dismissible: Boolean = true,
     destructiveLabel: String? = null,
     onDestructive: () -> Unit = {},
+    secondaryLabel: String? = null,
+    onSecondary: () -> Unit = {},
     content: @Composable ColumnScope.() -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(
@@ -460,6 +463,20 @@ fun DnFormSheet(
                 height = DnDialogDefaults.CtaHeight,
                 modifier = Modifier.fillMaxWidth()
             )
+            // 보조 버튼은 주액션 **아래**에 둔다. 주액션이 늘 같은 자리에 있어
+            // 시트마다 손이 가는 위치가 달라지지 않는다
+            if (secondaryLabel != null) {
+                TextButton(
+                    onClick = onSecondary,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = secondaryLabel,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(12.dp))
         }
     }

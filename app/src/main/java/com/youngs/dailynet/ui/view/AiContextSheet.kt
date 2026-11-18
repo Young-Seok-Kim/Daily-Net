@@ -41,6 +41,9 @@ import com.youngs.dailynet.ui.theme.DnDimens
  *
  * 칩은 고른 것을 다시 누르면 해제된다. 목표를 정하지 않은 사람도 있으므로 '선택 안 함' 칩을
  * 따로 두지 않고 같은 동작으로 처리했다 (시안에도 그런 칩은 없다).
+ *
+ * 같은 칸을 가입(온보딩) 2단계 시트([AiContextOnboardingSheet])도 쓴다. 그쪽은 처음 한 번
+ * 빈 값에서 시작하고, 건너뛰기와 '저장하고 시작'을 둔다.
  */
 
 /** 화면에 보이는 말. 저장·전송에는 코드만 쓰므로 언어는 여기서만 탄다 */
@@ -99,53 +102,111 @@ fun AiContextSheet(
         primaryLabel = stringResource(R.string.save),
         onPrimary = { onSave(goal, activity, AiContext.normalizeNote(note)) }
     ) {
-        AiChoiceGroup(
-            label = stringResource(R.string.ai_context_goal),
-            options = AiGoal.entries.map { it to stringResource(it.labelRes) },
-            selected = goal,
-            onSelect = { goal = it }
+        AiContextFields(
+            goal = goal, onGoal = { goal = it },
+            activity = activity, onActivity = { activity = it },
+            note = note, onNote = { note = it }
         )
-        AiChoiceGroup(
-            label = stringResource(R.string.ai_context_activity),
-            options = AiActivity.entries.map { it to stringResource(it.labelRes) },
-            selected = activity,
-            onSelect = { activity = it }
-        )
-        Text(
-            text = stringResource(R.string.ai_context_chip_clear_hint),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+    }
+}
 
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = stringResource(R.string.ai_context_note),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
-                )
-                // 남은 글자를 세는 대신 지금까지 쓴 수를 보여준다 (시안과 같다)
-                Text(
-                    text = stringResource(R.string.ai_context_note_counter, note.length, AiContext.NOTE_MAX),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            OutlinedTextField(
-                value = note,
-                // 상한을 넘겨 적으면 그 자리에서 잘린다. 저장할 때가 아니라 적는 동안 막아야
-                // 카운터가 200에서 멈춰 있는 걸 보고 사용자가 바로 안다
-                onValueChange = { note = AiContext.limitNote(it) },
-                placeholder = { Text(stringResource(R.string.ai_context_note_hint)) },
-                textStyle = MaterialTheme.typography.bodyMedium,
-                shape = RoundedCornerShape(DnDimens.RadiusChip),
-                minLines = 4,
-                maxLines = 6,
-                modifier = Modifier.fillMaxWidth()
+/**
+ * 가입(온보딩) 2단계 시트. 신체 정보를 저장한 직후 한 번 열린다.
+ *
+ * 칸은 설정의 [AiContextSheet]와 **같은 것**을 쓴다([AiContextFields]). 두 곳의 칸이 갈라지면
+ * 같은 값을 두 화면에서 다르게 고르게 된다. 다른 점은 셋뿐이다.
+ *  - 처음 여는 자리라 빈 값에서 시작한다
+ *  - 선택 단계이므로 닫기·건너뛰기가 곧 '아무것도 저장하지 않음'이다
+ *  - 주액션이 '저장하고 시작' — 저장에 성공해야 시트가 닫힌다
+ *
+ * @param onSkip 건너뛰기(닫기 포함). 아무것도 저장하지 않는다
+ * @param onSave 저장을 누르면 정리된 값과 함께 돌려준다. 시트를 닫는 건 부른 쪽 몫이다
+ */
+@Composable
+fun AiContextOnboardingSheet(
+    onSkip: () -> Unit,
+    onSave: (goal: AiGoal?, activity: AiActivity?, note: String) -> Unit
+) {
+    var goal by remember { mutableStateOf<AiGoal?>(null) }
+    var activity by remember { mutableStateOf<AiActivity?>(null) }
+    var note by remember { mutableStateOf("") }
+
+    DnFormSheet(
+        title = stringResource(R.string.ai_context_setup_title),
+        subtitle = stringResource(R.string.ai_context_setup_subtitle),
+        onDismiss = onSkip,
+        primaryLabel = stringResource(R.string.ai_context_setup_save),
+        onPrimary = { onSave(goal, activity, AiContext.normalizeNote(note)) },
+        secondaryLabel = stringResource(R.string.ai_context_setup_skip),
+        onSecondary = onSkip
+    ) {
+        AiContextFields(
+            goal = goal, onGoal = { goal = it },
+            activity = activity, onActivity = { activity = it },
+            note = note, onNote = { note = it }
+        )
+    }
+}
+
+/**
+ * 목표·활동량·메모를 고르는 칸 묶음. 설정 시트와 가입 2단계 시트가 함께 쓴다.
+ * 값은 들고 있지 않고 위에서 내려준다(두 시트가 각자 기억을 가진다).
+ */
+@Composable
+private fun AiContextFields(
+    goal: AiGoal?,
+    onGoal: (AiGoal?) -> Unit,
+    activity: AiActivity?,
+    onActivity: (AiActivity?) -> Unit,
+    note: String,
+    onNote: (String) -> Unit
+) {
+    AiChoiceGroup(
+        label = stringResource(R.string.ai_context_goal),
+        options = AiGoal.entries.map { it to stringResource(it.labelRes) },
+        selected = goal,
+        onSelect = onGoal
+    )
+    AiChoiceGroup(
+        label = stringResource(R.string.ai_context_activity),
+        options = AiActivity.entries.map { it to stringResource(it.labelRes) },
+        selected = activity,
+        onSelect = onActivity
+    )
+    Text(
+        text = stringResource(R.string.ai_context_chip_clear_hint),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stringResource(R.string.ai_context_note),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+            // 남은 글자를 세는 대신 지금까지 쓴 수를 보여준다 (시안과 같다)
+            Text(
+                text = stringResource(R.string.ai_context_note_counter, note.length, AiContext.NOTE_MAX),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        Spacer(modifier = Modifier.height(6.dp))
+        OutlinedTextField(
+            value = note,
+            // 상한을 넘겨 적으면 그 자리에서 잘린다. 저장할 때가 아니라 적는 동안 막아야
+            // 카운터가 200에서 멈춰 있는 걸 보고 사용자가 바로 안다
+            onValueChange = { onNote(AiContext.limitNote(it)) },
+            placeholder = { Text(stringResource(R.string.ai_context_note_hint)) },
+            textStyle = MaterialTheme.typography.bodyMedium,
+            shape = RoundedCornerShape(DnDimens.RadiusChip),
+            minLines = 4,
+            maxLines = 6,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 

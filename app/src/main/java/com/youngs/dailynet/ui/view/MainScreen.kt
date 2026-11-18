@@ -291,10 +291,21 @@ fun MainScreen(
     }
 
     // ✨ 프로필(키/체중)이 없을 경우 팝업 표시
-    if (mainViewModel.showProfileDialog) {
-        ProfileSetupDialog(
+    //
+    // 가입은 두 단계다. 1단계(신체 정보)를 저장하면 뷰모델이 1단계를 닫고 2단계를 켠다
+    // (saveInitialProfile → showAiContextSetupDialog). 둘을 when으로 이어 두면
+    // 두 시트가 겹쳐 뜨지 않고, 2단계를 건너뛰면 아무것도 남지 않는다.
+    when {
+        mainViewModel.showProfileDialog -> ProfileSetupDialog(
             onConfirm = { googleName, height, weight, isMale, birthDate ->
                 mainViewModel.saveInitialProfile(googleName, height, weight, isMale, birthDate)
+            }
+        )
+        // 2단계 — AI 분석 참고 정보(선택). 건너뛰면 저장 없이 닫힌다
+        mainViewModel.showAiContextSetupDialog -> AiContextOnboardingSheet(
+            onSkip = { mainViewModel.skipAiContextSetup() },
+            onSave = { goal, activity, note ->
+                mainViewModel.saveInitialAiContext(goal, activity, note)
             }
         )
     }
@@ -975,6 +986,8 @@ private fun BodyInfoFields(
 /**
  * 신체 정보(키, 시작 체중, 성별, 생년월일)를 최초 1회 입력받는 시트.
  * 필수 단계라 닫을 수 없다 (바깥 터치·스와이프·뒤로가기 모두 막힘, "닫기" 없음).
+ *
+ * 버튼은 '다음'이다 — 누르면 이 값을 저장하고 바로 2단계(AI 분석 참고 정보, 선택)로 넘어간다.
  */
 @Composable
 fun ProfileSetupDialog(
@@ -993,14 +1006,14 @@ fun ProfileSetupDialog(
 
     val h = heightText.toFloatOrNull() ?: 0f
     val w = weightText.toFloatOrNull() ?: 0f
-    val valid = h > 0f && w > 0f && birthDateText.contains("-")
+    val valid = isProfileInputValid(heightText, weightText, birthDateText)
 
     DnFormSheet(
         title = stringResource(R.string.profile_input_title),
         subtitle = stringResource(R.string.profile_input_desc),
         dismissible = false,
         onDismiss = {},
-        primaryLabel = stringResource(R.string.save_and_start),
+        primaryLabel = stringResource(R.string.profile_setup_next),
         primaryEnabled = valid,
         onPrimary = {
             val googleName = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.displayName
@@ -1042,7 +1055,7 @@ fun ProfileEditDialog(
         title = stringResource(R.string.settings_edit_body_info),
         onDismiss = onDismiss,
         primaryLabel = stringResource(R.string.save),
-        primaryEnabled = h > 0f && w > 0f && birthDateText.contains("-"),
+        primaryEnabled = isProfileInputValid(heightText, weightText, birthDateText),
         onPrimary = { onConfirm(h, w, selectedIsMale, birthDateText) }
     ) {
         BodyInfoFields(

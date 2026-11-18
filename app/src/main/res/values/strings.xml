@@ -54,6 +54,11 @@
     <string name="ai_context_note_counter">%1$d / %2$d</string>
     <string name="ai_context_summary_note">note added</string>
     <string name="ai_context_chip_clear_hint">Tap a selected chip again to clear it</string>
+    <!-- Sign-up step 2 (onboarding). Shown right after body info is saved -->
+    <string name="ai_context_setup_title">Tell the AI about you</string>
+    <string name="ai_context_setup_subtitle">Optional. These standards go into every daily and weekly AI report, and you can change them later in Settings.</string>
+    <string name="ai_context_setup_save">Save and start</string>
+    <string name="ai_context_setup_skip">Skip</string>
     <string name="inbody_summary_bmr">BMR %1$d kcal</string>
     <string name="inbody_summary_muscle">muscle %1$.1f kg</string>
     <string name="inbody_summary_fat_pct">body fat %1$.1f%%</string>
@@ -130,7 +135,7 @@
     <string name="week_of_month">%1$02d, week %2$d</string>
     <string name="delete">Delete</string>
     <string name="save">Save</string>
-    <string name="save_and_start">Save and start</string>
+    <string name="profile_setup_next">Next</string>
     <string name="open_settings">Open settings</string>
     <string name="delete_record_title">Delete this record?</string>
     <string name="delete_record_message">The record and its AI report will be deleted.\nThis cannot be undone.</string>
