@@ -34,6 +34,13 @@ import com.youngs.dailynet.ui.theme.tabular
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlin.math.abs
 import androidx.compose.material3.FilledTonalButton
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
@@ -847,6 +854,14 @@ private fun MonthWeightCard(records: List<DailyRecordModel>) {
         val maxIdx = points.indexOfFirst { it.weight == maxWeight }
         val minIdx = points.indexOfLast { it.weight == minWeight }
 
+        // 누른 점. 왼쪽 눈금만으로는 0.1kg 단위를 읽을 수 없어서, 누르면 정확한 값을 말풍선으로 보여준다.
+        // 달이 바뀌면(points가 바뀌면) 선택도 비운다.
+        var selectedIdx by remember(points) { mutableStateOf<Int?>(null) }
+        val textMeasurer = rememberTextMeasurer()
+        val bubbleStyle = MaterialTheme.typography.labelSmall.tabular()
+        val bubbleBg = MaterialTheme.colorScheme.inverseSurface
+        val bubbleFg = MaterialTheme.colorScheme.inverseOnSurface
+
         Row(modifier = Modifier.fillMaxWidth()) {
             // 왼쪽 눈금 숫자. 일별 차트와 같은 자리·같은 방식이라 두 그래프를 같은 눈으로 읽는다.
             // 위·아래 선에 실제 최고·최저 체중이 걸린다
@@ -876,6 +891,18 @@ private fun MonthWeightCard(records: List<DailyRecordModel>) {
                 modifier = Modifier
                     .weight(1f)
                     .height(CHART_HEIGHT)
+                    // 곡선 위 아무 곳을 누르면 가로로 가장 가까운 기록을 고른다. 점이 작아서 정확히
+                    // 맞출 필요는 없게 했다. 같은 점을 다시 누르면 말풍선을 닫는다.
+                    .pointerInput(points) {
+                        detectTapGestures { tap ->
+                            val w = size.width.toFloat()
+                            val inset = 6.dp.toPx()
+                            val nearest = points.indices.minByOrNull { i ->
+                                abs(tap.x - dayX(points[i].date, firstDay, daySpan, w, inset))
+                            } ?: return@detectTapGestures
+                            selectedIdx = if (selectedIdx == nearest) null else nearest
+                        }
+                    }
             ) {
                 val w = size.width
                 val topY = CHART_OVERSHOOT.toPx()
@@ -883,7 +910,7 @@ private fun MonthWeightCard(records: List<DailyRecordModel>) {
                 // 양 끝 점이 잘리지 않게 좌우 6dp 안쪽에서 그린다
                 val inset = 6.dp.toPx()
 
-                fun px(day: Int) = inset + (day - firstDay).toFloat() / daySpan * (w - inset * 2)
+                fun px(day: Int) = dayX(day, firstDay, daySpan, w, inset)
                 fun py(kg: Float) =
                     bottomY - (kg - axisBottom) / (axisTop - axisBottom) * (bottomY - topY)
 
@@ -927,7 +954,8 @@ private fun MonthWeightCard(records: List<DailyRecordModel>) {
                     style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
                 )
 
-                // 점은 최고·최저·마지막에만. 값은 왼쪽 눈금으로 읽는다 (점마다 숫자를 찍으면 한 달치는 겹쳐서 못 읽는다)
+                // 점은 최고·최저·마지막에만. 값은 왼쪽 눈금으로 읽고, 정확한 숫자는 눌러서 본다
+                // (점마다 숫자를 찍으면 한 달치는 겹쳐서 못 읽는다)
                 fun dot(c: Offset, filled: Boolean) {
                     drawCircle(color = if (filled) lineColor else dotFill, radius = 4.dp.toPx(), center = c)
                     drawCircle(color = lineColor, radius = 4.dp.toPx(), center = c, style = Stroke(width = 2.dp.toPx()))
@@ -936,6 +964,39 @@ private fun MonthWeightCard(records: List<DailyRecordModel>) {
                 if (maxIdx >= 0) dot(coords[maxIdx], filled = false)
                 if (minIdx >= 0 && minIdx != maxIdx) dot(coords[minIdx], filled = false)
                 if (lastIdx != maxIdx && lastIdx != minIdx) dot(coords[lastIdx], filled = true)
+
+                // 누른 점: 세로 안내선 + 진한 점 + "68.4 kg · 11/05" 말풍선
+                selectedIdx?.let { idx ->
+                    val c = coords[idx]
+                    val p = points[idx]
+                    drawLine(
+                        color = lineColor.copy(alpha = 0.5f),
+                        start = Offset(c.x, topY),
+                        end = Offset(c.x, bottomY),
+                        strokeWidth = 1.dp.toPx(),
+                        pathEffect = dash
+                    )
+                    drawCircle(color = lineColor, radius = 5.5.dp.toPx(), center = c)
+                    drawCircle(color = dotFill, radius = 2.dp.toPx(), center = c)
+
+                    val label = String.format(Locale.getDefault(), "%.1f kg · %s", p.weight, shortMonthDay(p.date))
+                    val layout = textMeasurer.measure(AnnotatedString(label), style = bubbleStyle.copy(color = bubbleFg))
+                    val padX = 8.dp.toPx()
+                    val padY = 4.dp.toPx()
+                    val bw = layout.size.width + padX * 2
+                    val bh = layout.size.height + padY * 2
+                    val gap = 10.dp.toPx()
+                    // 점 위에 두되 위가 모자라면 아래로. 좌우는 그래프 안에 들어오게 민다
+                    val top = if (c.y - gap - bh >= 0f) c.y - gap - bh else c.y + gap
+                    val left = (c.x - bw / 2f).coerceIn(0f, (w - bw).coerceAtLeast(0f))
+                    drawRoundRect(
+                        color = bubbleBg,
+                        topLeft = Offset(left, top),
+                        size = Size(bw, bh),
+                        cornerRadius = CornerRadius(8.dp.toPx())
+                    )
+                    drawText(layout, topLeft = Offset(left + padX, top + padY))
+                }
             }
         }
 
@@ -959,6 +1020,13 @@ private fun MonthWeightCard(records: List<DailyRecordModel>) {
         }
     }
 }
+
+/** 월 체중 그래프에서 날짜의 x 좌표. 그리기와 터치 판정이 같은 식을 써야 눌린 점이 그린 점과 맞는다 */
+private fun dayX(date: String, firstDay: Int, daySpan: Int, width: Float, inset: Float): Float =
+    dayX(date.takeLast(2).toInt(), firstDay, daySpan, width, inset)
+
+private fun dayX(day: Int, firstDay: Int, daySpan: Int, width: Float, inset: Float): Float =
+    inset + (day - firstDay).toFloat() / daySpan * (width - inset * 2)
 
 /** 이 달의 기록: 가장 적자가 큰 날 / 운동한 날 수 / 가장 흑자가 큰 날 — KPI 타일 세 개 */
 @Composable
