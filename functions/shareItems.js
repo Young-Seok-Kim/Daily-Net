@@ -16,6 +16,8 @@
  *   - unitKcal / units: 한 단위(1마리·1개…)의 열량과 사용자가 적은 개수
  *   - sharedBy: 나눠 먹은 사람 수 (혼자면 담지 않음)
  *   - myShare: 똑같이 나누지 않았을 때 사용자 몫의 비율 (예: 0.6. 균등이면 담지 않음)
+ *              **나눠 먹은 경우(sharedBy >= 2)에만 뜻이 있다.** 혼자 먹은 소수 분량
+ *              ("피자 0.75판", "파스타 0.4인분")은 myShare가 아니라 units다
  * 전체(unitKcal × units) → 몫(÷ sharedBy) 순서로 여기서 계산하고,
  * 끼니 합계·탄단지도 그에 맞춰 보정한다.
  */
@@ -118,6 +120,10 @@ function settleItemKcal(data) {
             // 비율은 (0, 1) 밖이면 버린다. 1 이상은 "나눠 먹지 않았다"는 뜻이 될 수 없다
             let ratio = Number(item?.myShare) || 0;
             if (!(ratio > 0 && ratio < 1)) ratio = 0;
+            // 혼자 먹은 소수 분량("피자 0.75판")을 몫으로 오인한 값은 버린다.
+            // 나누지 않았는데 myShare를 그대로 쓰면 0.75 × 0.75 = 0.56판, 0.4 × 0.4 = 0.16인분처럼
+            // 한 번 더 곱해지고 이름·칼로리가 함께 줄어든다
+            if (sharedBy < 2) ratio = 0;
 
             const name = String(item?.name || "?");
             delete item.units;
@@ -147,8 +153,10 @@ function settleItemKcal(data) {
 
             // 2) 몫 나눗셈: 몫 = 전체 ÷ 사람 수 (비율이 있으면 그 비율)
             // 이름 속 수량도 몫으로 바꾼다. 사용자는 자기가 먹은 양을 보고 싶어 한다
+            // **나눠 먹은 경우에만 나눈다.** myShare는 sharedBy가 있을 때만 뜻이 있는 값이라
+            // sharedBy < 2면 ratio도 위에서 0으로 버렸다 (혼자 먹은 소수 분량 사례)
             let final = total;
-            if (total > 0 && (sharedBy >= 2 || ratio > 0)) {
+            if (total > 0 && sharedBy >= 2) {
                 const fraction = ratio > 0 ? ratio : 1 / sharedBy;
                 final = Math.round(total * fraction);
                 const tag = ratio > 0 ? `${Math.round(ratio * 100)}%` : `1/${sharedBy}`;

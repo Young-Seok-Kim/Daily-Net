@@ -170,6 +170,72 @@ test("settleItemKcal - 똑같이 나누지 않은 몫", async (t) => {
     });
 });
 
+test("settleItemKcal - 혼자 먹은 소수 분량에 myShare가 와도 다시 곱하지 않는다", async (t) => {
+    // 모델이 "0.75판"을 "여럿이 나눠 먹은 내 몫 0.75"로 오인해 sharedBy 없이 myShare를 담아 보냈다.
+    // 전에는 (sharedBy >= 2 || ratio > 0) 조건 때문에 이 값이 몫으로 또 곱해져
+    // 0.75 × 0.75 = 0.56판, 0.4 × 0.4 = 0.16인분이 되고 이름·칼로리·탄단지까지 함께 줄었다
+
+    await t.test("피자 0.75판 - 이름과 칼로리를 건드리지 않는다", () => {
+        const data = {
+            calories: { dinner: 1200 },
+            meals: { dinner: [{ name: "피자 0.75판 1000g", kcal: 1200, myShare: 0.75, units: 0.75, unitKcal: 1600 }] }
+        };
+        const logs = settleItemKcal(data);
+
+        // 1600 × 0.75 = 1200. 몫으로 나누지 않는다
+        assert.equal(data.meals.dinner[0].kcal, 1200);
+        assert.equal(data.meals.dinner[0].name, "피자 0.75판 1000g");
+        assert.equal(data.calories.dinner, 1200);
+        assert.equal(logs.length, 1);
+        assert.doesNotMatch(logs[0], /%/);
+    });
+
+    await t.test("파스타 0.4인분 - 이름과 칼로리를 건드리지 않는다", () => {
+        const data = {
+            calories: { lunch: 240, dinner: 0, breakfast: 0, snack: 0 },
+            meals: { lunch: [{ name: "파스타 0.4인분 160g", kcal: 240, myShare: 0.4, units: 0.4, unitKcal: 600 }] },
+            macros: { lunch: { carb: 40, protein: 10, fat: 8 } }
+        };
+        const logs = settleItemKcal(data);
+
+        assert.equal(data.meals.lunch[0].kcal, 240);
+        assert.equal(data.meals.lunch[0].name, "파스타 0.4인분 160g");
+        assert.equal(data.calories.lunch, 240);
+        // 열량이 안 바뀌었으니 탄단지도 그대로다
+        assert.deepEqual(data.macros.lunch, { carb: 40, protein: 10, fat: 8 });
+        assert.equal(logs.length, 1);
+        assert.doesNotMatch(logs[0], /%/);
+    });
+
+    await t.test("단위 정보가 없어도 myShare만 빠지고 kcal는 그대로", () => {
+        const data = { meals: { snack: [{ name: "케이크 0.5조각", kcal: 150, myShare: 0.5 }] } };
+        const logs = settleItemKcal(data);
+
+        assert.deepEqual(data.meals.snack[0], { name: "케이크 0.5조각", kcal: 150 });
+        assert.deepEqual(logs, []);
+    });
+
+    await t.test("sharedBy가 1이어도 마찬가지다 (혼자 먹었다는 뜻)", () => {
+        const data = {
+            meals: { dinner: [{ name: "치킨 0.5마리 500g", kcal: 1050, sharedBy: 1, myShare: 0.5 }] }
+        };
+        settleItemKcal(data);
+
+        assert.equal(data.meals.dinner[0].kcal, 1050);
+        assert.equal(data.meals.dinner[0].name, "치킨 0.5마리 500g");
+    });
+
+    await t.test("여럿이 나눠 먹은 경우에는 myShare가 그대로 쓰인다", () => {
+        const data = {
+            meals: { dinner: [{ name: "피자 1판", kcal: 1600, sharedBy: 4, myShare: 0.75 }] }
+        };
+        settleItemKcal(data);
+
+        assert.equal(data.meals.dinner[0].kcal, 1200);
+        assert.equal(data.meals.dinner[0].name, "피자 0.75판 (75%)");
+    });
+});
+
 test("settleItemKcal - 계산할 것이 없으면 아무것도 안 한다", async (t) => {
     await t.test("sharedBy가 없거나 0·1이면 그대로 둔다", () => {
         const data = {
