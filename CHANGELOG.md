@@ -14,6 +14,30 @@
 
 ---
 
+## v1.16.6 (b64) — 2026-11-18
+
+### 스토어 문구
+
+설정 > 내 정보에 'AI 분석 참고 정보'를 추가했습니다. 목표(체중 감량·유지·근육 증량)와 평소 활동량, 꼭 알아야 할 메모를 한 번 정해 두면 하루 분석과 주·월·연 평가가 매번 그 기준에 맞춰 조언합니다.
+
+### 상세 내역
+
+- **AI 분석 참고 정보** (`ui/view/AiContextSheet.kt`, `ui/view/SettingsScreen.kt`, `data/model/AiContext.kt`)
+  - 설정 > 내 정보 맨 아래 한 줄. 부제목에 지금 정한 값이 "체중 감량 · 사무직·좌식 · 메모 있음"처럼 보이고, 누르면 입력 시트가 열린다
+    (목표 3 · 활동량 3 선택 칩, 고른 칩을 다시 누르면 해제, 메모 200자 카운터). 저장 결과는 토스트로 알린다
+  - 값은 코드(lose/sedentary…)로 Room `user_profile`(version 16 → 17, `MIGRATION_16_17`, 컬럼 3개)과
+    Firestore `users/{uid}`(`aiGoal`·`aiActivity`·`aiNote`)에 같이 둔다. 다른 기기에서 정한 값도 `checkProfile`에서 따라온다.
+    고르지 않은 값도 빈 문자열로 써서 지운다 — 필드를 빼면 예전 값이 남아 지운 목표가 되살아난다
+- **요청에 실어 보내기** (`data/model/AnalysisRequest.kt`, `data/model/PeriodEvaluation.kt`, `data/network/GeminiManager.kt`)
+  - `AnalysisRequest`·`PeriodEvalRequest`에 `aiContext`를 선택 필드로 추가. 셋 다 비어 있으면 null이라 Gson이 필드를 빼므로
+    구버전 서버와도 그대로 통한다
+- **서버 프롬프트 반영** (`functions/aiContext.js`)
+  - 코드 검증, 메모를 한 줄로 눌러 200자로 자르기, `[사용자 기준]` 블록 생성. 목표가 근육 증량이면 적자 대신 단백질·운동을,
+    체중 유지면 균형을 보라고 초점을 바꾼다. 메모가 지침·서버 계산을 바꾸지 못한다는 줄을 블록에 함께 넣어 프롬프트 주입을 막았다
+- 테스트 `AiContextTest` 8건: 코드 변환·모르는 코드, 200자 자르기·정리, 빈 값 판정, Firestore 필드(빈 문자열로 지우기), 프로필 읽기
+
+---
+
 ## v1.16.5 (b63) — 2026-11-18
 
 ### 스토어 문구
