@@ -22,7 +22,9 @@
  * (roles/firebaseauth.admin) 역할이 있어야 Auth 계정을 지울 수 있다. 없으면 Firestore는 지워진 뒤
  * Auth 삭제에서 insufficient permission 으로 500이 난다 (2026-11-18 첫 배포 때 겪음).
  * 새 프로젝트에 올릴 때는 아래 한 줄을 먼저 실행한다:
- *   gcloud projects add-iam-policy-binding <project>  *     --member=serviceAccount:<project-number>-compute@developer.gserviceaccount.com  *     --role=roles/firebaseauth.admin
+ *   gcloud projects add-iam-policy-binding <project>
+ *     --member=serviceAccount:<project-number>-compute@developer.gserviceaccount.com
+ *     --role=roles/firebaseauth.admin
  */
 const { onRequest } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
