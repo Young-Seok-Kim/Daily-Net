@@ -152,13 +152,20 @@ class GoogleCalendarSync @Inject constructor(
         prefs.edit().putString(Constants.KEY_CALENDAR_FIXED_TITLE, title.trim()).apply()
     }
 
-    /** 로그아웃·탈퇴 때. 다른 계정의 캘린더 ID가 남으면 엉뚱한 곳에 쓴다. */
+    /**
+     * 로그아웃·탈퇴 때. 연동 설정은 비우되 캘린더 ID는 남긴다.
+     *
+     * ID는 계정 이메일별로 저장하므로([calendarIdKey]) 다른 계정이 로그인해도 섞이지 않는다.
+     * 남겨 두는 이유: 탈퇴하면 Firestore의 ID 사본이 지워지고 다시 가입하면 uid도 바뀐다.
+     * 이 범위(calendar.app.created)로는 캘린더 목록을 못 읽어 이름으로 되찾을 수도 없다.
+     * 그래서 기기에 남은 ID가 유일한 단서다. 같은 계정으로 다시 가입하면 기존 "데일리넷"
+     * 캘린더에 그대로 이어서 쓰고, 하나 더 만들지 않는다.
+     */
     fun clear() {
         prefs.edit()
             .remove(Constants.KEY_CALENDAR_SYNC_ENABLED)
             .remove(Constants.KEY_CALENDAR_TITLE_MODE)
             .remove(Constants.KEY_CALENDAR_FIXED_TITLE)
-            .remove(Constants.KEY_CALENDAR_ID)
             .apply()
     }
 
@@ -227,17 +234,26 @@ class GoogleCalendarSync @Inject constructor(
      * 켜자마자 불러서 사용자가 구글 캘린더 앱에서 바로 확인할 수 있게 한다.
      */
     suspend fun ensureCalendar(token: String): String = calendarMutex.withLock {
-        prefs.getString(Constants.KEY_CALENDAR_ID, null)?.let { return@withLock it }
-
-        // 로그인이 안 돼 있으면 Firestore 의 캘린더 ID를 못 읽는다. 그 상태에서 새로 만들면
-        // 같은 계정에 "데일리넷 운동"이 하나 더 생긴다(실제로 났다). 만들지 않고 멈춘다.
+        // 로그인이 안 돼 있으면 어느 계정의 ID인지도, Firestore 의 캘린더 ID도 모른다. 그 상태에서
+        // 새로 만들면 같은 계정에 "데일리넷 운동"이 하나 더 생긴다(실제로 났다). 만들지 않고 멈춘다.
         if (auth.currentUser == null) throw IllegalStateException(context.getString(R.string.calendar_not_signed_in))
+
+        storedCalendarId()?.let { id ->
+            // 탈퇴 뒤 재가입처럼 기기에는 있는데 Firestore 에 없는 경우를 메운다. 다른 기기가 이 ID를
+            // 찾을 수 있게. 한 프로세스에서 한 번이면 충분하다(매번 쓰면 쓰기 비용만 든다).
+            if (!cloudBackfilled) {
+                cloudBackfilled = true
+                runCatching { cloudDoc()?.set(mapOf(CLOUD_FIELD to id), SetOptions.merge())?.await() }
+                    .onFailure { Log.w(TAG, "cloud calendarId backfill failed", it) }
+            }
+            return@withLock id
+        }
 
         // Firestore 읽기가 실패하면(오프라인·권한 오류) 모른다는 뜻이지 없다는 뜻이 아니다. 만들지 않는다.
         val cloudId = cloudDoc()!!.get().await().getString(CLOUD_FIELD)
         if (!cloudId.isNullOrBlank()) {
             Log.d(TAG, "calendarId from cloud")
-            prefs.edit().putString(Constants.KEY_CALENDAR_ID, cloudId).apply()
+            prefs.edit().putString(calendarIdKey()!!, cloudId).apply()
             return@withLock cloudId
         }
 
@@ -257,15 +273,42 @@ class GoogleCalendarSync @Inject constructor(
         firestore.collection("users").document(uid).collection(CLOUD_SUB).document(CLOUD_DOC)
     }
 
+    /** 이 프로세스에서 기기의 캘린더 ID를 Firestore 에 한 번 맞춰 뒀는지 */
+    private var cloudBackfilled = false
+
+    /**
+     * 기기에 캘린더 ID를 두는 자리. 계정 이메일별로 나눈다 (calendar_id_<email>).
+     * 로그아웃·탈퇴 때 지우지 않아도 다른 계정과 섞이지 않게 하려는 것이다. 로그인 전엔 null.
+     */
+    private fun calendarIdKey(): String? =
+        auth.currentUser?.email?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
+            ?.let { "${Constants.KEY_CALENDAR_ID}_$it" }
+
+    /**
+     * 기기에 저장된 이 계정의 캘린더 ID.
+     * b61 전에는 계정 구분 없이 calendar_id 한 칸에 뒀고 로그아웃 때마다 지웠으므로,
+     * 그 칸에 값이 남아 있으면 지금 로그인한 계정 것이다. 계정별 칸으로 옮기고 옛 칸은 비운다.
+     */
+    private fun storedCalendarId(): String? {
+        val key = calendarIdKey() ?: return null
+        prefs.getString(key, null)?.let { return it }
+        val legacy = prefs.getString(Constants.KEY_CALENDAR_ID, null) ?: return null
+        prefs.edit().putString(key, legacy).remove(Constants.KEY_CALENDAR_ID).apply()
+        return legacy
+    }
+
     private suspend fun saveCalendarId(id: String) {
-        prefs.edit().putString(Constants.KEY_CALENDAR_ID, id).apply()
+        calendarIdKey()?.let { prefs.edit().putString(it, id).apply() }
         runCatching { cloudDoc()?.set(mapOf(CLOUD_FIELD to id), SetOptions.merge())?.await() }
             .onFailure { Log.w(TAG, "cloud calendarId write failed", it) }
     }
 
     /** 캘린더가 지워져 404가 났을 때. 기기와 Firestore 양쪽을 비워 다음에 새로 만든다. */
     private suspend fun forgetCalendarId() {
-        prefs.edit().remove(Constants.KEY_CALENDAR_ID).apply()
+        prefs.edit()
+            .apply { calendarIdKey()?.let { remove(it) } }
+            .remove(Constants.KEY_CALENDAR_ID)
+            .apply()
         runCatching { cloudDoc()?.delete()?.await() }
     }
 
