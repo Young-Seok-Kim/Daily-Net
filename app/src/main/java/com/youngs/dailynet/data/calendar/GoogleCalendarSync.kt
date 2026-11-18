@@ -90,10 +90,18 @@ class GoogleCalendarSync @Inject constructor(
         /** 이용권을 시작일~종료일 띠 하나로 */
         const val PASS_MODE_SPAN = "span"
 
-        /** Firestore에 캘린더 ID를 두는 자리: users/{uid}/settings/calendar */
-        private const val CLOUD_SUB = "settings"
-        private const val CLOUD_DOC = "calendar"
+        /**
+         * Firestore에 캘린더 ID를 두는 자리: calendar_ids/{구글 계정 ID}.
+         *
+         * users/{uid} 밖에 두는 이유: 탈퇴하면 users 트리가 지워지고 재가입하면 uid가 바뀐다.
+         * 구글 계정은 그대로이므로 그 ID로 찾으면 기존 "데일리넷" 캘린더에 이어서 쓴다.
+         * (이 범위로는 캘린더 목록을 못 읽어 저장해 둔 ID가 되찾을 유일한 단서다)
+         */
+        private const val CLOUD_COLLECTION = "calendar_ids"
         private const val CLOUD_FIELD = "calendarId"
+        /** b60까지 쓰던 자리: users/{uid}/settings/calendar. 읽어서 새 자리로 옮기고 지운다 */
+        private const val LEGACY_SUB = "settings"
+        private const val LEGACY_DOC = "calendar"
     }
 
     sealed class Access {
@@ -156,10 +164,7 @@ class GoogleCalendarSync @Inject constructor(
      * 로그아웃·탈퇴 때. 연동 설정은 비우되 캘린더 ID는 남긴다.
      *
      * ID는 계정 이메일별로 저장하므로([calendarIdKey]) 다른 계정이 로그인해도 섞이지 않는다.
-     * 남겨 두는 이유: 탈퇴하면 Firestore의 ID 사본이 지워지고 다시 가입하면 uid도 바뀐다.
-     * 이 범위(calendar.app.created)로는 캘린더 목록을 못 읽어 이름으로 되찾을 수도 없다.
-     * 그래서 기기에 남은 ID가 유일한 단서다. 같은 계정으로 다시 가입하면 기존 "데일리넷"
-     * 캘린더에 그대로 이어서 쓰고, 하나 더 만들지 않는다.
+     * 본 저장소는 Firestore의 calendar_ids/{구글 계정 ID}이고 기기 사본은 캐시라 지울 이유가 없다.
      */
     fun clear() {
         prefs.edit()
@@ -239,8 +244,8 @@ class GoogleCalendarSync @Inject constructor(
         if (auth.currentUser == null) throw IllegalStateException(context.getString(R.string.calendar_not_signed_in))
 
         storedCalendarId()?.let { id ->
-            // 탈퇴 뒤 재가입처럼 기기에는 있는데 Firestore 에 없는 경우를 메운다. 다른 기기가 이 ID를
-            // 찾을 수 있게. 한 프로세스에서 한 번이면 충분하다(매번 쓰면 쓰기 비용만 든다).
+            // 기기에는 있는데 Firestore 에 없는 경우(옛 빌드에서 올라온 사용자)를 메운다.
+            // 한 프로세스에서 한 번이면 충분하다(매번 쓰면 쓰기 비용만 든다).
             if (!cloudBackfilled) {
                 cloudBackfilled = true
                 runCatching { cloudDoc()?.set(mapOf(CLOUD_FIELD to id), SetOptions.merge())?.await() }
@@ -250,11 +255,20 @@ class GoogleCalendarSync @Inject constructor(
         }
 
         // Firestore 읽기가 실패하면(오프라인·권한 오류) 모른다는 뜻이지 없다는 뜻이 아니다. 만들지 않는다.
-        val cloudId = cloudDoc()!!.get().await().getString(CLOUD_FIELD)
+        val cloudId = cloudDoc()?.get()?.await()?.getString(CLOUD_FIELD)
         if (!cloudId.isNullOrBlank()) {
             Log.d(TAG, "calendarId from cloud")
             prefs.edit().putString(calendarIdKey()!!, cloudId).apply()
             return@withLock cloudId
+        }
+
+        // b60까지는 users/{uid}/settings/calendar 에 뒀다. 있으면 새 자리로 옮기고 옛 문서는 지운다.
+        val legacyId = legacyDoc()!!.get().await().getString(CLOUD_FIELD)
+        if (!legacyId.isNullOrBlank()) {
+            Log.d(TAG, "calendarId from legacy doc")
+            saveCalendarId(legacyId)
+            runCatching { legacyDoc()?.delete()?.await() }
+            return@withLock legacyId
         }
 
         val id = api.createCalendar(
@@ -269,8 +283,14 @@ class GoogleCalendarSync @Inject constructor(
         id
     }
 
-    private fun cloudDoc() = auth.currentUser?.uid?.let { uid ->
-        firestore.collection("users").document(uid).collection(CLOUD_SUB).document(CLOUD_DOC)
+    /** 로그인한 구글 계정의 ID(sub). 파이어베이스 uid와 달리 탈퇴·재가입을 거쳐도 같다 */
+    private fun googleAccountId(): String? =
+        auth.currentUser?.providerData?.firstOrNull { it.providerId == "google.com" }?.uid?.takeIf { it.isNotBlank() }
+
+    private fun cloudDoc() = googleAccountId()?.let { firestore.collection(CLOUD_COLLECTION).document(it) }
+
+    private fun legacyDoc() = auth.currentUser?.uid?.let { uid ->
+        firestore.collection("users").document(uid).collection(LEGACY_SUB).document(LEGACY_DOC)
     }
 
     /** 이 프로세스에서 기기의 캘린더 ID를 Firestore 에 한 번 맞춰 뒀는지 */
@@ -310,6 +330,7 @@ class GoogleCalendarSync @Inject constructor(
             .remove(Constants.KEY_CALENDAR_ID)
             .apply()
         runCatching { cloudDoc()?.delete()?.await() }
+        runCatching { legacyDoc()?.delete()?.await() }
     }
 
     /**

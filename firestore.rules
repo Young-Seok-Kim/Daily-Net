@@ -77,5 +77,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // 앱이 만든 구글 캘린더("데일리넷")의 ID. 문서 ID = 구글 계정 ID(sub), 내용은 { calendarId }.
+    //
+    // users/{uid} 밖에 두는 이유: 탈퇴하면 users 트리가 통째로 지워지고 재가입하면 uid도 바뀐다.
+    // 그래도 구글 계정은 그대로이므로, 구글 계정 ID로 찾으면 기존 캘린더에 이어서 쓸 수 있다.
+    // calendar.app.created 범위로는 캘린더 목록을 못 읽어(403) 이 ID가 되찾을 유일한 단서다.
+    // 탈퇴(withdrawAccount 함수)가 이 문서는 지우지 않는 것이 의도다.
+    match /calendar_ids/{googleId} {
+      allow read, write: if request.auth != null
+                         && request.auth.token.firebase.identities["google.com"][0] == googleId;
+    }
+
   }
 }

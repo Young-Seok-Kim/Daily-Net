@@ -18,6 +18,9 @@
  *
  * 구버전 앱(b60 이하)은 여전히 문서를 직접 지우므로 firestore.rules의 users delete 허용은 당분간 둔다.
  *
+ * calendar_ids/{구글 계정 ID}는 일부러 안 지운다. 재가입하면 기존 "데일리넷" 캘린더에 이어 쓰려고
+ * 구글 계정 기준으로 둔 것이라 users 트리 밖에 있다 (firestore.rules 참고).
+ *
  * ⚠️ 함수 실행 계정(기본 compute 서비스 계정)에 "Firebase Authentication 관리자"
  * (roles/firebaseauth.admin) 역할이 있어야 Auth 계정을 지울 수 있다. 없으면 Firestore는 지워진 뒤
  * Auth 삭제에서 insufficient permission 으로 500이 난다 (2026-11-18 첫 배포 때 겪음).
