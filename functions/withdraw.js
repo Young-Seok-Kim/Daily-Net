@@ -17,6 +17,12 @@
  * 다시 눌러서 이어가면 된다(recursiveDelete는 비어 있어도 성공한다).
  *
  * 구버전 앱(b60 이하)은 여전히 문서를 직접 지우므로 firestore.rules의 users delete 허용은 당분간 둔다.
+ *
+ * ⚠️ 함수 실행 계정(기본 compute 서비스 계정)에 "Firebase Authentication 관리자"
+ * (roles/firebaseauth.admin) 역할이 있어야 Auth 계정을 지울 수 있다. 없으면 Firestore는 지워진 뒤
+ * Auth 삭제에서 insufficient permission 으로 500이 난다 (2026-11-18 첫 배포 때 겪음).
+ * 새 프로젝트에 올릴 때는 아래 한 줄을 먼저 실행한다:
+ *   gcloud projects add-iam-policy-binding <project>  *     --member=serviceAccount:<project-number>-compute@developer.gserviceaccount.com  *     --role=roles/firebaseauth.admin
  */
 const { onRequest } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
