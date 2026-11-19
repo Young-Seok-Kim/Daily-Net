@@ -24,8 +24,11 @@ object AiAskContext {
     /** 분석 리포트 전문을 다 보내면 프롬프트가 커진다. 결론 부분이 앞에 있어 앞을 남긴다 */
     const val REPORT_MAX = 700
 
-    /** 서버 상한(2000자)보다 조금 아래. 넘겨 보내면 서버가 잘라 중간이 끊긴다 */
-    const val TOTAL_MAX = 1900
+    /**
+     * 서버 상한(MAX_CONTEXT_CHARS 8000자)보다 조금 아래. 넘겨 보내면 서버가 잘라 중간이 끊긴다.
+     * 처음엔 1900이었는데 목록 7일 + 이용권 날짜 목록이면 닿을 수 있어 올렸다. 모델은 이 길이를 문제없이 읽는다
+     */
+    const val TOTAL_MAX = 7000
 
     /** 일별 줄을 넣을 최대 일수 (연 정산은 기록이 수백 일이다) */
     private const val MAX_DAY_LINES = 31
@@ -43,13 +46,17 @@ object AiAskContext {
         val lines = mutableListOf(
             "records ${records.size} days, total net ${kcal(total)}, avg net ${kcal(average)}/day"
         )
-        records.take(7).forEach { lines += dayLine(it) }
+        // 이용권은 일별 줄보다 앞에. 길어서 잘리더라도 오래된 날짜 줄이 먼저 잘리게
         passLine(passes)?.let { lines += it }
+        records.take(7).forEach { lines += dayLine(it) }
         return join(lines)
     }
 
     /** 이용권 줄에 적을 간 날짜 수. 그보다 많으면 최근 것만 적고 앞을 줄인다 */
-    private const val PASS_DATES_MAX = 20
+    private const val PASS_DATES_MAX = 60
+
+    /** 키워드 없는 이용권의 운동한 날 목록에서 운동 글 한 칸의 길이 */
+    private const val PASS_EXERCISE_MAX = 24
 
     /**
      * 운동 이용권. "이번 주 헬스 몇 번 가야 해?", "등록하고 나서 자주 갔어?" 같은 질문의 근거다.
@@ -75,6 +82,15 @@ object AiAskContext {
                 val prefix = if (dates.size > shown.size) "... " else ""
                 parts += if (dates.isEmpty()) "went 0 days (keyword ${p.keywords.joinToString("|")})"
                 else "went ${dates.size} days: $prefix${shown.joinToString(", ")}"
+            } else {
+                // 키워드가 없으면 어떤 운동이 이 이용권인지 모른다. 기간 안의 운동한 날을 전부 넘겨
+                // 모델이 이름으로 가려 세게 한다 ("오버컴 = 킥복싱"은 사용자가 질문에서 말해 준다)
+                val days = u.exerciseDays
+                val shown = days.takeLast(PASS_DATES_MAX)
+                val prefix = if (days.size > shown.size) "... " else ""
+                parts += if (days.isEmpty()) "no keyword, no exercise days since start"
+                else "no keyword, exercise days since start ${days.size}: $prefix" +
+                    shown.joinToString(", ") { (d, text) -> "$d ${clip(text, PASS_EXERCISE_MAX)}" }
             }
             "pass ${clip(p.name, 20)} (${if (p.isCount) "count" else "period"}): ${parts.joinToString(", ")}"
         }

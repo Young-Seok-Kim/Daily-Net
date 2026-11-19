@@ -13,10 +13,13 @@ import java.util.Locale
  * @param used 쓴 횟수 = 센 날 수 + 수동 보정. 0 밑으로는 안 내려간다
  * @param remaining 남은 횟수. 기간제는 null
  * @param daysLeft 오늘을 포함해 남은 날. 종료일이 없으면 null, 지났으면 0
+ * @param exerciseDays 이용권 기간 안에 운동 칸이 비지 않은 날 전부(오름차순, 날짜→운동 글).
+ *   키워드가 없는 이용권은 어떤 운동이 이 이용권인지 모르므로, AI 질문에 이 목록을 대신 넘긴다
  */
 data class PassUsage(
     val pass: ExercisePassEntity,
     val usedDates: List<String>,
+    val exerciseDays: List<Pair<String, String>> = emptyList(),
     val used: Int,
     val remaining: Int?,
     val daysLeft: Int?,
@@ -67,6 +70,13 @@ fun computePassUsage(pass: ExercisePassEntity, records: List<DailyRecordModel>, 
             .toList()
     } else emptyList()
 
+    val exerciseDays = records.asSequence()
+        .filter { passCovers(pass, it.date) && it.exercise.isNotBlank() }
+        .map { it.date to it.exercise }
+        .distinctBy { it.first }
+        .sortedBy { it.first }
+        .toList()
+
     val used = (usedDates.size + pass.adjust).coerceAtLeast(0)
     val remaining = if (pass.isCount) (pass.totalCount - used).coerceAtLeast(0) else null
 
@@ -82,6 +92,7 @@ fun computePassUsage(pass: ExercisePassEntity, records: List<DailyRecordModel>, 
     return PassUsage(
         pass = pass,
         usedDates = usedDates,
+        exerciseDays = exerciseDays,
         used = used,
         remaining = remaining,
         daysLeft = daysLeft,

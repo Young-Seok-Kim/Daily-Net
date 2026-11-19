@@ -221,6 +221,9 @@
     <string name="pass_keyword">Keywords</string>
     <string name="pass_keyword_placeholder">e.g. PT, trainer</string>
     <string name="pass_keyword_hint">A day whose exercise field contains one of these counts as one session. Separate with commas</string>
+    <string name="pass_keyword_period">Exercise keywords</string>
+    <string name="pass_keyword_period_hint">A day whose exercise field contains one of these counts as a visit for this pass. Used by AI questions and the card. Separate with commas</string>
+    <string name="pass_period_visits">%1$d visits in this period</string>
     <string name="pass_clear_date">Clear</string>
     <string name="pass_days_left">%1$d days left</string>
     <string name="pass_sessions_left">%1$d left</string>

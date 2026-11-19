@@ -82,6 +82,9 @@ class PassUsageTest {
         assertEquals(listOf("2026-11-02", "2026-11-06"), counted.usedDates)
         assertNull(counted.remaining)
         assertTrue(counted.active)
+        // 운동한 날 전부(키워드와 무관)는 따로 둔다. 키워드 없는 이용권이 AI 질문에 쓴다
+        assertEquals(listOf("2026-11-02" to "헬스 1시간", "2026-11-05" to "러닝", "2026-11-06" to "헬스"), counted.exerciseDays)
+        assertEquals(counted.exerciseDays, computePassUsage(gym, records, "2026-11-17").exerciseDays)
 
         val over = computePassUsage(gym, emptyList(), "2026-12-01")
         assertEquals(0, over.daysLeft)
