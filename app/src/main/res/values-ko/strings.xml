@@ -554,7 +554,15 @@
     <string name="ai_ask_error">답변을 받지 못했어요. 잠시 후 다시 시도해 주세요.</string>
     <string name="ai_ask_retry">다시 시도</string>
     <string name="ai_ask_limit">오늘 AI 질문 횟수를 모두 사용했어요. 내일 다시 시도해 주세요.</string>
+    <string name="ai_ask_blocked_unsaved">수정된 내용을 먼저 분석/저장한 뒤 질문해 주세요.</string>
     <string name="ai_ask_remaining">오늘 무료 질문 %1$d/%2$d회 남음</string>
+    <string name="ai_ask_goto_daily_list">기록 목록 보기</string>
+    <string name="ai_ask_goto_daily_record">정산 상세 보기</string>
+    <string name="ai_ask_goto_month_report">월간 정산 보기</string>
+    <string name="ai_ask_goto_period_report">주간 정산 보기</string>
+    <string name="ai_ask_goto_inbody_list">인바디 이력 보기</string>
+    <string name="ai_ask_goto_inbody_trend">인바디 추이 보기</string>
+    <string name="ai_ask_goto_weight_trend">체중 추이 보기</string>
     <string name="ai_screen_daily_list">기록 목록</string>
     <string name="ai_screen_daily_record">%1$s 정산</string>
 

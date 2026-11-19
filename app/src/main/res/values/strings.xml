@@ -556,7 +556,15 @@
     <string name="ai_ask_error">Couldn\'t get an answer. Please try again in a moment.</string>
     <string name="ai_ask_retry">Try again</string>
     <string name="ai_ask_limit">You\'ve used all of today\'s AI questions. Try again tomorrow.</string>
+    <string name="ai_ask_blocked_unsaved">Analyze/save your changes first, then ask.</string>
     <string name="ai_ask_remaining">%1$d of %2$d free questions left today</string>
+    <string name="ai_ask_goto_daily_list">Open record list</string>
+    <string name="ai_ask_goto_daily_record">Open daily record</string>
+    <string name="ai_ask_goto_month_report">Open monthly report</string>
+    <string name="ai_ask_goto_period_report">Open weekly report</string>
+    <string name="ai_ask_goto_inbody_list">Open InBody history</string>
+    <string name="ai_ask_goto_inbody_trend">Open InBody trend</string>
+    <string name="ai_ask_goto_weight_trend">Open weight trend</string>
     <string name="ai_screen_daily_list">Records</string>
     <string name="ai_screen_daily_record">%1$s record</string>
 

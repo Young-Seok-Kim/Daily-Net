@@ -55,7 +55,8 @@ const LABELS = {
         authRequired: "로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.",
         // 전역 AI 질문(askAiCoach)
         askEmpty: "질문을 입력해 주세요.",
-        askLimitReached: "오늘 AI 질문 횟수를 모두 사용했습니다. 내일 다시 시도해 주세요."
+        askLimitReached: "오늘 AI 질문 횟수를 모두 사용했습니다. 내일 다시 시도해 주세요.",
+        askDataMissing: "답하는 데 필요한 기록을 찾지 못했어요. 그 기간의 정산 화면에서 다시 물어봐 주세요."
     },
     en: {
         outputLanguage: "English",
@@ -102,7 +103,8 @@ const LABELS = {
         authRequired: "We could not verify your sign-in. Please sign in again.",
         // Global AI questions (askAiCoach)
         askEmpty: "Please enter a question.",
-        askLimitReached: "You have used all of today's AI questions. Please try again tomorrow."
+        askLimitReached: "You have used all of today's AI questions. Please try again tomorrow.",
+        askDataMissing: "I couldn't find the records needed to answer. Please ask again from that period's report screen."
     }
 };
 

@@ -110,11 +110,16 @@ fun DailyRecordScreen(
     onNavigateToWeightTrend: (String) -> Unit = {},
     isReadOnly: Boolean = false,
     /**
-     * 우하단 AI 질문 버튼을 둘지. 오늘 기록을 **입력하는** 화면에서는 숨긴다 —
-     * 아직 저장하지 않은 값이 화면에 있고, 정산이 끝난 뒤 그 기록으로 묻는 것이 맞기 때문이다.
-     * (지난 날짜를 열어 보는 상세 화면은 둔다)
+     * 우하단 AI 질문 버튼을 둘지. 입력 화면과 상세 화면 모두 둔다.
+     * 고치고 아직 분석/저장을 안 한 상태는 버튼을 숨기지 않고 눌렀을 때 안내한다
+     * ([MainViewModel.recordDirty] 참고). 버튼 자체를 빼야 하는 화면만 false로 넘긴다.
      */
     showAiFab: Boolean = true,
+    /**
+     * 걸음수 칸 아래 운동 이용권 남은 양 한 줄을 둘지. 오늘 입력 화면에서만 의미가 있다 —
+     * 지난 날짜를 여는 상세 화면에서는 "며칠 남음"이 그 날과 무관한 지금 값이라 헷갈린다.
+     */
+    showPassHint: Boolean = true,
     /**
      * 좌우로 스와이프했을 때 열 날짜를 넘겨준다. 왼쪽으로 밀면 다음날, 오른쪽으로 밀면 전날.
      * null이면 스와이프를 받지 않는다 (오늘의 정산 입력 화면처럼 날짜가 고정된 경우).
@@ -127,6 +132,8 @@ fun DailyRecordScreen(
     val passUsages by mainViewModel.passUsages.collectAsState()
     val justFinishedAnalysis by mainViewModel.shouldStreamResult.collectAsState()
     val recordLoadToken by mainViewModel.recordLoadToken.collectAsState()
+    // 수정했는데 아직 분석/저장을 안 눌렀는지. AI 질문 버튼이 이걸 보고 시트 대신 안내를 띄운다
+    val recordDirty by mainViewModel.recordDirty.collectAsState()
     val context = LocalContext.current
     val activity = context as? android.app.Activity
     val healthReader = remember { HealthStepReader(context) }
@@ -533,9 +540,12 @@ fun DailyRecordScreen(
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             snackbarHost = { SnackbarHost(snackbarHostState) },
-            // 이 날 정산에 대해 바로 묻는 AI 버튼. 입력 화면에서는 [showAiFab]이 끈다
+            // 이 날 정산에 대해 바로 묻는 AI 버튼.
+            // 글을 고치고 아직 분석/저장을 안 했으면 새 글과 예전 칼로리·리포트가 어긋난 채 넘어가므로
+            // 시트를 열지 않고 "먼저 분석/저장" 스낵바를 띄운다. 분석이 끝나면 다시 열린다.
             floatingActionButton = {
                 if (showAiFab) {
+                    val askBlockedText = stringResource(R.string.ai_ask_blocked_unsaved)
                     AiAskFab(
                         mainViewModel = mainViewModel,
                         screenType = AiScreenTypes.DAILY_RECORD,
@@ -543,7 +553,17 @@ fun DailyRecordScreen(
                             R.string.ai_screen_daily_record,
                             "${uiState.date} ${getDayOfWeekText(uiState.date)}".trim()
                         ),
-                        contextData = remember(uiState) { AiAskContext.dailyRecord(uiState) }
+                        contextData = remember(uiState) { AiAskContext.dailyRecord(uiState) },
+                        onBlockedClick = if (recordDirty) {
+                            {
+                                scope.launch {
+                                    snackbarHostState.currentSnackbarData?.dismiss()
+                                    snackbarHostState.showSnackbar(askBlockedText)
+                                }
+                            }
+                        } else {
+                            null
+                        }
                     )
                 }
             },
@@ -757,11 +777,13 @@ fun DailyRecordScreen(
                             enabled = !isReadOnly
                         )
                         // 운동 이용권의 남은 양. 지금 적은 운동에 키워드가 있으면 "오늘 차감"이 붙는다
-                        PassHintRow(
-                            usages = passUsages,
-                            exerciseText = uiState.exercise,
-                            modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 6.dp)
-                        )
+                        if (showPassHint) {
+                            PassHintRow(
+                                usages = passUsages,
+                                exerciseText = uiState.exercise,
+                                modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 6.dp)
+                            )
+                        }
                     }
                 }
 

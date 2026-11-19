@@ -13,6 +13,11 @@ import com.google.gson.annotations.SerializedName
 data class AiAskRequest(
     /** 답변을 받을 언어 (BCP-47). 서버는 앞부분만 본다 */
     val language: String,
+    /**
+     * 기기의 IANA 시간대("Asia/Seoul"). 서버가 "지금"과 "어제"를 이 시간대로 푼다.
+     * 기록 날짜를 기기 시간대로 매기므로 같은 기준이어야 저장된 날짜와 맞는다. 시각 자체는 서버가 잰다
+     */
+    val timeZone: String,
     /** 지금 보고 있는 화면의 종류. [AiScreenTypes]의 값 */
     val screenType: String,
     /** 뱃지에 그대로 보이는 화면 이름 ("11월 월간 정산") */
@@ -43,7 +48,16 @@ data class AiAskResponse(
     val remainingFreeCount: Int? = null,
     /** 오늘 상한. 남은 횟수를 "2/3회"처럼 보여줄 때 쓴다 */
     @SerializedName("limit")
-    val limit: Int? = null
+    val limit: Int? = null,
+    /**
+     * 답에 필요한 값이 있는 다른 화면. [AiScreenTypes] 값이며, 서버가 지금 화면과 같거나 모르는 값은
+     * 이미 걸렀다. 앱은 말풍선 아래에 그 화면으로 가는 버튼을 그린다 (util/AiNavigation).
+     */
+    @SerializedName("navigateTo")
+    val navigateTo: String? = null,
+    /** [navigateTo]에 붙는 날짜 인자. 정산 상세는 yyyy-MM-dd, 월간 정산은 yyyy-MM. 없으면 null */
+    @SerializedName("navigateArg")
+    val navigateArg: String? = null
 )
 
 /** 화면에서 오가는 말 한 줄. 오류도 같은 목록에 담아 말풍선으로 보여준다 */
@@ -51,7 +65,10 @@ data class AiAskMessage(
     val text: String,
     val fromUser: Boolean,
     /** 답을 받지 못한 줄. 오류 색으로 그리고 "다시 시도"를 붙인다 */
-    val error: Boolean = false
+    val error: Boolean = false,
+    /** AI가 가 보라고 한 화면. 있으면 말풍선 아래에 이동 버튼을 붙인다 */
+    val navigateTo: String? = null,
+    val navigateArg: String? = null
 )
 
 /**

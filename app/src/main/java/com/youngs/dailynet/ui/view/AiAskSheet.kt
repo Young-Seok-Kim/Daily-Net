@@ -1,5 +1,6 @@
 package com.youngs.dailynet.ui.view
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,6 +39,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -91,14 +94,20 @@ fun AiAskFab(
     screenType: String,
     screenTitle: String,
     contextData: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /**
+     * 지금은 질문을 받을 수 없을 때 시트 대신 실행할 동작. null이면 평소처럼 시트를 연다.
+     * 정산 화면이 "수정했는데 아직 분석/저장 안 함" 상태에서 안내 스낵바를 띄우는 데 쓴다 —
+     * 버튼을 숨기면 어디 갔는지 모르니, 두고 눌렀을 때 이유를 말해 준다.
+     */
+    onBlockedClick: (() -> Unit)? = null
 ) {
     var showSheet by rememberSaveable { mutableStateOf(false) }
     val askLabel = stringResource(R.string.cd_ai_ask)
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     Surface(
-        onClick = { showSheet = true },
+        onClick = { if (onBlockedClick != null) onBlockedClick() else showSheet = true },
         shape = CircleShape,
         color = MaterialTheme.colorScheme.primaryContainer,
         border = BorderStroke(2.dp, DnTheme.net.deficit),
@@ -263,11 +272,21 @@ private fun AiAskSheet(
                     }
                 }
                 items(messages) { message ->
+                    // AI가 다른 화면을 가리켰으면 그리로 가는 버튼. 시트를 닫고 MainActivity에 이동을 맡긴다.
+                    // 같은 화면이면 서버가 이미 걸렀지만, 화면을 옮긴 뒤 다시 연 시트에서는 같아질 수 있다
+                    val gotoScreen = message.navigateTo?.takeIf { it != screenType }
                     MessageBubble(
                         message = message,
                         // 오류 말풍선 중 마지막 것에만 "다시 시도"를 붙인다
                         canRetry = message.error && message === messages.lastOrNull() && !asking,
-                        onRetry = { mainViewModel.retryAiAsk() }
+                        onRetry = { mainViewModel.retryAiAsk() },
+                        gotoLabel = gotoScreen?.let { gotoLabelRes(it) }?.let { stringResource(it) },
+                        onGoto = gotoScreen?.let { target ->
+                            {
+                                onDismiss()
+                                mainViewModel.requestAiNavigation(target, message.navigateArg)
+                            }
+                        }
                     )
                 }
                 if (asking) {
@@ -332,9 +351,33 @@ private fun ScreenBadge(title: String) {
     }
 }
 
-/** 사용자 말은 오른쪽 잉크 말풍선, AI 답은 왼쪽 surfaceVariant 카드 (시안과 같다) */
+/** 이동 버튼 문구. 화면 종류별로 "○○ 보기". 모르는 값이면 null이라 버튼을 그리지 않는다 */
+@StringRes
+private fun gotoLabelRes(screen: String): Int? = when (screen) {
+    AiScreenTypes.DAILY_LIST -> R.string.ai_ask_goto_daily_list
+    AiScreenTypes.DAILY_RECORD -> R.string.ai_ask_goto_daily_record
+    AiScreenTypes.MONTH_REPORT -> R.string.ai_ask_goto_month_report
+    AiScreenTypes.PERIOD_REPORT -> R.string.ai_ask_goto_period_report
+    AiScreenTypes.INBODY_LIST -> R.string.ai_ask_goto_inbody_list
+    AiScreenTypes.INBODY_TREND -> R.string.ai_ask_goto_inbody_trend
+    AiScreenTypes.WEIGHT_TREND -> R.string.ai_ask_goto_weight_trend
+    else -> null
+}
+
+/**
+ * 사용자 말은 오른쪽 잉크 말풍선, AI 답은 왼쪽 surfaceVariant 카드 (시안과 같다).
+ *
+ * @param gotoLabel AI가 가리킨 화면으로 가는 버튼 문구. null이면 버튼 없음
+ * @param onGoto 그 버튼을 눌렀을 때. [gotoLabel]과 함께 있어야 그린다
+ */
 @Composable
-private fun MessageBubble(message: AiAskMessage, canRetry: Boolean, onRetry: () -> Unit) {
+private fun MessageBubble(
+    message: AiAskMessage,
+    canRetry: Boolean,
+    onRetry: () -> Unit,
+    gotoLabel: String? = null,
+    onGoto: (() -> Unit)? = null
+) {
     if (message.fromUser) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             Surface(
@@ -373,6 +416,18 @@ private fun MessageBubble(message: AiAskMessage, canRetry: Boolean, onRetry: () 
         if (canRetry) {
             TextButton(onClick = onRetry) {
                 Text(stringResource(R.string.ai_ask_retry), style = MaterialTheme.typography.labelLarge)
+            }
+        }
+        if (gotoLabel != null && onGoto != null) {
+            // 말풍선 바로 아래, 답을 읽고 이어서 누르는 자리. 민트 테두리로 AI 버튼과 한 묶음임을 보인다
+            Spacer(modifier = Modifier.height(6.dp))
+            OutlinedButton(
+                onClick = onGoto,
+                shape = CircleShape,
+                border = BorderStroke(1.5.dp, DnTheme.net.deficit),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+            ) {
+                Text(gotoLabel, style = MaterialTheme.typography.labelLarge, color = Ink)
             }
         }
     }

@@ -310,6 +310,8 @@ async function refundAnalysis(uid) {
  * - 무료: 3회 (예전 정책. FREE_FOR_ALL 을 false 로 되돌렸을 때만 쓰인다)
  * - 구독자: 100회 (체감상 무제한. 스크립트로 수천 번 부르는 요금 사고만 막는다)
  * - 전면 무료 개방 중: 무료/구독 구분이 없으므로 모두 30회 — 분석의 FREE_MODE_ANALYSIS_LIMIT 과 같은 값이다
+ * - unlimited_users 에 적힌 계정: 어느 모드든 상한 없음. 운영자·테스터 계정이라 비용 사고 방지선도 두지 않는다
+ *   (2026-11-19. 상한에 막히는 동작은 개방 상한을 잠시 5로 낮춰 실기기에서 확인했다)
  */
 const DAILY_AI_ASK_LIMIT = 3;
 const DAILY_AI_ASK_LIMIT_SUBSCRIBED = 100;
@@ -330,14 +332,20 @@ async function reserveAiAsk(user) {
     const today = seoulToday();
 
     return db.runTransaction(async (tx) => {
-        // 분석과 같이 왕복을 한 번으로 줄인다. 무료 개방 중에는 무제한 계정 조회도 하지 않는다
+        // 분석과 같이 왕복을 한 번으로 줄인다. 무제한 계정은 개방 중에도 상한이 없어야 하므로 항상 읽는다
         const [snap, unlimitedSnap] = await Promise.all([
             tx.get(userRef),
-            FREE_FOR_ALL ? null : readUnlimited(tx, db, user.email)
+            readUnlimited(tx, db, user.email)
         ]);
 
         const data = snap.exists ? snap.data() : {};
         const used = data.aiAskDate === today ? Number(data.aiAskCount) || 0 : 0;
+
+        // unlimited_users 계정은 모드와 무관하게 상한 없음. 횟수는 사용량을 보려고 계속 센다
+        if (unlimitedSnap && unlimitedSnap.exists) {
+            tx.set(userRef, { aiAskCount: used + 1, aiAskDate: today }, { merge: true });
+            return { allowed: true, count: used + 1, limit: 0, unlimited: true, remainingFreeCount: null };
+        }
 
         if (FREE_FOR_ALL) {
             if (used >= DAILY_AI_ASK_LIMIT_FREE_MODE) {
@@ -353,7 +361,7 @@ async function reserveAiAsk(user) {
             };
         }
 
-        const subscribed = (unlimitedSnap && unlimitedSnap.exists) || isSubscribedNow(data);
+        const subscribed = isSubscribedNow(data);
         const limit = subscribed ? DAILY_AI_ASK_LIMIT_SUBSCRIBED : DAILY_AI_ASK_LIMIT;
 
         if (!subscribed && used >= limit) {

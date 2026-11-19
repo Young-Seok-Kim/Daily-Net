@@ -22,6 +22,7 @@ class AiAskRequestTest {
 
     private fun request(context: AiContext? = null) = AiAskRequest(
         language = "ko-KR",
+        timeZone = "Asia/Seoul",
         screenType = "month_report",
         screenTitle = "11월 월간 정산",
         contextData = "net total -6840 kcal",
