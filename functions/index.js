@@ -21,3 +21,7 @@ exports.playSubscriptionEvent = require("./subscription").playSubscriptionEvent;
 
 // 회원탈퇴. 서브컬렉션까지 통째로 지워야 해서 서버가 한다 (앱은 서브컬렉션 목록을 못 읽는다).
 exports.withdrawAccount = require("./withdraw").withdrawAccount;
+
+// 전역 AI 질문. 지금 보고 있는 화면(앱이 요약해 보낸 데이터)에 대해 묻는 짧은 대화를 답한다.
+// 분석 횟수는 소모하지 않고 따로 센다 (quota.reserveAiAsk).
+exports.askAiCoach = require("./askAiCoach").askAiCoach;

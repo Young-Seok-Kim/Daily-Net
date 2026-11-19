@@ -53,6 +53,7 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import com.youngs.dailynet.data.model.AiScreenTypes
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import androidx.core.content.edit
@@ -370,19 +371,31 @@ fun MainScreen(
             },
             floatingActionButton = {
                 // 행동 버튼은 화면에서 유일하게 코랄을 쓴다. 다른 어디에도 같은 색이 없어야 눈에 띈다
-                ExtendedFloatingActionButton(
-                    onClick = onNavigateToInput,
-                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = {
-                        Text(
-                            text = stringResource(R.string.today_record),
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    },
-                    shape = RoundedCornerShape(DnDimens.RadiusHero),
-                    containerColor = DnTheme.net.coral,
-                    contentColor = Color.White
-                )
+                // 그 위에는 AI 버튼을 쌓는다 — 두 버튼이 겹치지 않고, 자리 계산도 필요 없다
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    AiAskFab(
+                        mainViewModel = mainViewModel,
+                        screenType = AiScreenTypes.DAILY_LIST,
+                        screenTitle = stringResource(R.string.ai_screen_daily_list),
+                        contextData = remember(dailyRecords) { AiAskContext.dailyList(dailyRecords) }
+                    )
+                    ExtendedFloatingActionButton(
+                        onClick = onNavigateToInput,
+                        icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                        text = {
+                            Text(
+                                text = stringResource(R.string.today_record),
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        },
+                        shape = RoundedCornerShape(DnDimens.RadiusHero),
+                        containerColor = DnTheme.net.coral,
+                        contentColor = Color.White
+                    )
+                }
             }
         ) { padding ->
 
@@ -580,7 +593,8 @@ fun MainScreen(
                     }
                 }
                 item {
-                    Spacer(modifier = Modifier.height(96.dp))
+                    // AI 버튼(60) + '+' 버튼(56) + 사이 여백이 마지막 기록을 가리지 않게 띄운다
+                    Spacer(modifier = Modifier.height(148.dp))
                 }
             }
 

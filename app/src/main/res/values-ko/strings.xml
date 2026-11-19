@@ -537,4 +537,47 @@
     <string name="receipt_intake_total">총 %1$s kcal 섭취</string>
     <string name="receipt_ai_title">AI 결산 한줄평</string>
     <string name="receipt_footer">DAILYNET · 칼로리 결산 완료</string>
+
+    <!--
+      전역 AI 질문 (조회 화면 우하단 AI 버튼 → 바텀시트)
+      화면 이름은 각 화면이 이미 쓰는 제목을 그대로 넘긴다 (ai_ask_screen_badge에 들어간다).
+    -->
+    <string name="ai_ask_fab">AI</string>
+    <string name="cd_ai_ask">AI에게 묻기</string>
+    <string name="ai_ask_title">AI 어시스턴트</string>
+    <string name="ai_ask_screen_badge">인식된 화면: %1$s</string>
+    <string name="ai_ask_suggested">이렇게 물어보세요</string>
+    <string name="ai_ask_placeholder">보고 있는 화면에 대해 물어보세요...</string>
+    <string name="ai_ask_send">보내기</string>
+    <string name="ai_ask_thinking">답변을 만드는 중...</string>
+    <string name="ai_ask_empty">지금 보고 있는 화면의 기록을 함께 보고 답해요.</string>
+    <string name="ai_ask_error">답변을 받지 못했어요. 잠시 후 다시 시도해 주세요.</string>
+    <string name="ai_ask_retry">다시 시도</string>
+    <string name="ai_ask_limit">오늘 AI 질문 횟수를 모두 사용했어요. 내일 다시 시도해 주세요.</string>
+    <string name="ai_ask_remaining">오늘 무료 질문 %1$d/%2$d회 남음</string>
+    <string name="ai_screen_daily_list">기록 목록</string>
+    <string name="ai_screen_daily_record">%1$s 정산</string>
+
+    <!-- 화면별 추천 질문 -->
+    <string name="ai_ask_q_daily_list_1">이번 주 흐름 어때?</string>
+    <string name="ai_ask_q_daily_list_2">체중이 왜 안 줄었을까?</string>
+    <string name="ai_ask_q_daily_list_3">다음 주엔 뭘 바꿔야 해?</string>
+    <string name="ai_ask_q_daily_record_1">오늘 식단 어때?</string>
+    <string name="ai_ask_q_daily_record_2">남은 칼로리로 저녁 추천해줘</string>
+    <string name="ai_ask_q_daily_record_3">단백질 충분했어?</string>
+    <string name="ai_ask_q_month_1">이번 달 총평 해줘</string>
+    <string name="ai_ask_q_month_2">어느 주가 제일 안 좋았어?</string>
+    <string name="ai_ask_q_month_3">다음 달 목표는 어떻게 잡을까?</string>
+    <string name="ai_ask_q_period_1">이 기간에 적자가 났어?</string>
+    <string name="ai_ask_q_period_2">운동은 충분했어?</string>
+    <string name="ai_ask_q_period_3">가장 안 좋았던 날은 언제야?</string>
+    <string name="ai_ask_q_inbody_list_1">체지방 어때?</string>
+    <string name="ai_ask_q_inbody_list_2">근육은 늘었어?</string>
+    <string name="ai_ask_q_inbody_list_3">다음 측정까지 뭘 해야 해?</string>
+    <string name="ai_ask_q_inbody_trend_1">체지방률 변화 어때?</string>
+    <string name="ai_ask_q_inbody_trend_2">골격근 추이 알려줘</string>
+    <string name="ai_ask_q_inbody_trend_3">이 추세면 다음 달은?</string>
+    <string name="ai_ask_q_weight_1">체중이 왜 정체됐어?</string>
+    <string name="ai_ask_q_weight_2">감량 속도 정상이야?</string>
+    <string name="ai_ask_q_weight_3">이번 주 체중은 어떻게 될까?</string>
 </resources>

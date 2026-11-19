@@ -21,6 +21,10 @@ import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.local.entity.dao.DailyRecordDao
 import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
 import com.youngs.dailynet.data.model.AiActivity
+import com.youngs.dailynet.data.model.AiAskMessage
+import com.youngs.dailynet.data.model.AiAskQuota
+import com.youngs.dailynet.data.model.AiAskRequest
+import com.youngs.dailynet.data.model.AiAskTurn
 import com.youngs.dailynet.data.model.AiContext
 import com.youngs.dailynet.data.model.AiGoal
 import com.youngs.dailynet.data.model.DailyRecordModel
@@ -39,6 +43,7 @@ import com.youngs.dailynet.ui.view.periodKeyOf
 import com.youngs.dailynet.ui.view.recordsFingerprint
 import com.youngs.dailynet.util.Constants
 import com.youngs.dailynet.data.network.AnalysisLimitException
+import com.youngs.dailynet.data.network.AiAskLimitException
 import com.youngs.dailynet.data.network.BillingManager.Companion.PRODUCT_ID_MONTHLY
 import com.youngs.dailynet.data.network.GeminiManager
 import com.youngs.dailynet.data.network.PhotoLimitException
@@ -576,6 +581,110 @@ class MainViewModel @Inject constructor(
 
     private val _isPagingLoading = MutableStateFlow(false)
     val isPagingLoading = _isPagingLoading.asStateFlow()
+
+    // ── 전역 AI 질문 (조회 화면 우하단 AI 버튼) ──────────────────────────
+    //
+    // 대화는 **세션 안에서만** 남긴다. 서버·DB에 저장하지 않고 앱을 끄면 사라진다.
+    // 화면을 옮겨도 말풍선이 유지되도록 ViewModel에 두었다(화면은 다시 그려지지만 ViewModel은 남는다).
+    private val _aiMessages = MutableStateFlow<List<AiAskMessage>>(emptyList())
+    val aiMessages = _aiMessages.asStateFlow()
+
+    /** 답을 기다리는 중. 입력창·전송·추천 질문을 잠그고 말풍선에 진행 표시를 띄운다 */
+    private val _aiAsking = MutableStateFlow(false)
+    val aiAsking = _aiAsking.asStateFlow()
+
+    /** 오늘 남은 무료 질문. 서버가 숫자를 준 경우에만 생긴다(무료/구독 구분이 있을 때) */
+    private val _aiQuota = MutableStateFlow<AiAskQuota?>(null)
+    val aiQuota = _aiQuota.asStateFlow()
+
+    /** 마지막 질문 한 번. 실패한 뒤 "다시 시도"가 같은 화면·같은 질문을 그대로 다시 보낸다 */
+    private data class AiAskCall(
+        val screenType: String,
+        val screenTitle: String,
+        val contextData: String,
+        val question: String
+    )
+
+    private var lastAiAsk: AiAskCall? = null
+
+    /**
+     * 지금 보고 있는 화면에 대해 묻는다.
+     *
+     * @param contextData 화면이 보여주는 값의 요약 (ui/view/AiAskContext)
+     */
+    fun askAiQuestion(screenType: String, screenTitle: String, contextData: String, question: String) {
+        val text = question.trim()
+        if (text.isEmpty() || _aiAsking.value) return
+        val call = AiAskCall(screenType, screenTitle, contextData, text)
+        lastAiAsk = call
+        sendAiAsk(call, appendUser = true)
+    }
+
+    /** 마지막 질문을 다시 보낸다. 실패 안내 말풍선은 지우고 질문은 그대로 둔다 */
+    fun retryAiAsk() {
+        val call = lastAiAsk ?: return
+        if (_aiAsking.value) return
+        _aiMessages.update { list -> list.filterNot { it.error } }
+        sendAiAsk(call, appendUser = false)
+    }
+
+    /**
+     * 지난 대화를 서버 형식으로. 오류 말풍선은 대화가 아니므로 뺐다.
+     * 서버도 6개까지만 쓰지만, 토큰을 아끼려고 여기서 먼저 자른다.
+     */
+    private fun aiHistory(): List<AiAskTurn> = _aiMessages.value
+        .filterNot { it.error }
+        .takeLast(6)
+        .map { AiAskTurn(role = if (it.fromUser) "user" else "assistant", text = it.text) }
+
+    private fun sendAiAsk(call: AiAskCall, appendUser: Boolean) {
+        // 방금 넣은 질문을 history에 또 넣지 않도록 보내기 전 목록으로 만든다
+        val history = aiHistory().let { turns ->
+            // 다시 보내는 경우에는 같은 질문이 목록 끝에 이미 있다. 그걸 history와 [질문]에 두 번 넣으면
+            // 모델이 같은 말을 두 번 받는다
+            if (!appendUser && turns.lastOrNull()?.role == "user") turns.dropLast(1) else turns
+        }
+        if (appendUser) {
+            _aiMessages.update { it + AiAskMessage(text = call.question, fromUser = true) }
+        }
+        viewModelScope.launch {
+            _aiAsking.value = true
+            try {
+                val request = AiAskRequest(
+                    language = Locale.getDefault().toLanguageTag(),
+                    screenType = call.screenType,
+                    screenTitle = call.screenTitle,
+                    contextData = call.contextData,
+                    // 설정의 목표·활동량·메모. 다른 AI 호출과 같은 기준을 쓴다
+                    aiContext = AiContext.of(userProfileDao.getProfile()),
+                    question = call.question,
+                    history = history
+                )
+                val reply = geminiManager.askAiCoach(request)
+                if (reply == null) {
+                    _aiMessages.update { it + aiError() }
+                } else {
+                    _aiMessages.update { it + AiAskMessage(text = reply.answer, fromUser = false) }
+                    // 서버가 남은 횟수를 안 주면(무료 개방·구독자) 이전 값도 지운다
+                    _aiQuota.value = reply.remainingFreeCount?.let { remaining ->
+                        AiAskQuota(remaining = remaining, limit = reply.limit ?: 0)
+                    }
+                }
+            } catch (e: AiAskLimitException) {
+                // 남은 횟수 줄은 건드리지 않는다. 무료 개방 중에는 그 줄이 없는 것이 맞고,
+                // 유료 정책에서는 바로 앞 응답의 숫자를 그대로 두는 편이 "0/0"보다 낫다
+                _aiMessages.update { it + AiAskMessage(text = context.getString(R.string.ai_ask_limit), fromUser = false, error = true) }
+            } catch (e: Exception) {
+                CrashReporter.report("askAiCoach", e)
+                _aiMessages.update { it + aiError() }
+            } finally {
+                _aiAsking.value = false
+            }
+        }
+    }
+
+    private fun aiError(): AiAskMessage =
+        AiAskMessage(text = context.getString(R.string.ai_ask_error), fromUser = false, error = true)
 
 
     val isLastPageReached: Boolean

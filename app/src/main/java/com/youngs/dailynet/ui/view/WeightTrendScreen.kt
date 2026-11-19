@@ -25,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.youngs.dailynet.R
+import com.youngs.dailynet.data.model.AiScreenTypes
 import com.youngs.dailynet.ui.theme.DnTheme
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
@@ -117,6 +118,14 @@ fun WeightTrendScreen(
                     }
                 }
             )
+        },
+        floatingActionButton = {
+            AiAskFab(
+                mainViewModel = mainViewModel,
+                screenType = AiScreenTypes.WEIGHT_TREND,
+                screenTitle = stringResource(R.string.weight_trend_title),
+                contextData = remember(shown) { AiAskContext.weightTrend(shown) }
+            )
         }
     ) { padding ->
         Column(
@@ -160,8 +169,10 @@ fun WeightTrendScreen(
                 text = stringResource(R.string.weight_trend_hint),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 12.dp)
+                modifier = Modifier.padding(top = 12.dp)
             )
+            // 아래 AI 버튼이 안내 문구를 가리지 않게
+            Spacer(modifier = Modifier.height(88.dp))
         }
     }
 }

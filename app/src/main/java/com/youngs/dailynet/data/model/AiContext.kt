@@ -1,5 +1,6 @@
 package com.youngs.dailynet.data.model
 
+import com.google.gson.annotations.SerializedName
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
 
 /**
@@ -13,9 +14,11 @@ import com.youngs.dailynet.data.local.entity.UserProfileEntity
  * 저장·전송에는 쓰지 않는다 (라벨은 [com.youngs.dailynet.ui.view.AiGoal.labelRes] 참고).
  */
 enum class AiGoal(val code: String) {
-    LOSE("lose"),
-    MAINTAIN("maintain"),
-    GAIN("gain");
+    // Gson은 그냥 두면 enum **이름**(LOSE)을 보낸다. 서버는 코드(lose)를 보므로
+    // @SerializedName이 없으면 목표가 서버에서 조용히 버려진다 (AI 참고 정보가 전달되지 않음).
+    @SerializedName("lose") LOSE("lose"),
+    @SerializedName("maintain") MAINTAIN("maintain"),
+    @SerializedName("gain") GAIN("gain");
 
     companion object {
         /** 서버·Firestore에서 읽은 코드. 모르는 값이면 null(미선택) */
@@ -25,9 +28,9 @@ enum class AiGoal(val code: String) {
 
 /** 평소 활동량. 목표와 같은 규칙으로 코드로 저장한다 */
 enum class AiActivity(val code: String) {
-    SEDENTARY("sedentary"),
-    ACTIVE("active"),
-    LABOR("labor");
+    @SerializedName("sedentary") SEDENTARY("sedentary"),
+    @SerializedName("active") ACTIVE("active"),
+    @SerializedName("labor") LABOR("labor");
 
     companion object {
         fun fromCode(code: String?): AiActivity? = entries.firstOrNull { it.code == code }
