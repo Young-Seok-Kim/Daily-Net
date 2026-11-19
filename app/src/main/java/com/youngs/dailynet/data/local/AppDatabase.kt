@@ -35,7 +35,7 @@ import com.youngs.dailynet.data.local.entity.dao.UserProfileDao
         InbodyRecordEntity::class,
         ExercisePassEntity::class
     ],
-    version = 17, // 👈 user_profile 에 AI 분석 참고 정보 3개 컬럼 (MIGRATION_16_17)
+    version = 18, // 👈 inbody_records 에 해석 구조 analysisDetail (MIGRATION_17_18)
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -277,5 +277,16 @@ val MIGRATION_16_17 = object : Migration(16, 17) {
         db.execSQL("ALTER TABLE user_profile ADD COLUMN aiGoal TEXT NOT NULL DEFAULT ''")
         db.execSQL("ALTER TABLE user_profile ADD COLUMN aiActivity TEXT NOT NULL DEFAULT ''")
         db.execSQL("ALTER TABLE user_profile ADD COLUMN aiNote TEXT NOT NULL DEFAULT ''")
+    }
+}
+
+/**
+ * b68: 인바디 해석을 글과 함께 구조(JSON)로 둔다 (InbodyRecordEntity.analysisDetail).
+ * nullable 컬럼 하나라 ALTER TABLE로 충분하고, 기존 행은 null(= 옛 글만 있는 해석)이다.
+ * 값은 Firestore users/{uid}/inbody 문서에도 있어 다시 동기화하면 채워진다.
+ */
+val MIGRATION_17_18 = object : Migration(17, 18) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE inbody_records ADD COLUMN analysisDetail TEXT")
     }
 }

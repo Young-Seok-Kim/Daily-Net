@@ -39,7 +39,9 @@ data class InbodyData(
      */
     @Transient val analysis: String = "",
     /** 해석을 받은 날 yyyy-MM-dd */
-    @Transient val analyzedAt: String = ""
+    @Transient val analyzedAt: String = "",
+    /** 해석의 구조 (b68~). 글만 있던 옛 해석은 null — 화면이 글로 물러난다 */
+    @Transient val analysisDetail: InbodyAnalysisDetail? = null
 ) {
     /** 뭐라도 들어 있는지. 전부 0이면 저장할 가치가 없다 */
     val hasData: Boolean
@@ -59,7 +61,7 @@ data class InbodyData(
         "bodyWater" to bodyWater,
         "analysis" to analysis,
         "analyzedAt" to analyzedAt
-    )
+    ) + (analysisDetail?.let { mapOf("analysisDetail" to it.toMap()) } ?: emptyMap())
 
     companion object {
         /** Firestore 문서의 `inbody` 맵. 없거나 형식이 다르면 null */
@@ -77,7 +79,8 @@ data class InbodyData(
                 inbodyScore = (map["inbodyScore"] as? Number)?.toInt() ?: 0,
                 bodyWater = f("bodyWater"),
                 analysis = (map["analysis"] as? String).orEmpty(),
-                analyzedAt = (map["analyzedAt"] as? String).orEmpty()
+                analyzedAt = (map["analyzedAt"] as? String).orEmpty(),
+                analysisDetail = InbodyAnalysisDetail.fromMap(map["analysisDetail"])
             )
             return data.takeIf { it.hasData }
         }
@@ -96,7 +99,9 @@ data class InbodyAnalysisRequest(
 
 data class InbodyAnalysisResponse(
     /** 화면에 그대로 보여줄 해석 글. 실패하면 빈 문자열 */
-    @SerializedName("text") val text: String = ""
+    @SerializedName("text") val text: String = "",
+    /** 같은 해석의 구조 (b68~ 서버). 구서버면 null */
+    @SerializedName("detail") val detail: InbodyAnalysisDetail? = null
 )
 
 /** 인바디 결과지 사진을 읽어달라는 요청 */

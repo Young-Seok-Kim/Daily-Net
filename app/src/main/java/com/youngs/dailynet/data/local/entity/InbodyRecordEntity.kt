@@ -2,6 +2,7 @@ package com.youngs.dailynet.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.youngs.dailynet.data.model.InbodyAnalysisDetail
 import com.youngs.dailynet.data.model.InbodyData
 
 /**
@@ -24,6 +25,8 @@ data class InbodyRecordEntity(
     val bodyWater: Float = 0f,
     val analysis: String = "",
     val analyzedAt: String = "",
+    /** 해석 구조 (b68~, Converters가 JSON으로). 옛 해석은 null */
+    val analysisDetail: InbodyAnalysisDetail? = null,
     val createdAt: Long = System.currentTimeMillis(),
     /** 디버그 빌드에서 추이 화면 확인용으로 넣은 가짜 측정. 계정에 올리지 않고 분석에도 쓰지 않는다 */
     val isDummy: Boolean = false
@@ -39,7 +42,8 @@ data class InbodyRecordEntity(
         inbodyScore = inbodyScore,
         bodyWater = bodyWater,
         analysis = analysis,
-        analyzedAt = analyzedAt
+        analyzedAt = analyzedAt,
+        analysisDetail = analysisDetail
     )
 
     companion object {
@@ -56,6 +60,7 @@ data class InbodyRecordEntity(
                 bodyWater = data.bodyWater,
                 analysis = data.analysis,
                 analyzedAt = data.analyzedAt,
+                analysisDetail = data.analysisDetail,
                 createdAt = createdAt
             )
     }

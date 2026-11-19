@@ -16,7 +16,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { LABELS, resolveLang } = require("./labels");
 const { generateAndParse, paidModel } = require("./gemini");
 const { verifyUser } = require("./quota");
-const { normalizeInbody, ageFrom, bodyMetrics, inbodyReportText } = require("./inbody");
+const { normalizeInbody, ageFrom, bodyMetrics, inbodyReportText, inbodyReportDetail } = require("./inbody");
 
 exports.analyzeInbody = onRequest({
     region: "asia-northeast3",
@@ -108,9 +108,11 @@ ${lines.map((l) => "            " + l).join("\n")}
         );
 
         const text = inbodyReportText(data, metrics, inbody, L);
+        // 글은 구버전 앱이 그대로 보여주고, detail은 b68부터 구조로 저장해 카드로 그린다
+        const detail = inbodyReportDetail(data, metrics, inbody);
         console.log(`[inbody-analysis] uid=${user.uid} bmi=${metrics.bmi} fat=${metrics.fatLabel} muscle=${metrics.muscleLabel} len=${text.length}`);
 
-        res.status(200).json({ text, metrics });
+        res.status(200).json({ text, detail, metrics });
     } catch (error) {
         console.error("analyzeInbody Error:", error.message);
         res.status(500).json({ text: "", error: L.error });

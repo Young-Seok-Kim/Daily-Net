@@ -86,6 +86,23 @@
     <string name="inbody_analyze_button">해석 받기</string>
     <string name="inbody_reanalyze_button">다시 해석 받기</string>
     <string name="inbody_analyzed_at">%1$s 해석</string>
+    <!-- 인바디 해석 구조 카드 (b68~) -->
+    <string name="inbody_badge_bmi">BMI %1$.1f</string>
+    <string name="inbody_badge_fat">체지방 %1$s</string>
+    <string name="inbody_badge_muscle">골격근 %1$s</string>
+    <string name="inbody_badge_visceral">내장지방 %1$s</string>
+    <string name="inbody_level_low">표준 이하</string>
+    <string name="inbody_level_standard">표준</string>
+    <string name="inbody_level_high">표준 이상</string>
+    <string name="inbody_level_unknown">정보 없음</string>
+    <string name="inbody_report_fat_title">🧈 체지방</string>
+    <string name="inbody_report_muscle_title">💪 골격근</string>
+    <string name="inbody_report_bmr_title">🔥 기초대사량</string>
+    <string name="inbody_report_actions_title">✅ 앞으로 할 일</string>
+    <string name="inbody_report_standard">표준 %1$s</string>
+    <string name="inbody_report_smm_ratio">체중의 %1$.1f%%</string>
+    <string name="inbody_report_bmr_formula">공식 추정 %1$d kcal (%2$+d)</string>
+    <string name="inbody_report_protein">단백질 하루 %1$d g</string>
     <string name="toast_inbody_analysis_failed">인바디 해석을 받지 못했어요. 다시 시도해 주세요.</string>
     <string name="inbody_add">새 인바디 추가</string>
     <string name="inbody_list_empty">아직 인바디 결과가 없어요. 아래 버튼으로 추가하세요.</string>
