@@ -48,24 +48,37 @@ object AiAskContext {
         return join(lines)
     }
 
+    /** 이용권 줄에 적을 간 날짜 수. 그보다 많으면 최근 것만 적고 앞을 줄인다 */
+    private const val PASS_DATES_MAX = 20
+
     /**
-     * 운동 이용권 한 줄. "이번 주 헬스 몇 번 가야 해?" 같은 질문에 남은 횟수·기간이 근거가 된다.
-     * 쓸 수 있는 이용권만. 횟수권은 쓴/전체/남은 횟수, 기간제는 남은 날. 종료일이 있으면 붙인다.
+     * 운동 이용권. "이번 주 헬스 몇 번 가야 해?", "등록하고 나서 자주 갔어?" 같은 질문의 근거다.
+     * 쓸 수 있는 이용권만. 남은 횟수·기간과 함께 **시작일과 간 날짜**를 적는다 — 횟수만 주면 모델이
+     * "얼마나 자주"를 셀 수 없다(2026-11-19 실제 사례). 이용권마다 한 줄씩.
      */
     fun passLine(passes: List<PassUsage>): String? {
         val active = passes.filter { it.active }
         if (active.isEmpty()) return null
-        val items = active.map { u ->
+        val lines = active.map { u ->
             val p = u.pass
-            val state = when {
+            val parts = mutableListOf<String>()
+            parts += when {
                 u.remaining != null -> "${u.used}/${p.totalCount} used, ${u.remaining} left"
                 u.daysLeft != null -> "${u.daysLeft} days left"
                 else -> "no end date"
             }
-            val until = if (p.endDate.isNotBlank()) ", until ${p.endDate}" else ""
-            "${clip(p.name, 20)} (${if (p.isCount) "count" else "period"}): $state$until"
+            if (p.startDate.isNotBlank()) parts += "since ${p.startDate}"
+            if (p.endDate.isNotBlank()) parts += "until ${p.endDate}"
+            if (p.keywords.isNotEmpty()) {
+                val dates = u.usedDates
+                val shown = dates.takeLast(PASS_DATES_MAX)
+                val prefix = if (dates.size > shown.size) "... " else ""
+                parts += if (dates.isEmpty()) "went 0 days (keyword ${p.keywords.joinToString("|")})"
+                else "went ${dates.size} days: $prefix${shown.joinToString(", ")}"
+            }
+            "pass ${clip(p.name, 20)} (${if (p.isCount) "count" else "period"}): ${parts.joinToString(", ")}"
         }
-        return "passes: ${items.joinToString(" / ")}"
+        return lines.joinToString("\n")
     }
 
     /**

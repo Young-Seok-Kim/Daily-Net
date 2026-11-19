@@ -175,15 +175,36 @@ class AiAskContextTest {
         val usages = listOf(gym, pilates, expired).map { computePassUsage(it, records, today) }
 
         val line = AiAskContext.passLine(usages)!!
-        assertEquals("passes: 헬스 (count): 2/10 used, 8 left, until 2026-12-31 / 필라테스 (period): 2 days left, until 2026-11-20", line)
+        assertEquals(
+            "pass 헬스 (count): 2/10 used, 8 left, since 2026-11-01, until 2026-12-31, went 2 days: 2026-11-15, 2026-11-18\n" +
+                "pass 필라테스 (period): 2 days left, since 2026-11-01, until 2026-11-20",
+            line
+        )
 
         // 상세·목록 요약 둘 다에 붙고, 리포트보다 앞에 온다
         val detail = AiAskContext.dailyRecord(record(date = today, analysis = "리포트"), usages)
-        assertTrue(detail.indexOf("passes:") < detail.indexOf("report:"))
-        assertTrue(AiAskContext.dailyList(records, usages).contains("passes: 헬스"))
+        assertTrue(detail.indexOf("pass 헬스") < detail.indexOf("report:"))
+        assertTrue(AiAskContext.dailyList(records, usages).contains("pass 헬스"))
         // 이용권이 없으면 줄 자체가 없다
-        assertFalse(AiAskContext.dailyRecord(record(date = today)).contains("passes"))
+        assertFalse(AiAskContext.dailyRecord(record(date = today)).contains("pass "))
         assertEquals(null, AiAskContext.passLine(listOf(computePassUsage(expired, records, today))))
+    }
+
+    @Test
+    fun `기간제 이용권도 키워드가 있으면 간 날짜를 적고, 많으면 최근 20일만`() {
+        val today = "2026-11-19"
+        val kick = ExercisePassEntity(id = "k", name = "오버컴", kind = ExercisePassEntity.KIND_PERIOD,
+            startDate = "2026-10-01", endDate = "2026-12-31", keyword = "킥복싱")
+        val records = (1..25).map { record(date = "2026-10-%02d".format(it), exercise = "킥복싱 50분") } +
+            record(date = "2026-11-01", exercise = "러닝")
+        val line = AiAskContext.passLine(listOf(computePassUsage(kick, records, today)))!!
+        assertTrue(line.startsWith("pass 오버컴 (period): 43 days left, since 2026-10-01, until 2026-12-31, went 25 days: ... 2026-10-06"))
+        assertTrue(line.endsWith("2026-10-25"))
+        assertFalse(line.contains("2026-10-05,"))
+
+        // 키워드가 있는데 한 번도 안 갔으면 0으로 밝힌다 (모델이 "기록 없음"으로 오해하지 않게)
+        val none = AiAskContext.passLine(listOf(computePassUsage(kick, emptyList(), today)))!!
+        assertTrue(none.contains("went 0 days (keyword 킥복싱)"))
     }
 
     @Test

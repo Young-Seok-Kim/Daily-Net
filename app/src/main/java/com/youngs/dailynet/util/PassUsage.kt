@@ -8,7 +8,8 @@ import java.util.Locale
 /**
  * 이용권 한 장의 현재 상태. 저장하지 않고 기록에서 매번 계산한다 ([computePassUsage]).
  *
- * @param usedDates 횟수권에서 1회로 센 날들(오름차순). 기간제는 비어 있다
+ * @param usedDates 키워드가 든 날들(오름차순). 횟수권은 이 수가 쓴 횟수다.
+ *   기간제도 키워드가 있으면 센다 — 차감은 없지만 "등록하고 몇 번 갔나"를 AI 질문이 답하는 근거다
  * @param used 쓴 횟수 = 센 날 수 + 수동 보정. 0 밑으로는 안 내려간다
  * @param remaining 남은 횟수. 기간제는 null
  * @param daysLeft 오늘을 포함해 남은 날. 종료일이 없으면 null, 지났으면 0
@@ -54,10 +55,10 @@ fun passCovers(pass: ExercisePassEntity, date: String): Boolean =
  * 이용권 상태 계산.
  *
  * 횟수권: 기간 안의 기록 중 운동 칸에 키워드가 든 날을 1회로 센다. 같은 날 두 번 적어도 1회다.
- * 기간제: 오늘 기준 남은 날만 센다.
+ * 기간제: 오늘 기준 남은 날을 센다. 키워드가 있으면 간 날도 같이 세어 둔다(차감은 없다).
  */
 fun computePassUsage(pass: ExercisePassEntity, records: List<DailyRecordModel>, today: String): PassUsage {
-    val usedDates = if (pass.isCount) {
+    val usedDates = if (pass.keywords.isNotEmpty()) {
         records.asSequence()
             .filter { passCovers(pass, it.date) && passMatches(pass, it.exercise) }
             .map { it.date }

@@ -71,6 +71,18 @@ class PassUsageTest {
         assertTrue(u.usedDates.isEmpty())
         assertTrue(u.active)
 
+        // 기간제도 키워드가 있으면 간 날을 센다. 차감은 없으니 remaining은 그대로 null
+        val withKeyword = gym.copy(keyword = "헬스")
+        val records = listOf(
+            DailyRecordModel(date = "2026-11-02", exercise = "헬스 1시간"),
+            DailyRecordModel(date = "2026-11-05", exercise = "러닝"),
+            DailyRecordModel(date = "2026-11-06", exercise = "헬스")
+        )
+        val counted = computePassUsage(withKeyword, records, "2026-11-17")
+        assertEquals(listOf("2026-11-02", "2026-11-06"), counted.usedDates)
+        assertNull(counted.remaining)
+        assertTrue(counted.active)
+
         val over = computePassUsage(gym, emptyList(), "2026-12-01")
         assertEquals(0, over.daysLeft)
         assertTrue(over.expired)

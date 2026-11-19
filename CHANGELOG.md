@@ -25,6 +25,8 @@ AI 질문이 운동 이용권과 운동 내용을 함께 봅니다. "이번 주 
 - **AI 질문 컨텍스트에 운동 이용권 한 줄** (`ui/view/AiAskContext.kt` `passLine`, `DailyRecordScreen.kt`·`MainScreen.kt`)
   - 쓸 수 있는 이용권만. 횟수권은 `2/10 used, 8 left`, 기간제는 `N days left`, 종료일이 있으면 `until yyyy-MM-dd`.
     정산 상세·기록 목록 요약에 붙고 리포트보다 앞에 둔다. 이용권이 없으면 줄 자체가 없다.
+  - 시작일과 **키워드가 든 날짜**(최근 20일, 더 많으면 "..."로 줄임)를 같이 적는다. "오버컴 등록하고 킥복싱 자주 갔어?"에
+    횟수만 주면 모델이 빈도를 못 센다(실제 사례). 기간제도 키워드가 있으면 간 날을 센다(`computePassUsage`, 차감은 없음).
 - **목록·기간 요약의 하루 줄에 운동 글자** — `exercise yes` 대신 `exercise: 러닝 30분`(60자). 글자 없는 옛 기록만 yes.
 - 테스트 `AiAskContextTest` 2개 추가.
 
