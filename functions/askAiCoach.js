@@ -56,8 +56,11 @@ const MAX_HISTORY_TURNS = 6;
 /** history 한 줄의 길이 상한. 답변이 길어도 앞뒤 맥락만 남기면 충분하다 */
 const MAX_HISTORY_CHARS = 600;
 
-/** 화면 데이터 상한. 한 달치 일별 요약까지 들어가므로 넉넉하되 프롬프트가 무너지지 않게 자른다 */
-const MAX_CONTEXT_CHARS = 2000;
+/**
+ * 화면 데이터 상한. 한 달치 일별 요약과 이용권의 간 날짜 목록까지 들어가므로 넉넉하되, 요청 본문을
+ * 무한정 받지는 않는다(비용·프롬프트 붕괴 방지). 처음 2000자였는데 앱 쪽 요약이 늘어 올렸다.
+ */
+const MAX_CONTEXT_CHARS = 8000;
 
 /** 화면 이름(뱃지에 그대로 보이는 말)의 길이 상한 */
 const MAX_TITLE_CHARS = 60;
@@ -346,7 +349,10 @@ function dayLine(d) {
     const n = (v) => Math.round(Number(v) || 0);
     const parts = [`net ${n(d.netCalories)}kcal`];
     if (Number(d.weight) > 0) parts.push(`weight ${Number(d.weight).toFixed(1)}kg`);
-    if (d.hasExercise || pressLine(d.exercise || "")) parts.push("exercise yes");
+    // 앱의 AiAskContext.dayLine과 같이 운동 글자까지. "이번 달 러닝 몇 번?"에 yes/no로는 못 답한다
+    const exercise = pressLine(d.exercise || "").slice(0, 60);
+    if (exercise) parts.push(`exercise: ${exercise}`);
+    else if (d.hasExercise) parts.push("exercise yes");
     const meals = [];
     for (const [tag, key] of [["B", "breakfast"], ["L", "lunch"], ["D", "dinner"], ["S", "snack"]]) {
         const t = pressLine(d[key] || "").slice(0, 60);
@@ -578,6 +584,11 @@ function buildPrompt({ screen, contextData, aiContextBlock: contextBlock, histor
         "   그 블록이 없으면 규칙 8로 요청하고, \"(기록 없음)\"이면 화면 데이터를 그 날의 값인 것처럼 말하지 말고",
         "   그 날은 기록이 없다고 말하십시오. 어느 경우든 화면 데이터(date 줄)의 날짜와 질문의 날짜가 다르면 화면 값을 그 날 값으로 쓰면 안 됩니다.",
         "   그 날 기록을 자세히 볼 화면으로 안내할 때는 규칙 7의 표식에 날짜를 붙이십시오 (예: [GOTO:daily_record:2026-11-18]).",
+        "   화면 데이터의 `pass 이름 (count|period): ...` 줄은 운동 이용권입니다. `went N days: 날짜들`은 그 이용권 운동을 한 날",
+        "   전체 목록이고, `no keyword, exercise days since start N: 날짜 운동` 은 이용권 기간 안에 한 모든 운동입니다.",
+        "   \"등록하고 몇 번 갔나\", \"자주 갔나\" 는 이 줄의 날짜로 세어 답하십시오 (다른 화면으로 보내지 마십시오).",
+        "   `no keyword` 목록은 이용권과 무관한 운동(수영·헬스 등)도 섞여 있습니다. 각 날짜 뒤의 운동 글자를 보고",
+        "   질문이 말한 운동(예: 킥복싱)이 든 날만 세고, 나머지 날은 세지도 나열하지도 마십시오.",
         "2. 화면 데이터의 숫자(순칼로리·권장량·체중·체성분)는 앱이 이미 계산한 값입니다. 다시 계산하거나 바꾸지 말고 그대로 인용하십시오.",
         "3. 결론을 먼저 두 문장 안에 말하고, 근거가 되는 숫자를 한두 개 붙이십시오. 전체는 3~6문장으로 짧게.",
         "4. 제안이 필요하면 '- '로 시작하는 짧은 불릿 2~3개를 쓰십시오. 불릿 말고는 목록·표·제목을 쓰지 마십시오.",

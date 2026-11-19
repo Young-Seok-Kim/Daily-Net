@@ -261,6 +261,15 @@ test("마크다운 걷어내기", async (t) => {
         assert.equal(stripMarkdown("평범한 문장입니다."), "평범한 문장입니다.");
     });
 
+    await t.test("프롬프트가 이용권 줄의 뜻과 '날짜로 세어 답하라'를 알려 준다", () => {
+        const prompt = buildPrompt({ screen: { type: "daily_list", title: "목록" }, contextData: "", aiContextBlock: "", history: [], question: "q", outputLanguage: "한국어", now: "2026-11-19 목요일 14:32" });
+        assert.match(prompt, /went N days/);
+        assert.match(prompt, /exercise days since start/);
+        assert.match(prompt, /이 줄의 날짜로 세어 답하십시오/);
+        // 키워드 없는 목록은 다른 운동도 섞여 있다 (2026-11-19 실제: 수영·헬스까지 15일로 셌다)
+        assert.match(prompt, /질문이 말한 운동\(예: 킥복싱\)이 든 날만 세고/);
+    });
+
     await t.test("프롬프트가 마크다운을 금지한다", () => {
         const prompt = buildPrompt({ screen: { type: "daily_record", title: "정산" }, contextData: "", aiContextBlock: "", history: [], question: "q", outputLanguage: "한국어", now: "2026-11-19 목요일 14:32" });
         assert.match(prompt, /마크다운을 쓰지 마십시오/);
@@ -435,7 +444,9 @@ test("추가 데이터 요청(NEED)", async (t) => {
         assert.match(text, /^\[2026-10 일별 정산/);
         assert.match(text, /recorded 2 days, net total -200kcal, avg -100kcal\/day/);
         assert.match(text, /- 2026-10-01 net -300kcal, weight 72.0kg \| B: 밥/);
-        assert.match(text, /- 2026-10-02 net 100kcal, exercise yes \| B: 밥/);
+        assert.match(text, /- 2026-10-02 net 100kcal, exercise: 러닝 \| B: 밥/);
+        // 글자 없이 플래그만 있는 옛 기록은 yes
+        assert.match(formatMonth("2026-10", [day("2026-10-03", { hasExercise: true })]), /exercise yes/);
         assert.match(formatMonth("2026-09", []), /\(기록 없음\)/);
     });
 

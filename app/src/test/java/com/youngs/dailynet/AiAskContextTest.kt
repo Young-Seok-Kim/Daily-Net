@@ -1,7 +1,9 @@
 package com.youngs.dailynet
 
+import com.youngs.dailynet.data.local.entity.ExercisePassEntity
 import com.youngs.dailynet.data.local.entity.InbodyRecordEntity
 import com.youngs.dailynet.data.model.DailyRecordModel
+import com.youngs.dailynet.util.computePassUsage
 import com.youngs.dailynet.ui.view.AiAskContext
 import com.youngs.dailynet.ui.view.PeriodSummary
 import org.junit.Assert.assertEquals
@@ -145,6 +147,89 @@ class AiAskContextTest {
         assertTrue(text.contains("- 2026-11-01"))
         assertTrue(text.contains("- 2026-11-07"))
         assertFalse(text.contains("- 2026-11-08"))
+    }
+
+    @Test
+    fun `목록 줄에는 무슨 운동을 했는지 글자가 들어간다`() {
+        val text = AiAskContext.dailyList(listOf(
+            record(date = "2026-11-02", exercise = "러닝 30분"),
+            record(date = "2026-11-01", exercise = "", exerciseKcal = 0)
+        ))
+        assertTrue(text.contains("- 2026-11-02 net -420 kcal, exercise: 러닝 30분"))
+        assertFalse(text.contains("2026-11-01 net -420 kcal, exercise"))
+    }
+
+    @Test
+    fun `운동 이용권은 쓸 수 있는 것만 남은 횟수·기간과 함께 한 줄로 붙는다`() {
+        val today = "2026-11-19"
+        val records = listOf(
+            record(date = "2026-11-18", exercise = "헬스 1시간"),
+            record(date = "2026-11-15", exercise = "헬스")
+        )
+        val gym = ExercisePassEntity(id = "a", name = "헬스", kind = ExercisePassEntity.KIND_COUNT,
+            startDate = "2026-11-01", endDate = "2026-12-31", totalCount = 10, keyword = "헬스")
+        val pilates = ExercisePassEntity(id = "b", name = "필라테스", kind = ExercisePassEntity.KIND_PERIOD,
+            startDate = "2026-11-01", endDate = "2026-11-20", keyword = "필라테스")
+        val expired = ExercisePassEntity(id = "c", name = "수영", kind = ExercisePassEntity.KIND_PERIOD,
+            startDate = "2026-10-01", endDate = "2026-10-31")
+        val usages = listOf(gym, pilates, expired).map { computePassUsage(it, records, today) }
+
+        val line = AiAskContext.passLine(usages)!!
+        assertEquals(
+            "pass 헬스 (count): 2/10 used, 8 left, since 2026-11-01, until 2026-12-31, went 2 days: 2026-11-15, 2026-11-18\n" +
+                "pass 필라테스 (period): 2 days left, since 2026-11-01, until 2026-11-20, went 0 days (keyword 필라테스)",
+            line
+        )
+
+        // 상세·목록 요약 둘 다에 붙고, 리포트보다 앞에 온다
+        val detail = AiAskContext.dailyRecord(record(date = today, analysis = "리포트"), usages)
+        assertTrue(detail.indexOf("pass 헬스") < detail.indexOf("report:"))
+        assertTrue(AiAskContext.dailyList(records, usages).contains("pass 헬스"))
+        // 이용권이 없으면 줄 자체가 없다
+        assertFalse(AiAskContext.dailyRecord(record(date = today)).contains("pass "))
+        assertEquals(null, AiAskContext.passLine(listOf(computePassUsage(expired, records, today))))
+    }
+
+    @Test
+    fun `기간제 이용권도 키워드가 있으면 간 날짜를 적고, 많으면 최근 60일만`() {
+        val today = "2026-11-19"
+        val kick = ExercisePassEntity(id = "k", name = "오버컴", kind = ExercisePassEntity.KIND_PERIOD,
+            startDate = "2026-08-01", endDate = "2026-12-31", keyword = "킥복싱")
+        val start = java.time.LocalDate.of(2026, 8, 1)
+        val records = (0 until 90).map { record(date = start.plusDays(it.toLong()).toString(), exercise = "킥복싱 50분") } +
+            record(date = "2026-11-01", exercise = "러닝")
+        val line = AiAskContext.passLine(listOf(computePassUsage(kick, records, today)))!!
+        // 90일 중 최근 60일(09-30~10-29)만, 앞은 "..."
+        assertTrue(line, line.startsWith("pass 오버컴 (period): 43 days left, since 2026-08-01, until 2026-12-31, went 90 days: ... 2026-08-31"))
+        assertTrue(line.endsWith("2026-10-29"))
+        assertFalse(line.contains("2026-08-30,"))
+
+        // 키워드가 있는데 한 번도 안 갔으면 0으로 밝힌다 (모델이 "기록 없음"으로 오해하지 않게)
+        val none = AiAskContext.passLine(listOf(computePassUsage(kick, emptyList(), today)))!!
+        assertTrue(none.contains("went 0 days (keyword 킥복싱)"))
+    }
+
+    @Test
+    fun `키워드 없는 이용권은 기간 안에 운동한 날을 전부 넘긴다`() {
+        // 2026-11-19 실제 사례: 오버컴(기간제)에 키워드가 없어 킥복싱 날짜가 하나도 안 갔다
+        val today = "2026-11-19"
+        val overcome = ExercisePassEntity(id = "o", name = "오버컴", kind = ExercisePassEntity.KIND_PERIOD,
+            startDate = "2026-10-13", endDate = "2027-02-12")
+        val records = listOf(
+            record(date = "2026-10-10", exercise = "킥복싱"),             // 시작 전 → 제외
+            record(date = "2026-10-13", exercise = "킥복싱 수업 50분, 샌드백 자세 연습 및 매달리기"),
+            record(date = "2026-10-20", exercise = ""),                   // 운동 없음 → 제외
+            record(date = "2026-11-02", exercise = "러닝 30분"),
+            record(date = "2026-11-17", exercise = "킥복싱 수업 50분")
+        )
+        val line = AiAskContext.passLine(listOf(computePassUsage(overcome, records, today)))!!
+        assertTrue(line, line.startsWith("pass 오버컴 (period): 86 days left, since 2026-10-13, until 2027-02-12, no keyword, exercise days since start 3: 2026-10-13 킥복싱 수업 50분, 샌드백"))
+        assertTrue(line, line.contains("…, 2026-11-02 러닝 30분, 2026-11-17 킥복싱 수업 50분"))
+        assertFalse(line.contains("2026-10-10"))
+        assertFalse(line.contains("2026-10-20"))
+        // 목록 요약에서는 일별 줄보다 앞에 온다 (잘려도 이용권이 남게)
+        val list = AiAskContext.dailyList(records.sortedByDescending { it.date }, listOf(computePassUsage(overcome, records, today)))
+        assertTrue(list.indexOf("pass 오버컴") < list.indexOf("- 2026-11-17"))
     }
 
     @Test

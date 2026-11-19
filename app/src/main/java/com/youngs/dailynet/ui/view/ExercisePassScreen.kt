@@ -266,6 +266,14 @@ private fun PassCard(
                     color = net.coral
                 )
             }
+        } else if (pass.keyword.isNotBlank()) {
+            // 기간제: 차감은 없지만 키워드로 센 "다녀온 날"을 보여 준다
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = stringResource(R.string.pass_period_visits, usage.usedDates.size),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -402,7 +410,8 @@ private fun PassEditDialog(
                     startDate = startDate,
                     endDate = endDate,
                     totalCount = if (isCount) total else 0,
-                    keyword = if (isCount) keyword.trim() else ""
+                    // 기간제도 키워드를 둔다. 차감은 없지만 "그 이용권으로 운동한 날"을 세는 데 쓴다 (AI 질문·카드 표시)
+                    keyword = keyword.trim()
                 )
             )
         }
@@ -452,17 +461,18 @@ private fun PassEditDialog(
                 shape = RoundedCornerShape(DnDimens.RadiusChip),
                 modifier = Modifier.fillMaxWidth()
             )
-            OutlinedTextField(
-                value = keyword,
-                onValueChange = { keyword = it },
-                label = { Text(stringResource(R.string.pass_keyword)) },
-                placeholder = { Text(stringResource(R.string.pass_keyword_placeholder)) },
-                supportingText = { Text(stringResource(R.string.pass_keyword_hint)) },
-                singleLine = true,
-                shape = RoundedCornerShape(DnDimens.RadiusChip),
-                modifier = Modifier.fillMaxWidth()
-            )
         }
+        // 키워드는 둘 다 받는다. 횟수권은 차감 기준, 기간제는 "이 이용권으로 운동한 날" 기준
+        OutlinedTextField(
+            value = keyword,
+            onValueChange = { keyword = it },
+            label = { Text(stringResource(if (isCount) R.string.pass_keyword else R.string.pass_keyword_period)) },
+            placeholder = { Text(stringResource(R.string.pass_keyword_placeholder)) },
+            supportingText = { Text(stringResource(if (isCount) R.string.pass_keyword_hint else R.string.pass_keyword_period_hint)) },
+            singleLine = true,
+            shape = RoundedCornerShape(DnDimens.RadiusChip),
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 
     if (pickingStart) {

@@ -219,6 +219,9 @@
     <string name="pass_keyword">차감 키워드</string>
     <string name="pass_keyword_placeholder">예: PT, 피티</string>
     <string name="pass_keyword_hint">운동 칸에 이 말이 있으면 그날 1회로 셉니다. 쉼표로 여러 개</string>
+    <string name="pass_keyword_period">운동 키워드</string>
+    <string name="pass_keyword_period_hint">운동 칸에 이 말이 있으면 이 이용권으로 운동한 날로 셉니다. AI 질문과 카드에 쓰여요. 쉼표로 여러 개</string>
+    <string name="pass_period_visits">이 기간에 %1$d일 다녀옴</string>
     <string name="pass_clear_date">지우기</string>
     <string name="pass_days_left">%1$d일 남음</string>
     <string name="pass_sessions_left">%1$d회 남음</string>

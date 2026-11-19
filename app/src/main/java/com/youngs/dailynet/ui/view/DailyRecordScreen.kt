@@ -553,7 +553,7 @@ fun DailyRecordScreen(
                             R.string.ai_screen_daily_record,
                             "${uiState.date} ${getDayOfWeekText(uiState.date)}".trim()
                         ),
-                        contextData = remember(uiState) { AiAskContext.dailyRecord(uiState) },
+                        contextData = remember(uiState, passUsages) { AiAskContext.dailyRecord(uiState, passUsages) },
                         onBlockedClick = if (recordDirty) {
                             {
                                 scope.launch {
