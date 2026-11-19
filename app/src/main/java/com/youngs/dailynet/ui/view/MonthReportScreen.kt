@@ -42,6 +42,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlin.math.abs
 import androidx.compose.material3.FilledTonalButton
+import com.youngs.dailynet.data.model.AiScreenTypes
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
@@ -88,6 +89,7 @@ fun MonthReportScreen(
     onNavigateToDetail: (String) -> Unit
 ) {
     val allRecords by mainViewModel.visibleRecords.collectAsState()
+    val userProfile by mainViewModel.userProfile.collectAsState()
 
     // 넘길 수 있는 달 목록 (오름차순). 기록이 바뀌어 달이 늘면 아래 key()로 페이저를 다시 만든다.
     val months = remember(allRecords, yearMonth) { monthRangeOf(allRecords, yearMonth) }
@@ -175,6 +177,29 @@ fun MonthReportScreen(
                                 contentDescription = stringResource(R.string.cd_next_month)
                             )
                         }
+                    }
+                )
+            },
+            // 지금 화면에 보이는 달의 요약을 AI에 넘긴다. 옆 달 페이지는 미리 그려지지만
+            // 그쪽 데이터를 보내면 안 되므로 페이지 밖(현재 달을 아는 여기)에서 만든다
+            floatingActionButton = {
+                val monthRecords = remember(allRecords, currentMonth) {
+                    allRecords.filter { it.date.take(7) == currentMonth }
+                }
+                val fallbackWeight = remember(allRecords, userProfile) {
+                    allRecords.firstOrNull { it.weight > 0f }?.weight
+                        ?: userProfile?.initialWeight
+                        ?: 0f
+                }
+                val monthSummary = remember(monthRecords, fallbackWeight) {
+                    buildPeriodSummary(monthRecords, fallbackWeight)
+                }
+                AiAskFab(
+                    mainViewModel = mainViewModel,
+                    screenType = AiScreenTypes.MONTH_REPORT,
+                    screenTitle = monthTitleOf(currentMonth),
+                    contextData = remember(monthRecords, monthSummary, currentMonth) {
+                        AiAskContext.periodSummary(monthSummary, monthRecords, monthTitleOf(currentMonth))
                     }
                 )
             }
@@ -324,7 +349,8 @@ private fun MonthReportPage(
 
         HighlightCard(records = records, summary = summary, onOpenDay = onNavigateToDetail)
 
-        Spacer(modifier = Modifier.height(24.dp))
+        // 아래 AI 버튼이 마지막 카드를 가리지 않게
+        Spacer(modifier = Modifier.height(88.dp))
     }
 }
 

@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.youngs.dailynet.R
+import com.youngs.dailynet.data.model.AiScreenTypes
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 
 /**
@@ -95,6 +96,17 @@ fun PeriodReportScreen(
                     }
                 }
             )
+        },
+        // 이 기간의 합계를 그대로 넘긴다 — 화면 카드와 AI가 보는 숫자가 같아야 한다
+        floatingActionButton = {
+            AiAskFab(
+                mainViewModel = mainViewModel,
+                screenType = AiScreenTypes.PERIOD_REPORT,
+                screenTitle = title,
+                contextData = remember(summary, records, title) {
+                    AiAskContext.periodSummary(summary, records, title)
+                }
+            )
         }
     ) { padding ->
         if (records.isEmpty()) {
@@ -136,7 +148,8 @@ fun PeriodReportScreen(
                 records = records
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            // 아래 AI 버튼이 평가 카드 끝을 가리지 않게
+            Spacer(modifier = Modifier.height(88.dp))
         }
     }
 }

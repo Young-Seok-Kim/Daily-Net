@@ -52,7 +52,10 @@ const LABELS = {
         limitReached: "오늘 분석 횟수를 모두 사용했습니다.",
         evalLimitReached: "오늘 AI 평가 횟수를 모두 사용했습니다. 내일 다시 시도해 주세요.",
         photoLimitReached: "오늘 사진 인식을 너무 많이 사용했습니다. 내일 다시 시도해 주세요.",
-        authRequired: "로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요."
+        authRequired: "로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.",
+        // 전역 AI 질문(askAiCoach)
+        askEmpty: "질문을 입력해 주세요.",
+        askLimitReached: "오늘 AI 질문 횟수를 모두 사용했습니다. 내일 다시 시도해 주세요."
     },
     en: {
         outputLanguage: "English",
@@ -96,7 +99,10 @@ const LABELS = {
         limitReached: "You have used all of today's analyses.",
         evalLimitReached: "You have used all of today's AI evaluations. Please try again tomorrow.",
         photoLimitReached: "Too many photo scans today. Please try again tomorrow.",
-        authRequired: "We could not verify your sign-in. Please sign in again."
+        authRequired: "We could not verify your sign-in. Please sign in again.",
+        // Global AI questions (askAiCoach)
+        askEmpty: "Please enter a question.",
+        askLimitReached: "You have used all of today's AI questions. Please try again tomorrow."
     }
 };
 

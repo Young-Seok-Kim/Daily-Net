@@ -33,6 +33,13 @@ object Constants {
     const val WITHDRAW_ACCOUNT_URL =
         "https://asia-northeast3-daily-net-95d28.cloudfunctions.net/withdrawAccount"
 
+    /**
+     * 전역 AI 질문(askAiCoach). 조회 화면 우하단 AI 버튼의 시트가 부른다.
+     * 다른 2세대 함수와 같은 형태다. 배포 뒤 `firebase deploy` 출력의 Function URL을 그대로 옮길 것.
+     */
+    const val ASK_AI_COACH_URL =
+        "https://asia-northeast3-daily-net-95d28.cloudfunctions.net/askAiCoach"
+
     /** 연결 수립 타임아웃 */
     const val CONNECT_TIMEOUT_MS = 15000L
 

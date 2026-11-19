@@ -195,6 +195,8 @@ class MainActivity : ComponentActivity() {
                                         navigateTo(ScreenEntry("weight", date))
                                     },
                                     isReadOnly = false,
+                                    // 입력 중인 값은 아직 기록이 아니다. AI 버튼은 정산된 상세 화면에만 둔다
+                                    showAiFab = false,
                                     // 오늘 화면에서 오른쪽으로 밀면 어제가 상세 화면으로 열린다.
                                     // (왼쪽은 오늘 이후라 화면 쪽에서 막힌다)
                                     onSwipeDate = { date ->

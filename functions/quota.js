@@ -302,6 +302,94 @@ async function refundAnalysis(uid) {
 }
 
 /**
+ * AI 코치 질문(askAiCoach)의 하루 상한.
+ *
+ * 하루 분석 횟수와 따로 센다. 질문은 리포트를 받은 뒤 "왜 이렇게 나왔나"를 묻는 가벼운 대화라
+ * 분석 한도를 갉아먹으면 저녁 정산이 막힌다. 반대로 호출마다 비용이 나가므로 상한은 둔다.
+ *
+ * - 무료: 3회 (예전 정책. FREE_FOR_ALL 을 false 로 되돌렸을 때만 쓰인다)
+ * - 구독자: 100회 (체감상 무제한. 스크립트로 수천 번 부르는 요금 사고만 막는다)
+ * - 전면 무료 개방 중: 무료/구독 구분이 없으므로 모두 30회 — 분석의 FREE_MODE_ANALYSIS_LIMIT 과 같은 값이다
+ */
+const DAILY_AI_ASK_LIMIT = 3;
+const DAILY_AI_ASK_LIMIT_SUBSCRIBED = 100;
+const DAILY_AI_ASK_LIMIT_FREE_MODE = 30;
+
+/**
+ * AI 코치 질문 한 번을 예약한다. 상한 안이면 aiAskCount 를 올리고 allowed: true.
+ *
+ * 응답의 remainingFreeCount 는 **앱이 "남은 무료 질문 N회"를 보여줄 때만** 숫자다.
+ * 전면 무료 개방 중이거나 구독자면 null — 무료/유료 구분이 없는 사용자에게
+ * "무료 27회 남음" 같은 줄을 보여줄 이유가 없고, 상한은 요금 사고를 막는 선일 뿐이다.
+ *
+ * analyzedAt 같은 필드를 건드리지 않으므로 분석 횟수·기간 평가 횟수와 서로 간섭하지 않는다.
+ */
+async function reserveAiAsk(user) {
+    const db = admin.firestore();
+    const userRef = db.collection("users").doc(user.uid);
+    const today = seoulToday();
+
+    return db.runTransaction(async (tx) => {
+        // 분석과 같이 왕복을 한 번으로 줄인다. 무료 개방 중에는 무제한 계정 조회도 하지 않는다
+        const [snap, unlimitedSnap] = await Promise.all([
+            tx.get(userRef),
+            FREE_FOR_ALL ? null : readUnlimited(tx, db, user.email)
+        ]);
+
+        const data = snap.exists ? snap.data() : {};
+        const used = data.aiAskDate === today ? Number(data.aiAskCount) || 0 : 0;
+
+        if (FREE_FOR_ALL) {
+            if (used >= DAILY_AI_ASK_LIMIT_FREE_MODE) {
+                return {
+                    allowed: false, count: used, limit: DAILY_AI_ASK_LIMIT_FREE_MODE,
+                    unlimited: false, remainingFreeCount: null
+                };
+            }
+            tx.set(userRef, { aiAskCount: used + 1, aiAskDate: today }, { merge: true });
+            return {
+                allowed: true, count: used + 1, limit: DAILY_AI_ASK_LIMIT_FREE_MODE,
+                unlimited: false, remainingFreeCount: null
+            };
+        }
+
+        const subscribed = (unlimitedSnap && unlimitedSnap.exists) || isSubscribedNow(data);
+        const limit = subscribed ? DAILY_AI_ASK_LIMIT_SUBSCRIBED : DAILY_AI_ASK_LIMIT;
+
+        if (!subscribed && used >= limit) {
+            return { allowed: false, count: used, limit, unlimited: false, remainingFreeCount: 0 };
+        }
+
+        const next = used + 1;
+        tx.set(userRef, { aiAskCount: next, aiAskDate: today }, { merge: true });
+        return {
+            allowed: true, count: next, limit, unlimited: subscribed,
+            remainingFreeCount: subscribed ? null : limit - next
+        };
+    });
+}
+
+/**
+ * 답을 만들지 못했을 때 예약한 질문 횟수를 되돌린다 (분석의 refundAnalysis 와 같은 이유).
+ * 세는 필드가 aiAskCount 하나뿐이라 날짜도 함께 보지 않는다 — 자정을 넘겨 실패해도 1 줄이는 편이 맞다.
+ */
+async function refundAiAsk(uid) {
+    try {
+        const db = admin.firestore();
+        const userRef = db.collection("users").doc(uid);
+        await db.runTransaction(async (tx) => {
+            const snap = await tx.get(userRef);
+            const used = Number(snap.data() && snap.data().aiAskCount) || 0;
+            if (used > 0) {
+                tx.set(userRef, { aiAskCount: used - 1 }, { merge: true });
+            }
+        });
+    } catch (error) {
+        console.warn("AI 질문 횟수 환불 실패:", error.message);
+    }
+}
+
+/**
  * 기간 평가(evaluatePeriod)의 하루 상한. 사진 인식과 같은 성격의 **비용 사고 방지선**이다.
  *
  * 주·월·연 평가는 한 번 받으면 저장해 두고 다시 열어도 서버를 부르지 않는다. 기록이 바뀌어
@@ -336,6 +424,12 @@ module.exports = {
     REQUIRE_AUTH,
     DAILY_EVALUATION_LIMIT,
     reserveEvaluation,
+    // AI 코치 질문(askAiCoach). 분석·평가와 따로 센다
+    DAILY_AI_ASK_LIMIT,
+    DAILY_AI_ASK_LIMIT_SUBSCRIBED,
+    DAILY_AI_ASK_LIMIT_FREE_MODE,
+    reserveAiAsk,
+    refundAiAsk,
     // 무료 개방 스위치와 그 상한. 테스트가 값을 고정해 두려고 함께 내보낸다.
     FREE_FOR_ALL,
     FREE_MODE_ANALYSIS_LIMIT,

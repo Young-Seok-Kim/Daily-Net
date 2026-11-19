@@ -59,6 +59,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import com.youngs.dailynet.R
+import com.youngs.dailynet.data.model.AiScreenTypes
 import com.youngs.dailynet.ui.theme.DnDimens
 import com.youngs.dailynet.ui.theme.DnTheme
 import com.youngs.dailynet.ui.theme.tabular
@@ -108,6 +109,12 @@ fun DailyRecordScreen(
     onBack: () -> Unit,
     onNavigateToWeightTrend: (String) -> Unit = {},
     isReadOnly: Boolean = false,
+    /**
+     * 우하단 AI 질문 버튼을 둘지. 오늘 기록을 **입력하는** 화면에서는 숨긴다 —
+     * 아직 저장하지 않은 값이 화면에 있고, 정산이 끝난 뒤 그 기록으로 묻는 것이 맞기 때문이다.
+     * (지난 날짜를 열어 보는 상세 화면은 둔다)
+     */
+    showAiFab: Boolean = true,
     /**
      * 좌우로 스와이프했을 때 열 날짜를 넘겨준다. 왼쪽으로 밀면 다음날, 오른쪽으로 밀면 전날.
      * null이면 스와이프를 받지 않는다 (오늘의 정산 입력 화면처럼 날짜가 고정된 경우).
@@ -526,6 +533,20 @@ fun DailyRecordScreen(
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             snackbarHost = { SnackbarHost(snackbarHostState) },
+            // 이 날 정산에 대해 바로 묻는 AI 버튼. 입력 화면에서는 [showAiFab]이 끈다
+            floatingActionButton = {
+                if (showAiFab) {
+                    AiAskFab(
+                        mainViewModel = mainViewModel,
+                        screenType = AiScreenTypes.DAILY_RECORD,
+                        screenTitle = stringResource(
+                            R.string.ai_screen_daily_record,
+                            "${uiState.date} ${getDayOfWeekText(uiState.date)}".trim()
+                        ),
+                        contextData = remember(uiState) { AiAskContext.dailyRecord(uiState) }
+                    )
+                }
+            },
             topBar = {
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -618,7 +639,8 @@ fun DailyRecordScreen(
                         alpha = 1f - (abs(swipeOffset.value) / w) * 0.6f
                     }
                     .verticalScroll(scrollState)
-                    .padding(16.dp)
+                    // 아래 AI 버튼(60dp)이 마지막 카드를 가리지 않게 바닥을 띄운다
+                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 88.dp)
             ) {
                 OutlinedTextField(
                     value = weightInput,

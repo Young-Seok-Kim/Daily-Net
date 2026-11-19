@@ -5,6 +5,8 @@ import com.google.gson.Gson
 import com.youngs.dailynet.BuildConfig
 import com.youngs.dailynet.data.model.AnalysisUsage
 import com.youngs.dailynet.data.local.entity.UserProfileEntity
+import com.youngs.dailynet.data.model.AiAskRequest
+import com.youngs.dailynet.data.model.AiAskResponse
 import com.youngs.dailynet.data.model.AnalysisRequest
 import com.youngs.dailynet.data.model.AiContext
 import com.youngs.dailynet.data.model.AnalysisResponse
@@ -251,6 +253,37 @@ class GeminiManager @Inject constructor(
                 null
             } catch (e: Exception) {
                 CrashReporter.report("extractMeal", e)
+                null
+            }
+        }
+    }
+
+    /**
+     * 지금 보고 있는 화면에 대한 AI 질문. 랬으면 null.
+     * @throws AiAskLimitException 오늘 질문 상한(서버 quota.reserveAiAsk)에 달한 경우
+     */
+    suspend fun askAiCoach(request: AiAskRequest): AiAskResponse? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val token = runCatching {
+                    auth.currentUser?.getIdToken(false)?.await()?.token
+                }.getOrNull()
+                val response = retryOnceIfRejectedFast("askAiCoach") {
+                    apiService.askAiCoach(
+                        url = Constants.ASK_AI_COACH_URL,
+                        authorization = token?.let { "Bearer $it" },
+                        request = request
+                    )
+                }
+                response.takeIf { it.answer.isNotBlank() }
+            } catch (e: HttpException) {
+                if (e.code() == HTTP_TOO_MANY_REQUESTS) {
+                    throw AiAskLimitException()
+                }
+                CrashReporter.report("askAiCoach:http${e.code()}", e)
+                null
+            } catch (e: Exception) {
+                CrashReporter.report("askAiCoach", e)
                 null
             }
         }

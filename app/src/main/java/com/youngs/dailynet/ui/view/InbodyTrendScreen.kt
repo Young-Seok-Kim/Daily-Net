@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.youngs.dailynet.BuildConfig
 import com.youngs.dailynet.R
+import com.youngs.dailynet.data.model.AiScreenTypes
 import com.youngs.dailynet.data.local.entity.InbodyRecordEntity
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 import com.youngs.dailynet.util.Constants
@@ -128,6 +129,14 @@ fun InbodyTrendScreen(
                         )
                     }
                 }
+            )
+        },
+        floatingActionButton = {
+            AiAskFab(
+                mainViewModel = mainViewModel,
+                screenType = AiScreenTypes.INBODY_TREND,
+                screenTitle = stringResource(R.string.inbody_trend_title),
+                contextData = remember(records) { AiAskContext.inbody(records, trend = true) }
             )
         }
     ) { padding ->
@@ -234,7 +243,8 @@ fun InbodyTrendScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            // 아래 AI 버튼이 마지막 그래프를 가리지 않게
+            Spacer(modifier = Modifier.height(88.dp))
         }
     }
 }
