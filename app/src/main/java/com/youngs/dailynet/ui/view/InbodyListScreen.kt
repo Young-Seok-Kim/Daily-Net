@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -37,6 +38,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.youngs.dailynet.R
+import com.youngs.dailynet.data.model.AiScreenTypes
 import com.youngs.dailynet.data.local.entity.InbodyRecordEntity
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
 
@@ -86,11 +88,23 @@ fun InbodyListScreen(
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onAdd,
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text(stringResource(R.string.inbody_add)) }
-            )
+            // 측정 추가 위에 AI 버튼을 쌓는다 (겹치지 않게 위로)
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                AiAskFab(
+                    mainViewModel = mainViewModel,
+                    screenType = AiScreenTypes.INBODY_LIST,
+                    screenTitle = stringResource(R.string.inbody_dialog_title),
+                    contextData = remember(records) { AiAskContext.inbody(records, trend = false) }
+                )
+                ExtendedFloatingActionButton(
+                    onClick = onAdd,
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text(stringResource(R.string.inbody_add)) }
+                )
+            }
         }
     ) { padding ->
         if (records.isEmpty()) {
@@ -116,7 +130,8 @@ fun InbodyListScreen(
                 .fillMaxSize()
                 .padding(padding),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp
+                // AI 버튼(60) + 측정 추가 버튼(56)이 마지막 측정을 가리지 않게 바닥을 띄운다
+                start = 16.dp, end = 16.dp, top = 8.dp, bottom = 148.dp
             ),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {

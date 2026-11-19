@@ -59,6 +59,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import com.youngs.dailynet.R
+import com.youngs.dailynet.data.model.AiScreenTypes
 import com.youngs.dailynet.ui.theme.DnDimens
 import com.youngs.dailynet.ui.theme.DnTheme
 import com.youngs.dailynet.ui.theme.tabular
@@ -109,6 +110,17 @@ fun DailyRecordScreen(
     onNavigateToWeightTrend: (String) -> Unit = {},
     isReadOnly: Boolean = false,
     /**
+     * 우하단 AI 질문 버튼을 둘지. 입력 화면과 상세 화면 모두 둔다.
+     * 고치고 아직 분석/저장을 안 한 상태는 버튼을 숨기지 않고 눌렀을 때 안내한다
+     * ([MainViewModel.recordDirty] 참고). 버튼 자체를 빼야 하는 화면만 false로 넘긴다.
+     */
+    showAiFab: Boolean = true,
+    /**
+     * 걸음수 칸 아래 운동 이용권 남은 양 한 줄을 둘지. 오늘 입력 화면에서만 의미가 있다 —
+     * 지난 날짜를 여는 상세 화면에서는 "며칠 남음"이 그 날과 무관한 지금 값이라 헷갈린다.
+     */
+    showPassHint: Boolean = true,
+    /**
      * 좌우로 스와이프했을 때 열 날짜를 넘겨준다. 왼쪽으로 밀면 다음날, 오른쪽으로 밀면 전날.
      * null이면 스와이프를 받지 않는다 (오늘의 정산 입력 화면처럼 날짜가 고정된 경우).
      * 오늘보다 뒤의 날짜로는 넘어가지 않는다.
@@ -120,6 +132,8 @@ fun DailyRecordScreen(
     val passUsages by mainViewModel.passUsages.collectAsState()
     val justFinishedAnalysis by mainViewModel.shouldStreamResult.collectAsState()
     val recordLoadToken by mainViewModel.recordLoadToken.collectAsState()
+    // 수정했는데 아직 분석/저장을 안 눌렀는지. AI 질문 버튼이 이걸 보고 시트 대신 안내를 띄운다
+    val recordDirty by mainViewModel.recordDirty.collectAsState()
     val context = LocalContext.current
     val activity = context as? android.app.Activity
     val healthReader = remember { HealthStepReader(context) }
@@ -526,6 +540,33 @@ fun DailyRecordScreen(
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             snackbarHost = { SnackbarHost(snackbarHostState) },
+            // 이 날 정산에 대해 바로 묻는 AI 버튼.
+            // 글을 고치고 아직 분석/저장을 안 했으면 새 글과 예전 칼로리·리포트가 어긋난 채 넘어가므로
+            // 시트를 열지 않고 "먼저 분석/저장" 스낵바를 띄운다. 분석이 끝나면 다시 열린다.
+            floatingActionButton = {
+                if (showAiFab) {
+                    val askBlockedText = stringResource(R.string.ai_ask_blocked_unsaved)
+                    AiAskFab(
+                        mainViewModel = mainViewModel,
+                        screenType = AiScreenTypes.DAILY_RECORD,
+                        screenTitle = stringResource(
+                            R.string.ai_screen_daily_record,
+                            "${uiState.date} ${getDayOfWeekText(uiState.date)}".trim()
+                        ),
+                        contextData = remember(uiState) { AiAskContext.dailyRecord(uiState) },
+                        onBlockedClick = if (recordDirty) {
+                            {
+                                scope.launch {
+                                    snackbarHostState.currentSnackbarData?.dismiss()
+                                    snackbarHostState.showSnackbar(askBlockedText)
+                                }
+                            }
+                        } else {
+                            null
+                        }
+                    )
+                }
+            },
             topBar = {
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -618,7 +659,8 @@ fun DailyRecordScreen(
                         alpha = 1f - (abs(swipeOffset.value) / w) * 0.6f
                     }
                     .verticalScroll(scrollState)
-                    .padding(16.dp)
+                    // 아래 AI 버튼(60dp)이 마지막 카드를 가리지 않게 바닥을 띄운다
+                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 88.dp)
             ) {
                 OutlinedTextField(
                     value = weightInput,
@@ -735,11 +777,13 @@ fun DailyRecordScreen(
                             enabled = !isReadOnly
                         )
                         // 운동 이용권의 남은 양. 지금 적은 운동에 키워드가 있으면 "오늘 차감"이 붙는다
-                        PassHintRow(
-                            usages = passUsages,
-                            exerciseText = uiState.exercise,
-                            modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 6.dp)
-                        )
+                        if (showPassHint) {
+                            PassHintRow(
+                                usages = passUsages,
+                                exerciseText = uiState.exercise,
+                                modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 6.dp)
+                            )
+                        }
                     }
                 }
 
@@ -819,18 +863,6 @@ fun DailyRecordScreen(
                             if (showJustDoneBadge) {
                                 Spacer(modifier = Modifier.width(8.dp))
                                 JustCompletedBadge()
-                            }
-                            Spacer(modifier = Modifier.weight(1f))
-                            // 결과를 읽자마자 공유로 이어지는 자리. 제목 줄에는 글자 없이
-                            // 공유 아이콘만 둔다(설명은 접근성 문구가 맡는다)
-                            IconButton(
-                                onClick = { shareReceipt() },
-                                enabled = !uiState.analyzing
-                            ) {
-                                Icon(
-                                    Icons.Default.Share,
-                                    contentDescription = stringResource(R.string.receipt_share)
-                                )
                             }
                         }
                         // 항목별 결과(b33~)가 있으면 구조로 그려서 항목을 눌러 kcal을 고칠 수 있게 한다.

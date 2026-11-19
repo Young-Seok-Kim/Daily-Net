@@ -39,8 +39,10 @@ import com.youngs.dailynet.ui.view.InbodyTrendScreen
 import com.youngs.dailynet.ui.view.SettingsScreen
 import com.youngs.dailynet.ui.view.SplashScreen
 import com.youngs.dailynet.ui.view.WithdrawScreen
+import com.youngs.dailynet.ui.view.getWeekIdentifier
 import com.youngs.dailynet.ui.viewmodel.AuthViewModel
 import com.youngs.dailynet.ui.viewmodel.MainViewModel
+import com.youngs.dailynet.util.AiNavigation
 import com.youngs.dailynet.util.AppUpdateChecker
 import com.youngs.dailynet.util.AppUpdateInfo
 import dagger.hilt.android.AndroidEntryPoint
@@ -134,6 +136,19 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                // AI 말풍선의 "○○ 보기" 버튼. 시트가 어느 화면에 떠 있었든 ViewModel을 거쳐 여기로 온다.
+                // 받은 즉시 비워서 같은 요청이 화면을 다시 그릴 때 두 번 실행되지 않게 한다
+                val aiNavigation by mainViewModel.aiNavigation.collectAsState()
+                LaunchedEffect(aiNavigation) {
+                    val target = aiNavigation ?: return@LaunchedEffect
+                    mainViewModel.consumeAiNavigation()
+                    val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                    val route = AiNavigation.resolve(
+                        target, today, getWeekIdentifier(today).toString()
+                    ) ?: return@LaunchedEffect
+                    navigateTo(ScreenEntry(route.screen, route.date))
+                }
+
                 // 위젯을 눌러 들어온 경우 지정된 화면으로 한 번만 이동한다.
                 //
                 // 로그인 전이면 아직 옮기지 않는다. 로그인 화면이 먼저 떠야 하고,
@@ -195,6 +210,9 @@ class MainActivity : ComponentActivity() {
                                         navigateTo(ScreenEntry("weight", date))
                                     },
                                     isReadOnly = false,
+                                    // AI 버튼(showAiFab)은 기본값대로 둔다. 고치고 아직 분석/저장을 안 한 동안은
+                                    // 화면이 시트 대신 안내를 띄운다 (MainViewModel.recordDirty)
+                                    //
                                     // 오늘 화면에서 오른쪽으로 밀면 어제가 상세 화면으로 열린다.
                                     // (왼쪽은 오늘 이후라 화면 쪽에서 막힌다)
                                     onSwipeDate = { date ->
@@ -220,6 +238,8 @@ class MainActivity : ComponentActivity() {
                                         navigateTo(ScreenEntry("weight", date))
                                     },
                                     isReadOnly = false,
+                                    // 상세 화면에는 이용권 남은 양을 두지 않는다. 지난 날짜와 무관한 지금 값이다
+                                    showPassHint = false,
                                     // 좌우 스와이프로 전날·다음날을 연다.
                                     // 기록에 쌓지 않고 현재 칸만 바꿔서, 여러 날을 넘긴 뒤 뒤로가기를
                                     // 눌러도 날짜를 하나씩 되짚지 않고 들어온 화면으로 바로 돌아간다.

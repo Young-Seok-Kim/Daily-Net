@@ -2,6 +2,8 @@ package com.youngs.dailynet.data.network
 
 import com.youngs.dailynet.data.model.AnalysisRequest
 import com.youngs.dailynet.data.model.AnalysisResponse
+import com.youngs.dailynet.data.model.AiAskRequest
+import com.youngs.dailynet.data.model.AiAskResponse
 import com.youngs.dailynet.data.model.InbodyAnalysisRequest
 import com.youngs.dailynet.data.model.InbodyAnalysisResponse
 import com.youngs.dailynet.data.model.InbodyPhotoRequest
@@ -93,4 +95,16 @@ interface DailyNetApiService {
         @Header("Authorization") authorization: String?,
         @Body request: WithdrawRequest
     ): WithdrawResponse
+
+    /**
+     * 지금 보고 있는 화면에 대한 AI 질문. 답은 JSON이 아니라 글이다.
+     *
+     * 함수마다 URL이 달라 [Url]로 전체 주소를 넘긴다 (extractMeal 등과 같은 방식).
+     */
+    @POST
+    suspend fun askAiCoach(
+        @Url url: String,
+        @Header("Authorization") authorization: String?,
+        @Body request: AiAskRequest
+    ): AiAskResponse
 }

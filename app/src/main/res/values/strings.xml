@@ -539,4 +539,55 @@
     <string name="receipt_intake_total">%1$s kcal eaten</string>
     <string name="receipt_ai_title">AI summary</string>
     <string name="receipt_footer">DAILYNET · Calories settled</string>
+
+    <!--
+      Global AI questions (AI button on record/report screens → bottom sheet).
+      Screen names reuse each screen's own title (they go into ai_ask_screen_badge).
+    -->
+    <string name="ai_ask_fab">AI</string>
+    <string name="cd_ai_ask">Ask AI</string>
+    <string name="ai_ask_title">AI assistant</string>
+    <string name="ai_ask_screen_badge">Watching: %1$s</string>
+    <string name="ai_ask_suggested">Try asking</string>
+    <string name="ai_ask_placeholder">Ask about what you\'re seeing…</string>
+    <string name="ai_ask_send">Send</string>
+    <string name="ai_ask_thinking">Thinking…</string>
+    <string name="ai_ask_empty">Answers are based on the records on this screen.</string>
+    <string name="ai_ask_error">Couldn\'t get an answer. Please try again in a moment.</string>
+    <string name="ai_ask_retry">Try again</string>
+    <string name="ai_ask_limit">You\'ve used all of today\'s AI questions. Try again tomorrow.</string>
+    <string name="ai_ask_blocked_unsaved">Analyze/save your changes first, then ask.</string>
+    <string name="ai_ask_remaining">%1$d of %2$d free questions left today</string>
+    <string name="ai_ask_goto_daily_list">Open record list</string>
+    <string name="ai_ask_goto_daily_record">Open daily record</string>
+    <string name="ai_ask_goto_month_report">Open monthly report</string>
+    <string name="ai_ask_goto_period_report">Open weekly report</string>
+    <string name="ai_ask_goto_inbody_list">Open InBody history</string>
+    <string name="ai_ask_goto_inbody_trend">Open InBody trend</string>
+    <string name="ai_ask_goto_weight_trend">Open weight trend</string>
+    <string name="ai_screen_daily_list">Records</string>
+    <string name="ai_screen_daily_record">%1$s record</string>
+
+    <!-- Suggested questions per screen -->
+    <string name="ai_ask_q_daily_list_1">How has this week been?</string>
+    <string name="ai_ask_q_daily_list_2">Why isn\'t my weight dropping?</string>
+    <string name="ai_ask_q_daily_list_3">What should I change next week?</string>
+    <string name="ai_ask_q_daily_record_1">How was today\'s diet?</string>
+    <string name="ai_ask_q_daily_record_2">Suggest a dinner within my calories</string>
+    <string name="ai_ask_q_daily_record_3">Did I get enough protein?</string>
+    <string name="ai_ask_q_month_1">Give me this month\'s review</string>
+    <string name="ai_ask_q_month_2">Which week was the worst?</string>
+    <string name="ai_ask_q_month_3">How should I set next month\'s goal?</string>
+    <string name="ai_ask_q_period_1">Was I in a deficit in this period?</string>
+    <string name="ai_ask_q_period_2">Did I exercise enough?</string>
+    <string name="ai_ask_q_period_3">Which day was the worst?</string>
+    <string name="ai_ask_q_inbody_list_1">How is my body fat?</string>
+    <string name="ai_ask_q_inbody_list_2">Did my muscle grow?</string>
+    <string name="ai_ask_q_inbody_list_3">What should I do before the next scan?</string>
+    <string name="ai_ask_q_inbody_trend_1">How is my body fat trending?</string>
+    <string name="ai_ask_q_inbody_trend_2">Show my muscle trend</string>
+    <string name="ai_ask_q_inbody_trend_3">Where will this trend take me next month?</string>
+    <string name="ai_ask_q_weight_1">Why has my weight stalled?</string>
+    <string name="ai_ask_q_weight_2">Is my rate of loss normal?</string>
+    <string name="ai_ask_q_weight_3">What will my weight do this week?</string>
 </resources>
