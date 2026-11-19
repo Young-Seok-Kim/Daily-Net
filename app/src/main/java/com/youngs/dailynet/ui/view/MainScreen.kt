@@ -380,7 +380,7 @@ fun MainScreen(
                         mainViewModel = mainViewModel,
                         screenType = AiScreenTypes.DAILY_LIST,
                         screenTitle = stringResource(R.string.ai_screen_daily_list),
-                        contextData = remember(dailyRecords) { AiAskContext.dailyList(dailyRecords) }
+                        contextData = remember(dailyRecords, passUsages) { AiAskContext.dailyList(dailyRecords, passUsages) }
                     )
                     ExtendedFloatingActionButton(
                         onClick = onNavigateToInput,

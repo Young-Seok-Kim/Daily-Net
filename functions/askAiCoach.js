@@ -346,7 +346,10 @@ function dayLine(d) {
     const n = (v) => Math.round(Number(v) || 0);
     const parts = [`net ${n(d.netCalories)}kcal`];
     if (Number(d.weight) > 0) parts.push(`weight ${Number(d.weight).toFixed(1)}kg`);
-    if (d.hasExercise || pressLine(d.exercise || "")) parts.push("exercise yes");
+    // 앱의 AiAskContext.dayLine과 같이 운동 글자까지. "이번 달 러닝 몇 번?"에 yes/no로는 못 답한다
+    const exercise = pressLine(d.exercise || "").slice(0, 60);
+    if (exercise) parts.push(`exercise: ${exercise}`);
+    else if (d.hasExercise) parts.push("exercise yes");
     const meals = [];
     for (const [tag, key] of [["B", "breakfast"], ["L", "lunch"], ["D", "dinner"], ["S", "snack"]]) {
         const t = pressLine(d[key] || "").slice(0, 60);

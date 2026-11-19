@@ -2,6 +2,7 @@ package com.youngs.dailynet.ui.view
 
 import com.youngs.dailynet.data.local.entity.InbodyRecordEntity
 import com.youngs.dailynet.data.model.DailyRecordModel
+import com.youngs.dailynet.util.PassUsage
 import java.util.Locale
 
 /**
@@ -30,22 +31,48 @@ object AiAskContext {
     private const val MAX_DAY_LINES = 31
 
     /**
-     * 일일 기록 목록 화면. 최근 7일의 순칼로리·체중·식단을 짧게 담고 전체 합계를 붙인다.
+     * 일일 기록 목록 화면. 최근 7일의 순칼로리·체중·식단·운동을 짧게 담고 전체 합계를 붙인다.
      * 목록은 최신순(DESC)으로 들어온다.
+     *
+     * @param passes 운동 이용권 상태. 남은 횟수·기간을 한 줄로 붙인다 (없으면 생략)
      */
-    fun dailyList(records: List<DailyRecordModel>): String {
-        if (records.isEmpty()) return "no records yet"
+    fun dailyList(records: List<DailyRecordModel>, passes: List<PassUsage> = emptyList()): String {
+        if (records.isEmpty()) return join(listOfNotNull("no records yet", passLine(passes)))
         val total = records.sumOf { it.netCalories }
         val average = total / records.size
         val lines = mutableListOf(
             "records ${records.size} days, total net ${kcal(total)}, avg net ${kcal(average)}/day"
         )
         records.take(7).forEach { lines += dayLine(it) }
+        passLine(passes)?.let { lines += it }
         return join(lines)
     }
 
-    /** 하루 정산 상세. 그날 화면에 보이는 숫자·식단·리포트를 담는다 */
-    fun dailyRecord(record: DailyRecordModel): String {
+    /**
+     * 운동 이용권 한 줄. "이번 주 헬스 몇 번 가야 해?" 같은 질문에 남은 횟수·기간이 근거가 된다.
+     * 쓸 수 있는 이용권만. 횟수권은 쓴/전체/남은 횟수, 기간제는 남은 날. 종료일이 있으면 붙인다.
+     */
+    fun passLine(passes: List<PassUsage>): String? {
+        val active = passes.filter { it.active }
+        if (active.isEmpty()) return null
+        val items = active.map { u ->
+            val p = u.pass
+            val state = when {
+                u.remaining != null -> "${u.used}/${p.totalCount} used, ${u.remaining} left"
+                u.daysLeft != null -> "${u.daysLeft} days left"
+                else -> "no end date"
+            }
+            val until = if (p.endDate.isNotBlank()) ", until ${p.endDate}" else ""
+            "${clip(p.name, 20)} (${if (p.isCount) "count" else "period"}): $state$until"
+        }
+        return "passes: ${items.joinToString(" / ")}"
+    }
+
+    /**
+     * 하루 정산 상세. 그날 화면에 보이는 숫자·식단·리포트를 담는다.
+     * @param passes 운동 이용권 상태 (입력 화면에서 걸음수 밑에 보이는 줄과 같은 값)
+     */
+    fun dailyRecord(record: DailyRecordModel, passes: List<PassUsage> = emptyList()): String {
         val lines = mutableListOf("date ${record.date}")
         if (record.weight > 0f) lines += "weight ${kg(record.weight)}"
         val intake = record.breakfastKcal + record.lunchKcal + record.dinnerKcal + record.snackKcal
@@ -69,6 +96,7 @@ object AiAskContext {
                 .let { if (record.exerciseKcal > 0) "$it (${record.exerciseKcal}kcal)" else it }
         }
         if (record.remark.isNotBlank()) lines += "remark: ${clip(record.remark, FIELD_MAX)}"
+        passLine(passes)?.let { lines += it }
         if (record.analysisResult.isNotBlank()) {
             lines += "report: ${clip(record.analysisResult, REPORT_MAX)}"
         }
@@ -176,7 +204,10 @@ object AiAskContext {
     private fun dayLine(record: DailyRecordModel): String {
         val parts = mutableListOf("net ${kcal(record.netCalories)}")
         if (record.weight > 0f) parts += "weight ${kg(record.weight)}"
-        if (record.hasExercise) parts += "exercise yes"
+        // 무슨 운동을 했는지까지. "이번 달 러닝 몇 번 했어?"에 답하려면 yes/no로는 모자란다
+        val exercise = clip(record.exercise, FIELD_MAX)
+        if (exercise.isNotEmpty()) parts += "exercise: $exercise"
+        else if (record.hasExercise) parts += "exercise yes"
 
         val meals = mutableListOf<String>()
         clip(record.breakfast, FIELD_MAX).takeIf { it.isNotEmpty() }?.let { meals += "B: $it" }

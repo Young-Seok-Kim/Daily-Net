@@ -435,7 +435,9 @@ test("추가 데이터 요청(NEED)", async (t) => {
         assert.match(text, /^\[2026-10 일별 정산/);
         assert.match(text, /recorded 2 days, net total -200kcal, avg -100kcal\/day/);
         assert.match(text, /- 2026-10-01 net -300kcal, weight 72.0kg \| B: 밥/);
-        assert.match(text, /- 2026-10-02 net 100kcal, exercise yes \| B: 밥/);
+        assert.match(text, /- 2026-10-02 net 100kcal, exercise: 러닝 \| B: 밥/);
+        // 글자 없이 플래그만 있는 옛 기록은 yes
+        assert.match(formatMonth("2026-10", [day("2026-10-03", { hasExercise: true })]), /exercise yes/);
         assert.match(formatMonth("2026-09", []), /\(기록 없음\)/);
     });
 
