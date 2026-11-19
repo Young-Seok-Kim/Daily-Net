@@ -9,7 +9,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { normalizeInbody, resolveBmr, inbodyPromptLine, ageFrom, bodyMetrics, inbodyReportText } = require("../inbody");
+const { normalizeInbody, resolveBmr, inbodyPromptLine, ageFrom, bodyMetrics, inbodyReportText, inbodyReportDetail } = require("../inbody");
 const { LABELS } = require("../labels");
 const { calculateBmr } = require("../nutrition");
 
@@ -95,6 +95,38 @@ test("나이: 생일 전후", () => {
     assert.equal(ageFrom("1986-10-13", today), 40);
     assert.equal(ageFrom("", today), 29);
     assert.equal(ageFrom("나중에", today), 29);
+});
+
+test("해석 구조는 칸별 글과 판정 코드를 남긴다", () => {
+    const inbody = { bmr: 1630, skeletalMuscle: 32.8, bodyFat: 0, bodyFatPercent: 38.1, weight: 94.2, measuredAt: "", visceralFatLevel: 12 };
+    const metrics = bodyMetrics({ inbody, height: 178, weight: 94.2, age: 40, isMale: true });
+    const detail = inbodyReportDetail(
+        { summary: " 요약 ", bodyFat: "지방 설명", muscle: "", bmr: "대사 설명", actions: ["하나", "", "둘", "셋", "넷"] },
+        metrics, inbody
+    );
+    assert.equal(detail.summary, "요약");
+    assert.equal(detail.bodyFat, "지방 설명");
+    assert.equal(detail.muscle, "");                       // 모델이 비움
+    assert.equal(detail.bmr, "대사 설명");
+    assert.deepEqual(detail.actions, ["하나", "둘", "셋"]);  // 빈 칸 빼고 3개까지
+    assert.equal(detail.metrics.fatLevel, "high");
+    assert.equal(detail.metrics.fatStandard, "10~20%");
+    assert.equal(detail.metrics.muscleLevel, metrics.muscleLevel);
+    assert.equal(detail.metrics.visceralLevel, "high");
+    assert.equal(detail.metrics.bmi, 29.7);
+    assert.equal(detail.metrics.proteinTarget, 151);
+    assert.equal(typeof detail.metrics.formulaBmr, "number");
+
+    // 측정값이 없는 항목은 모델이 써도 비운다 (기초대사량 없음)
+    const noBmr = { ...inbody, bmr: 0 };
+    const d2 = inbodyReportDetail({ bmr: "대사 설명" }, bodyMetrics({ inbody: noBmr, height: 178, weight: 94.2, age: 40, isMale: true }), noBmr);
+    assert.equal(d2.bmr, "");
+
+    // 응답이 깨져도 구조는 만들어진다
+    const d3 = inbodyReportDetail(null, metrics, inbody);
+    assert.equal(d3.summary, "");
+    assert.deepEqual(d3.actions, []);
+    assert.equal(d3.metrics.fatLevel, "high");
 });
 
 test("해석 글은 모델이 비운 칸과 없는 항목을 뺀다", () => {

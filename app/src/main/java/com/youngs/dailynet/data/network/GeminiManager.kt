@@ -12,6 +12,7 @@ import com.youngs.dailynet.data.model.AiContext
 import com.youngs.dailynet.data.model.AnalysisResponse
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.data.model.InbodyAnalysisRequest
+import com.youngs.dailynet.data.model.InbodyAnalysisResponse
 import com.youngs.dailynet.data.model.InbodyData
 import com.youngs.dailynet.data.model.InbodyPhotoRequest
 import com.youngs.dailynet.data.model.MealPhotoRequest
@@ -122,11 +123,12 @@ class GeminiManager @Inject constructor(
      * 저장된 인바디 값의 해석 글. 실패하면 null.
      * @param fallbackWeight 측정 체중이 없을 때 쓸 값(가장 최근 기록 체중). 그것도 없으면 시작 몸무게
      */
+    /** 인바디 해석. 글과 구조를 함께 돌려준다. 실패하거나 글이 비면 null */
     suspend fun analyzeInbody(
         userProfile: UserProfileEntity,
         inbody: InbodyData,
         fallbackWeight: Float = 0f
-    ): String? {
+    ): InbodyAnalysisResponse? {
         return withContext(Dispatchers.IO) {
             try {
                 val weight = when {
@@ -151,7 +153,7 @@ class GeminiManager @Inject constructor(
                         )
                     )
                 }
-                response.text.takeIf { it.isNotBlank() }
+                response.takeIf { it.text.isNotBlank() }
             } catch (e: Exception) {
                 CrashReporter.report("analyzeInbody", e)
                 null

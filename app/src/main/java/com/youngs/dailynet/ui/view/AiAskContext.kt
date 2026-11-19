@@ -123,7 +123,14 @@ object AiAskContext {
         }
         lines += "latest: ${inbodyLine(latest)}"
         sorted.drop(1).take(2).forEach { lines += "previous ${it.measuredAt}: ${inbodyLine(it)}" }
-        if (latest.analysis.isNotBlank()) {
+        // 구조(b68~)가 있으면 총평·판정·할 일만. 글 700자보다 짧고 모델이 읽기 쉽다
+        val detail = latest.analysisDetail
+        if (detail != null && detail.isRenderable) {
+            val m = detail.metrics
+            lines += "verdict: fat ${m.fatLevel}, muscle ${m.muscleLevel}, visceral ${m.visceralLevel}, bmi ${m.bmi}"
+            if (detail.summary.isNotBlank()) lines += "summary: ${clip(detail.summary, FIELD_MAX * 4)}"
+            if (detail.actions.isNotEmpty()) lines += "actions: ${detail.actions.joinToString(" / ")}"
+        } else if (latest.analysis.isNotBlank()) {
             lines += "interpretation: ${clip(latest.analysis, REPORT_MAX)}"
         }
         return join(lines)

@@ -296,13 +296,14 @@ class MainViewModel @Inject constructor(
                 val data = inbodyRepository.get(measuredAt) ?: return@launch
                 if (!data.hasData) return@launch
 
-                val text = geminiManager.analyzeInbody(profile, data, dailyRecordDao.getLatestWeight() ?: 0f)
-                if (text == null) {
+                val result = geminiManager.analyzeInbody(profile, data, dailyRecordDao.getLatestWeight() ?: 0f)
+                if (result == null) {
                     toast(R.string.toast_inbody_analysis_failed)
                     return@launch
                 }
                 val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                inbodyRepository.setAnalysis(measuredAt, text, today)
+                // 구조가 비어 있으면(모델이 전부 비움) 글만 두고 구조는 null — 화면이 글로 그린다
+                inbodyRepository.setAnalysis(measuredAt, result.text, today, result.detail?.takeIf { it.isRenderable })
             } catch (e: Exception) {
                 CrashReporter.report("analyzeInbody", e)
                 toast(R.string.toast_inbody_analysis_failed)

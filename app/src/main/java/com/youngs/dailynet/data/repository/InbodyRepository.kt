@@ -8,6 +8,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.youngs.dailynet.data.local.entity.InbodyRecordEntity
 import com.youngs.dailynet.data.local.entity.dao.InbodyDao
+import com.youngs.dailynet.data.model.InbodyAnalysisDetail
 import com.youngs.dailynet.data.model.InbodyData
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.tasks.await
@@ -91,10 +92,13 @@ class InbodyRepository @Inject constructor(
         require(data.measuredAt.isNotBlank()) { "measuredAt required" }
         val doc = userDoc ?: throw IllegalStateException("not signed in")
         val existing = inbodyDao.get(data.measuredAt)
-        val sameValues = existing != null && existing.toData().copy(analysis = "", analyzedAt = "") ==
-            data.copy(analysis = "", analyzedAt = "")
-        val toSave = if (sameValues) data.copy(analysis = existing!!.analysis, analyzedAt = existing.analyzedAt)
-        else data.copy(analysis = "", analyzedAt = "")
+        val sameValues = existing != null && existing.toData().copy(analysis = "", analyzedAt = "", analysisDetail = null) ==
+            data.copy(analysis = "", analyzedAt = "", analysisDetail = null)
+        val toSave = if (sameValues) {
+            data.copy(analysis = existing!!.analysis, analyzedAt = existing.analyzedAt, analysisDetail = existing.analysisDetail)
+        } else {
+            data.copy(analysis = "", analyzedAt = "", analysisDetail = null)
+        }
 
         val createdAt = existing?.createdAt ?: System.currentTimeMillis()
         // 콘솔에서 날짜로 읽히도록 숫자가 아니라 Timestamp 로 넣는다. 앱은 이 값을 읽지 않는다(기기에는 Long 으로 둔다)
@@ -110,12 +114,20 @@ class InbodyRepository @Inject constructor(
         inbodyDao.delete(measuredAt)
     }
 
-    suspend fun setAnalysis(measuredAt: String, analysis: String, analyzedAt: String) {
+    /** 해석 글과 구조를 그 측정에 둔다. 구조가 없으면(구서버) 예전 구조도 지워 글과 어긋나지 않게 한다 */
+    suspend fun setAnalysis(measuredAt: String, analysis: String, analyzedAt: String, detail: InbodyAnalysisDetail?) {
         val doc = userDoc ?: throw IllegalStateException("not signed in")
         doc.collection("inbody").document(measuredAt)
-            .set(mapOf("analysis" to analysis, "analyzedAt" to analyzedAt), SetOptions.merge())
+            .set(
+                mapOf(
+                    "analysis" to analysis,
+                    "analyzedAt" to analyzedAt,
+                    "analysisDetail" to (detail?.toMap() ?: FieldValue.delete())
+                ),
+                SetOptions.merge()
+            )
             .await()
-        inbodyDao.setAnalysis(measuredAt, analysis, analyzedAt)
+        inbodyDao.setAnalysis(measuredAt, analysis, analyzedAt, detail)
     }
 
     suspend fun clearLocal() = inbodyDao.clear()

@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.youngs.dailynet.data.local.entity.InbodyRecordEntity
+import com.youngs.dailynet.data.model.InbodyAnalysisDetail
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -33,8 +34,8 @@ interface InbodyDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(record: InbodyRecordEntity)
 
-    @Query("UPDATE inbody_records SET analysis = :analysis, analyzedAt = :analyzedAt WHERE measuredAt = :measuredAt")
-    suspend fun setAnalysis(measuredAt: String, analysis: String, analyzedAt: String)
+    @Query("UPDATE inbody_records SET analysis = :analysis, analyzedAt = :analyzedAt, analysisDetail = :analysisDetail WHERE measuredAt = :measuredAt")
+    suspend fun setAnalysis(measuredAt: String, analysis: String, analyzedAt: String, analysisDetail: InbodyAnalysisDetail?)
 
     @Query("DELETE FROM inbody_records WHERE measuredAt = :measuredAt")
     suspend fun delete(measuredAt: String)

@@ -396,18 +396,31 @@ fun InbodyEditScreen(
                     }
                 }
                 else -> {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(saved.analysis, style = MaterialTheme.typography.bodyMedium)
-                            if (saved.analyzedAt.isNotBlank()) {
-                                Text(
-                                    stringResource(R.string.inbody_analyzed_at, saved.analyzedAt),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                    // b68부터 구조로 그린다. 구조가 없는 옛 해석은 글 그대로
+                    val detail = saved.analysisDetail?.takeIf { it.isRenderable }
+                    if (detail != null) {
+                        InbodyAnalysisReport(detail = detail, data = saved)
+                        if (saved.analyzedAt.isNotBlank()) {
+                            Text(
+                                stringResource(R.string.inbody_analyzed_at, saved.analyzedAt),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(saved.analysis, style = MaterialTheme.typography.bodyMedium)
+                                if (saved.analyzedAt.isNotBlank()) {
+                                    Text(
+                                        stringResource(R.string.inbody_analyzed_at, saved.analyzedAt),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }

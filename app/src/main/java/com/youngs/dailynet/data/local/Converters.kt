@@ -4,6 +4,7 @@ import androidx.room.TypeConverter
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.youngs.dailynet.data.model.AnalysisDetail
+import com.youngs.dailynet.data.model.InbodyAnalysisDetail
 
 class Converters {
     private val gson = Gson()
@@ -34,4 +35,12 @@ class Converters {
     @TypeConverter
     fun toAnalysisDetail(value: String?): AnalysisDetail? =
         value?.let { runCatching { gson.fromJson(it, AnalysisDetail::class.java) }.getOrNull() }
+
+    // 인바디 해석 구조(b68~)도 같은 방식. 깨진 값은 null → 화면은 글로 물러난다
+    @TypeConverter
+    fun fromInbodyAnalysisDetail(value: InbodyAnalysisDetail?): String? = value?.let { gson.toJson(it) }
+
+    @TypeConverter
+    fun toInbodyAnalysisDetail(value: String?): InbodyAnalysisDetail? =
+        value?.let { runCatching { gson.fromJson(it, InbodyAnalysisDetail::class.java) }.getOrNull() }
 }

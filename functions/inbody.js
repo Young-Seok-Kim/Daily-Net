@@ -210,8 +210,41 @@ function inbodyReportText(data, metrics, inbody, L) {
     return parts.join("\n\n").trim();
 }
 
+/**
+ * 해석을 **구조**로 남긴다 (b68~). 글(inbodyReportText)은 구버전 앱용으로 같이 내려가고,
+ * 신버전 앱은 이 구조를 저장해 카드로 그리고 추이·AI 질문에도 쓴다.
+ *
+ * 판정은 코드(low/standard/high/unknown)로 둔다 — 글자는 앱이 언어에 맞게 붙인다.
+ * 모델이 비운 칸이나 측정값이 없는 항목은 빈 문자열이라 앱이 그 카드를 빼면 된다.
+ */
+function inbodyReportDetail(data, metrics, inbody) {
+    const d = data && typeof data === "object" ? data : {};
+    const str = (v) => (typeof v === "string" ? v.trim() : "");
+    const has = (v) => Number(v) > 0;
+    return {
+        summary: str(d.summary),
+        bodyFat: has(inbody.bodyFatPercent) ? str(d.bodyFat) : "",
+        muscle: has(inbody.skeletalMuscle) ? str(d.muscle) : "",
+        bmr: has(inbody.bmr) ? str(d.bmr) : "",
+        actions: Array.isArray(d.actions) ? d.actions.map(str).filter(Boolean).slice(0, 3) : [],
+        metrics: {
+            bmi: metrics.bmi,
+            fatLevel: metrics.fatLevel,
+            fatStandard: metrics.fatStandard,
+            smmRatio: metrics.smmRatio,
+            muscleLevel: metrics.muscleLevel,
+            muscleStandard: metrics.muscleStandard,
+            formulaBmr: metrics.formulaBmr,
+            bmrDiff: metrics.bmrDiff,
+            visceralLevel: metrics.visceralLevel,
+            visceralStandard: metrics.visceralStandard,
+            proteinTarget: metrics.proteinTarget
+        }
+    };
+}
+
 module.exports = {
     RANGES, FAT_STANDARD, SMM_RATIO_STANDARD, VISCERAL_STANDARD,
     normalizeInbody, resolveBmr, inbodyPromptLine,
-    ageFrom, bodyMetrics, inbodyReportText
+    ageFrom, bodyMetrics, inbodyReportText, inbodyReportDetail
 };

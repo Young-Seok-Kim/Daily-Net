@@ -88,6 +88,23 @@
     <string name="inbody_analyze_button">Interpret</string>
     <string name="inbody_reanalyze_button">Interpret again</string>
     <string name="inbody_analyzed_at">Interpreted on %1$s</string>
+    <!-- InBody interpretation cards (b68~) -->
+    <string name="inbody_badge_bmi">BMI %1$.1f</string>
+    <string name="inbody_badge_fat">Body fat %1$s</string>
+    <string name="inbody_badge_muscle">Muscle %1$s</string>
+    <string name="inbody_badge_visceral">Visceral fat %1$s</string>
+    <string name="inbody_level_low">below standard</string>
+    <string name="inbody_level_standard">standard</string>
+    <string name="inbody_level_high">above standard</string>
+    <string name="inbody_level_unknown">unknown</string>
+    <string name="inbody_report_fat_title">🧈 Body fat</string>
+    <string name="inbody_report_muscle_title">💪 Skeletal muscle</string>
+    <string name="inbody_report_bmr_title">🔥 Basal metabolic rate</string>
+    <string name="inbody_report_actions_title">✅ What to do next</string>
+    <string name="inbody_report_standard">standard %1$s</string>
+    <string name="inbody_report_smm_ratio">%1$.1f%% of body weight</string>
+    <string name="inbody_report_bmr_formula">formula estimate %1$d kcal (%2$+d)</string>
+    <string name="inbody_report_protein">protein %1$d g/day</string>
     <string name="toast_inbody_analysis_failed">Could not interpret the InBody results. Please try again.</string>
     <string name="inbody_add">Add InBody</string>
     <string name="inbody_list_empty">No InBody results yet. Add one with the button below.</string>

@@ -14,6 +14,35 @@
 
 ---
 
+## v1.18.0 (b68) — 2026-11-19
+
+### 스토어 문구
+
+인바디 해석이 카드로 바뀌었습니다. 총평, 체지방·골격근·내장지방 판정 뱃지, 항목별 설명, 앞으로 할 일 3가지를 한눈에 봅니다. 이미 받은 해석은 그대로 보이고, "다시 해석 받기"를 누르면 새 모양으로 바뀝니다.
+
+### 상세 내역
+
+- **인바디 해석을 글과 함께 구조로 저장** (`data/model/InbodyAnalysisDetail.kt` 새 파일)
+  - 서버가 모델에게 JSON(summary·bodyFat·muscle·bmr·actions)으로 받아 놓고도 글로 눌러 보내던 것을, `detail`로도 같이 내려준다.
+    판정(fatLevel·muscleLevel·visceralLevel)은 코드(low/standard/high/unknown)와 표준 구간 글자, BMI·골격근 비율·공식 기초대사량·단백질 목표까지 `InbodyMetrics`에.
+  - `InbodyData.analysisDetail`(Transient), `InbodyRecordEntity.analysisDetail`(Converters JSON), Firestore `analysisDetail` 중첩 맵.
+    Room 17→18 `MIGRATION_17_18`(nullable 컬럼 추가). 옛 해석은 null이라 화면이 글로 물러난다 — 식단 `AnalysisDetail`과 같은 분기.
+  - `InbodyRepository.setAnalysis`가 구조를 함께 쓰고, 구조가 없으면(구서버) 예전 구조를 지워 글과 어긋나지 않게 한다.
+    값이 바뀌어 다시 저장하면 글·구조 모두 비운다(`save`).
+  - `GeminiManager.analyzeInbody`가 `InbodyAnalysisResponse`(text+detail)를 돌려주고, ViewModel은 renderable한 구조만 저장한다.
+- **해석 카드 화면** (`ui/view/InbodyAnalysisReport.kt` 새 파일, `InbodyEditScreen.kt`)
+  - 총평 → 판정 뱃지(FlowRow, 표준 초록·표준 이상 빨강·그 외 회색) → 🧈 체지방·💪 골격근·🔥 기초대사량 카드(수치 줄 + 설명) → ✅ 할 일 번호 목록(단백질 목표 표시).
+  - 문자열 16개(ko·en): `inbody_badge_*`, `inbody_level_*`, `inbody_report_*`.
+- **AI 질문 컨텍스트**(`AiAskContext.inbody`)는 구조가 있으면 글 700자 대신 판정·총평·할 일만 넘긴다.
+- 테스트 `InbodyAnalysisDetailTest` 6개(맵 왕복, 기본값, 할 일 정리, renderable, 엔티티 왕복, 옛 기록 null).
+
+### 서버 (같은 날 수동 배포, `functions/inbody.js`·`analyzeInbody.js`)
+
+- `inbodyReportDetail(data, metrics, inbody)` 추가. 측정값이 없는 항목은 모델이 써도 비우고, 할 일은 빈 칸 빼고 3개까지. 응답에 `detail` 추가(글은 그대로).
+- 테스트 1개 추가 (406개 통과).
+
+---
+
 ## v1.17.0 (b67) — 2026-11-19
 
 ### 스토어 문구
