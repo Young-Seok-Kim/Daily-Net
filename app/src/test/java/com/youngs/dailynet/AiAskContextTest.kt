@@ -2,6 +2,7 @@ package com.youngs.dailynet
 
 import com.youngs.dailynet.data.local.entity.ExercisePassEntity
 import com.youngs.dailynet.data.local.entity.InbodyRecordEntity
+import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.util.computePassUsage
 import com.youngs.dailynet.ui.view.AiAskContext
@@ -180,19 +181,81 @@ class AiAskContextTest {
 
         val text = AiAskContext.olderDays(records, today)!!
         val lines = text.lines()
-        // 창(10-21~)보다 앞선 5-22 ~ 10-20 = 152일, 최신순
-        assertEquals("older days (2026-05-22..2026-10-20): 152 days, format: date net(kcal) weight food(has meal text) ex(has exercise)", lines[0])
-        assertEquals(153, lines.size)
-        assertTrue(lines[1].startsWith("2026-10-20 "))
+        // 앞에는 월별 요약(5월~11월 7달, 최신순). 탄단지가 없는 기록이라 macros 칸은 없다
+        assertTrue(lines[0], lines[0].startsWith("monthly (2026-05..2026-11): 7 months, format: month days avg-net macros-avg"))
+        assertTrue(lines[1], lines[1].startsWith("- 2026-11: 19 days, avg net "))
+        assertTrue(lines[7], lines[7].startsWith("- 2026-05: 10 days, avg net "))
+        assertFalse(text.contains("macros avg"))
+        // 그 뒤 창(10-21~)보다 앞선 5-22 ~ 10-20 = 152일, 최신순
+        val olderAt = lines.indexOfFirst { it.startsWith("older days") }
+        assertEquals(8, olderAt)
+        assertEquals("older days (2026-05-22..2026-10-20): 152 days, format: date net(kcal) weight food(has meal text) ex(has exercise)", lines[olderAt])
+        assertEquals(olderAt + 153, lines.size)
+        assertTrue(lines[olderAt + 1].startsWith("2026-10-20 "))
         assertEquals("2026-05-22 -195 92.2kg food ex", lines.last())
         // 5-23은 체중·식단·운동이 모두 없다
         assertEquals("2026-05-23 -194", lines[lines.size - 2])
         assertFalse(text.contains("식단 글"))
-        assertFalse(text.contains("2026-10-21"))
+        assertFalse(text.contains("2026-10-21 "))
 
-        // 창 이전 기록이 없으면 null
-        assertEquals(null, AiAskContext.olderDays(listOf(record(date = "2026-11-01")), today))
+        // 창 안 기록뿐이면 월별 줄만 있고 older days는 없다. 기록이 아예 없거나 오늘 날짜가 깨졌으면 null
+        val onlyRecent = AiAskContext.olderDays(listOf(record(date = "2026-11-01")), today)!!
+        assertTrue(onlyRecent.startsWith("monthly (2026-11..2026-11): 1 months"))
+        assertFalse(onlyRecent.contains("older days"))
+        assertEquals(null, AiAskContext.olderDays(emptyList(), today))
         assertEquals(null, AiAskContext.olderDays(records, "오늘"))
+    }
+
+    @Test
+    fun `사용자 정보는 프로필·최근 인바디·이용권을 한 묶음으로 보낸다`() {
+        val today = "2026-11-19"
+        val profile = UserProfileEntity(height = 176f, isMale = true, initialWeight = 98.6f, birthDate = "1987-03-15")
+        val inbody = InbodyRecordEntity(measuredAt = "2026-11-10", weight = 77.8f, bodyFatPercent = 24.1f, bodyFat = 18.7f, skeletalMuscle = 32.4f, visceralFatLevel = 8, bmr = 1710)
+        val gym = ExercisePassEntity(id = "a", name = "헬스", kind = ExercisePassEntity.KIND_COUNT,
+            startDate = "2026-11-01", endDate = "2026-12-31", totalCount = 10, keyword = "헬스")
+        val usages = listOf(computePassUsage(gym, listOf(record(date = "2026-11-15", exercise = "헬스")), today))
+
+        val text = AiAskContext.profile(profile, inbody, usages, today)!!
+        val lines = text.lines()
+        assertEquals("profile: height 176cm, male, age 39, start weight 98.6kg, daily net goal -500 kcal", lines[0])
+        assertEquals("latest inbody 2026-11-10: weight 77.8kg, body fat 24.1% (18.7kg), skeletal muscle 32.4kg, visceral fat 8, bmr 1710kcal", lines[1])
+        assertTrue(lines[2].startsWith("pass 헬스 (count): 1/10 used, 9 left"))
+
+        // 생년월일이 비었거나 키가 0이면 그 칸만 빠진다. 셋 다 없으면 null
+        val bare = AiAskContext.profile(UserProfileEntity(initialWeight = 0f, birthDate = "", isMale = false), null, emptyList(), today)!!
+        assertEquals("profile: female, daily net goal -500 kcal", bare)
+        assertEquals(null, AiAskContext.profile(null, null, emptyList(), today))
+    }
+
+    @Test
+    fun `하루 줄에는 섭취·소모 kcal과 걸음이 있으면 함께 적는다`() {
+        val text = AiAskContext.recentDays(
+            listOf(record(date = "2026-11-18", exercise = "웨이트 50분", exerciseKcal = 380, steps = 8200)),
+            today = "2026-11-18", screenData = ""
+        )!!
+        assertTrue(text, text.contains("- 2026-11-18 net -420 kcal (in 0, out 380), steps 8200, exercise: 웨이트 50분"))
+    }
+
+    @Test
+    fun `탄단지는 최근 30일 줄과 월별 요약에 권장량과 함께 들어간다`() {
+        val today = "2026-11-19"
+        val analyzed = record(date = "2026-11-18", weight = 78.2f, bmr = 1750, carb = 180f, protein = 95f, fat = 40f)
+        val plain = record(date = "2026-11-17")
+
+        val recent = AiAskContext.recentDays(listOf(analyzed, plain), today, "")!!
+        assertTrue(recent, recent.contains("- 2026-11-18 net -420 kcal, weight 78.2kg, C180g P95g F40g"))
+        assertFalse(recent.contains("2026-11-17 net -420 kcal, C"))
+        // 권장량은 월간 카드와 같은 계산(bmr 1750 × 1.375 − 500 = 1906kcal, 단백질 78.2×1.6). 둘째 줄에 기준과 판정
+        assertEquals(
+            "recommended daily: C232g P125g F53g (compare with C/P/F on each day line; avg over 1 analyzed days C180g P95g F40g: carb 77% low, protein 76% low, fat 75% low)",
+            recent.lines()[1]
+        )
+
+        // 월별 줄에도 권장량 대비 판정을 앱이 계산해 적는다 (모델이 84g vs 151g을 "넘겼다"고 읽은 사례)
+        val monthly = AiAskContext.olderDays(listOf(analyzed, plain), today)!!
+        assertTrue(monthly, monthly.contains("- 2026-11: 2 days, avg net -420 kcal, macros avg C180g P95g F40g over 1 days vs rec C232g P125g F53g: carb 77% low, protein 76% low, fat 75% low, exercise 0 days"))
+        // 탄단지 없는 창에는 권장량 줄이 없다
+        assertFalse(AiAskContext.recentDays(listOf(plain), today, "")!!.contains("recommended"))
     }
 
     @Test
@@ -202,10 +265,11 @@ class AiAskContextTest {
         val records = (0 until 1200).map { record(date = start.plusDays(it.toLong()).toString()) }
         val text = AiAskContext.olderDays(records, today)!!
         val lines = text.lines()
-        assertEquals(AiAskContext.OLDER_DAYS_MAX + 1, lines.size)
-        // 가장 오래된 줄은 2026-04-14 이전이 아니라, 최신 730일의 마지막
+        val olderAt = lines.indexOfFirst { it.startsWith("older days") }
+        assertEquals(olderAt + 1 + AiAskContext.OLDER_DAYS_MAX, lines.size)
+        // 가장 오래된 줄은 최신 730일의 마지막
         val oldest = lines.last().substring(0, 10)
-        assertTrue(lines[0], lines[0].contains("; ${1200 - AiAskContext.OLDER_DAYS_MAX} older days before $oldest omitted (yearly summary on request)"))
+        assertTrue(lines[olderAt], lines[olderAt].contains("; ${1200 - AiAskContext.OLDER_DAYS_MAX} older days before $oldest omitted (yearly summary on request)"))
         assertTrue(text.length <= AiAskContext.OLDER_MAX)
     }
 

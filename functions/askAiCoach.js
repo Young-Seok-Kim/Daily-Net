@@ -82,10 +82,13 @@ const RECENT_DAYS = 30;
 const MAX_RECENT_CHARS = 6000;
 
 /**
- * 최근 창 이전의 압축 블록(olderData)의 상한. 앱이 "날짜 순칼로리 체중 운동" 한 줄(30자쯤) × 최대 730일을 보낸다.
- * "가장 심했던 날", "언제부터" 같은 전 기간 질문을 저장소 읽기 없이 한 번에 답하기 위한 것이다.
+ * 전체 기록 요약 블록(olderData)의 상한. 앱이 월별 한 줄(탄단지 평균·권장량 포함)과 최근 창 이전의 "날짜 순칼로리 체중 운동"
+ * 한 줄(30자쯤) × 최대 730일을 보낸다. "가장 심했던 날", "언제부터", "올해 탄수화물" 같은 전 기간 질문을 저장소 읽기 없이 답한다.
  */
-const MAX_OLDER_CHARS = 24000;
+const MAX_OLDER_CHARS = 28000;
+
+/** 사용자 정보 블록(profileData: 프로필·최근 인바디·운동 이용권)의 상한. 앱 AiAskContext.PROFILE_MAX와 같다 */
+const MAX_PROFILE_CHARS = 1500;
 
 /**
  * 앱이 보내는 화면 종류. 앱의 AiScreenTypes와 같아야 한다.
@@ -570,6 +573,11 @@ function normalizeOlderData(raw) {
     return cleanBlock(raw, MAX_OLDER_CHARS);
 }
 
+/** 사용자 정보 블록. 없으면 빈 문자열 */
+function normalizeProfileData(raw) {
+    return cleanBlock(raw, MAX_PROFILE_CHARS);
+}
+
 /**
  * 질문이 가리킨 날짜 중 저장소에서 읽어야 하는 것. 최근 블록이 왔으면 그 창 안의 날은 이미 프롬프트에 있으니
  * 창 밖의 날만 읽는다. 옛 앱(블록 없음)은 전부 읽는다.
@@ -612,7 +620,8 @@ function historyBlock(history) {
  *   - screen: {type, title}
  *   - contextData: 앱이 요약한 화면 데이터 (없으면 "")
  *   - recentData: 앱이 화면과 무관하게 보낸 최근 RECENT_DAYS일 하루 줄 (옛 앱·기록 없음이면 "")
- *   - olderData: 그 이전 모든 날의 압축 줄 "날짜 순칼로리 체중 운동" (없으면 "")
+ *   - olderData: 전체 기록 요약 — 월별 한 줄 + 그 이전 모든 날의 압축 줄 "날짜 순칼로리 체중 운동" (없으면 "")
+ *   - profileData: 프로필(키·성별·나이·시작 체중·하루 목표)·최근 인바디·운동 이용권 (없으면 "")
  *   - aiContextBlock: 설정의 목표·활동량·메모 블록 (없으면 "")
  *   - history: 정리된 대화
  *   - question: 정리된 질문
@@ -623,7 +632,7 @@ function historyBlock(history) {
  *   - neededBlock: 모델이 1차에서 요청해 읽어 온 데이터 (fetchNeeded). 2차 질의에만 있다
  *   - allowNeed: 추가 데이터 요청([NEED])을 허용할지. 2차 질의에서는 false — 무한히 되묻지 않게
  */
-function buildPrompt({ screen, contextData, recentData, olderData, aiContextBlock: contextBlock, history, question, outputLanguage, now, timeZone, askedBlock, neededBlock, allowNeed = true }) {
+function buildPrompt({ screen, contextData, recentData, olderData, profileData, aiContextBlock: contextBlock, history, question, outputLanguage, now, timeZone, askedBlock, neededBlock, allowNeed = true }) {
     const data = contextData || "(이 화면에서 앱이 보낸 데이터가 없습니다)";
     const tz = timeZone || DEFAULT_TIME_ZONE;
     const current = now || nowText(new Date(), tz);
@@ -636,6 +645,13 @@ function buildPrompt({ screen, contextData, recentData, olderData, aiContextBloc
         "[화면 데이터 — 앱이 지금 화면에 보여주고 있는 값. 이 화면의 날짜·기간 것만 들어 있습니다]",
         data
     ];
+    if (profileData) {
+        parts.push(
+            "",
+            "[사용자 정보 — 앱 프로필(키·성별·나이·시작 체중·하루 목표)·최근 인바디·운동 이용권. 화면과 무관하게 항상 옵니다]",
+            profileData
+        );
+    }
     // 창의 시작일을 숫자로 박아 둔다. "10월 14일이 창 안인가"를 모델이 날짜 계산 없이 비교만으로 알게
     const recentFrom = shiftDate(today, -(RECENT_DAYS - 1));
     if (recentData) {
@@ -648,7 +664,7 @@ function buildPrompt({ screen, contextData, recentData, olderData, aiContextBloc
     if (olderData) {
         parts.push(
             "",
-            `[${recentFrom} 이전의 전체 기록 — 하루 한 줄 "날짜 순칼로리(kcal) 체중 food ex". food는 식단 글이, ex는 운동 글이 기록돼 있다는 표시일 뿐 내용은 여기 없습니다]`,
+            `[전체 기록 요약 (월별 한 줄 + ${recentFrom} 이전 하루 한 줄) — 월별 줄은 기록일수·평균 순칼로리·탄단지 평균(macros avg)과 권장량(rec)·운동일수·체중 변화. 하루 줄은 "날짜 순칼로리(kcal) 체중 food ex"이고 food는 식단 글이, ex는 운동 글이 기록돼 있다는 표시일 뿐 내용은 여기 없습니다]`,
             olderData
         );
     }
@@ -680,7 +696,11 @@ function buildPrompt({ screen, contextData, recentData, olderData, aiContextBloc
         "   블록 머리줄의 `all records N days since yyyy-MM-dd` 는 저장된 전체 기록의 첫 날짜와 일수입니다. \"첫 기록\", \"언제부터\",",
         "   \"가장 오래된 날\" 질문은 그 날짜로 답하고, 그 날의 내용이 필요하면 규칙 8로 요청하십시오. 창의 첫 줄을 첫 기록이라고 하지 마십시오.",
         `   \"적자가 제일 심했던 날\", \"체중이 제일 낮았던 때\", \"며칠 연속\"처럼 전 기간을 봐야 하는 질문은 [최근 ${RECENT_DAYS}일 기록]과`,
-        `   [${recentFrom} 이전의 전체 기록]을 합쳐 모든 줄을 훑어 고르십시오. 그 블록이 있으면 규칙 8로 전체를 다시 요청하지 마십시오.`,
+        "   [전체 기록 요약]을 합쳐 모든 줄을 훑어 고르십시오. 그 블록이 있으면 규칙 8로 전체를 다시 요청하지 마십시오.",
+        `   탄수화물·단백질·지방 질문은 [최근 ${RECENT_DAYS}일 기록] 줄의 C/P/F g과 [전체 기록 요약] 월별 줄의 macros avg를 rec(권장량)와 견주어 답하십시오.`,
+        "   \"올해\"·\"지난달\"처럼 기간이 길면 월별 줄로 답하고, 두 곳 모두에 탄단지가 없을 때만 없다고 하십시오.",
+        "   `carb 112% high, protein 56% low, fat 186% high` 같은 판정은 앱이 권장량과 비교해 계산한 값입니다. 그대로 인용하고",
+        "   직접 다시 비교하지 마십시오 (low = 권장보다 부족, ok = 적정, high = 권장보다 과다). 탄단지가 있는 달은 모두 언급하십시오.",
         "   이전 기록 블록의 food·ex는 식단·운동 글이 있다는 표시일 뿐 내용이 아닙니다. 그 날 무엇을 먹었는지·무슨 운동을 했는지를 물으면",
         "   (\"그날 식단이랑 운동 뭐 했더라\"처럼 앞 답변의 날짜를 가리키는 경우도) \"운동만 기록돼 있다\", \"상세 기록이 없다\"고 답하지 말고",
         "   반드시 규칙 8의 [NEED:day:yyyy-MM-dd]로 그 날을 요청하십시오. food도 ex도 없는 줄만 그 날 식단·운동 기록이 없는 것입니다.",
@@ -691,7 +711,9 @@ function buildPrompt({ screen, contextData, recentData, olderData, aiContextBloc
         "   어느 경우든 화면 데이터(date 줄)의 날짜와 질문의 날짜가 다르면 화면 값을 그 날 값으로 쓰면 안 됩니다.",
         "   최근 기록이나 날짜 블록의 값으로 이미 답했으면 기록 목록·정산 상세로 가는 표식은 붙이지 마십시오.",
         "   그 날 기록을 자세히 볼 화면으로 안내해야만 할 때는 규칙 7의 표식에 날짜를 붙이십시오 (예: [GOTO:daily_record:2026-11-18]).",
-        "   화면 데이터의 `pass 이름 (count|period): ...` 줄은 운동 이용권입니다. `went N days: 날짜들`은 그 이용권 운동을 한 날",
+        "   BMI·적정 체중·체중당 단백질처럼 키·성별·나이가 필요한 계산은 [사용자 정보]의 값으로 하고 근사값임을 밝히십시오.",
+        "   \"지금까지 얼마나 뺐어\"는 [사용자 정보]의 start weight와 가장 최근 체중을 견주어 답하십시오.",
+        "   화면 데이터나 [사용자 정보]의 `pass 이름 (count|period): ...` 줄은 운동 이용권입니다. `went N days: 날짜들`은 그 이용권 운동을 한 날",
         "   전체 목록이고, `no keyword, exercise days since start N: 날짜 운동` 은 이용권 기간 안에 한 모든 운동입니다.",
         "   \"등록하고 몇 번 갔나\", \"자주 갔나\" 는 이 줄의 날짜로 세어 답하십시오 (다른 화면으로 보내지 마십시오).",
         "   `no keyword` 목록은 이용권과 무관한 운동(수영·헬스 등)도 섞여 있습니다. 각 날짜 뒤의 운동 글자를 보고",
@@ -801,6 +823,7 @@ const askAiCoach = onRequest({
         const contextData = normalizeContextData(body.contextData);
         const recentData = normalizeRecentData(body.recentData);
         const olderData = normalizeOlderData(body.olderData);
+        const profileData = normalizeProfileData(body.profileData);
         const history = normalizeHistory(body.history);
         const aiContext = normalizeAiContext(body.aiContext);
 
@@ -854,6 +877,7 @@ const askAiCoach = onRequest({
             contextData,
             recentData,
             olderData,
+            profileData,
             aiContextBlock: aiContextPromptBlock(aiContext),
             history,
             question,
@@ -878,7 +902,7 @@ const askAiCoach = onRequest({
                 }
                 if (neededBlock) {
                     const secondPrompt = buildPrompt({
-                        screen, contextData, recentData, olderData, aiContextBlock: aiContextPromptBlock(aiContext), history, question,
+                        screen, contextData, recentData, olderData, profileData, aiContextBlock: aiContextPromptBlock(aiContext), history, question,
                         outputLanguage: L.outputLanguage, now: current, timeZone, askedBlock, neededBlock, allowNeed: false
                     });
                     try {
@@ -899,7 +923,7 @@ const askAiCoach = onRequest({
             const { answer, navigateTo, navigateArg } = suppressDailyNav(
                 splitNavigation(generated, screen.type), askedDates
             );
-            console.log(`[askAiCoach] uid=${user.uid} 화면=${screen.type} 질문=${question.length}자 최근=${recentData.length}자 이전=${olderData.length}자 답변=${answer.length}자 이동=${navigateTo || "-"} 날짜=${askedDates.join(",") || "-"} 남은=${quota.remainingFreeCount}`);
+            console.log(`[askAiCoach] uid=${user.uid} 화면=${screen.type} 질문=${question.length}자 최근=${recentData.length}자 이전=${olderData.length}자 프로필=${profileData.length}자 답변=${answer.length}자 이동=${navigateTo || "-"} 날짜=${askedDates.join(",") || "-"} 남은=${quota.remainingFreeCount}`);
             return res.status(200).json({
                 answer,
                 navigateTo,
@@ -944,6 +968,7 @@ module.exports = {
     MAX_CONTEXT_CHARS,
     MAX_RECENT_CHARS,
     MAX_OLDER_CHARS,
+    MAX_PROFILE_CHARS,
     RECENT_DAYS,
     MAX_TITLE_CHARS,
     SCREEN_TYPES,
@@ -952,6 +977,7 @@ module.exports = {
     normalizeContextData,
     normalizeRecentData,
     normalizeOlderData,
+    normalizeProfileData,
     datesToFetch,
     normalizeHistory,
     buildPrompt,
