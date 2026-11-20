@@ -14,6 +14,23 @@
 
 ---
 
+## v1.18.3 (b71) — 2026-11-20
+
+### 스토어 문구
+
+AI 질문 창에서 키보드가 열려 있을 때 뒤로가기를 누르면 키보드만 닫힙니다. 전에는 대화 창까지 함께 닫혔습니다.
+
+### 상세 내역
+
+- **AI 질문 시트의 뒤로가기** (`ui/view/AiAskSheet.kt`)
+  - targetSdk 36부터 예측 뒤로가기가 기본이라 시트(다이얼로그)의 뒤로가기 콜백이 IME보다 먼저 받는다. 시트 기본 처리에 맡기면
+    입력 중 뒤로가기 한 번에 대화까지 닫혔다(실기기 확인). `ModalBottomSheetDefaults.properties(shouldDismissOnBackPress = false)`로
+    기본 처리를 끄고 `BackHandler`에서 `WindowInsets.isImeVisible`이면 키보드만 내리고(`LocalSoftwareKeyboardController.hide` +
+    포커스 해제), 아니면 `onDismiss`. 스와이프로 내리는 것은 그대로.
+  - 실기기(SM-S948N) 확인: 키보드 열린 상태 뒤로가기 → 키보드만 닫힘, 한 번 더 → 시트 닫힘.
+
+---
+
 ## v1.18.2 (b70) — 2026-11-20
 
 ### 스토어 문구

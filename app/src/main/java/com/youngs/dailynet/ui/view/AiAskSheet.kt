@@ -55,6 +55,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.material3.ModalBottomSheetDefaults
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -185,13 +190,28 @@ private fun AiAskSheet(
         if (last >= 0) listState.animateScrollToItem(last)
     }
 
+    // 뒤로가기: 키보드가 떠 있으면 키보드만 내리고, 아니면 시트를 닫는다.
+    // targetSdk 36부터 예측 뒤로가기가 기본이라 시트(다이얼로그)의 뒤로가기 콜백이 IME보다 먼저 받는다. 시트의 기본 처리
+    // (shouldDismissOnBackPress)에 맡기면 입력 중 뒤로가기 한 번에 대화까지 통째로 닫혔다(2026-11-20 실기기). 그래서 기본 처리를
+    // 끄고 여기서 직접 가른다. 스와이프로 내리는 것은 그대로 onDismissRequest로 간다
+    val imeVisible = WindowInsets.isImeVisible
+    val keyboard = LocalSoftwareKeyboardController.current
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = DnDimens.RadiusHero, topEnd = DnDimens.RadiusHero),
         containerColor = MaterialTheme.colorScheme.surface,
-        scrimColor = Ink.copy(alpha = 0.32f)
+        scrimColor = Ink.copy(alpha = 0.32f),
+        properties = ModalBottomSheetDefaults.properties(shouldDismissOnBackPress = false)
     ) {
+        BackHandler {
+            if (imeVisible) {
+                keyboard?.hide()
+                focus.clearFocus()
+            } else {
+                onDismiss()
+            }
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
