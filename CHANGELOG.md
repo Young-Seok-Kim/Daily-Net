@@ -14,6 +14,23 @@
 
 ---
 
+## v1.18.4 (b72) — 2026-11-20
+
+### 스토어 문구
+
+AI 질문 창에서 AI가 기억하는 대화 범위를 표시합니다. "여기부터 AI가 기억해요" 선 위의 지난 말풍선은 흐리게 보이며, 다음 질문에는 선 아래 대화만 함께 전달됩니다.
+
+### 상세 내역
+
+- **AI 기억 범위 표시** (`ui/view/AiAskSheet.kt` `MemoryDivider`, `MessageBubble.dimmed`, `AiScreenTypes.HISTORY_MESSAGES`)
+  - 대화는 앱을 켜 둔 동안 ViewModel에 남고 질문마다 오류 제외 최근 6개(3쌍)만 history로 간다. 아침 대화가 저녁에도 보이니
+    어디까지가 "기억"인지 모르면 오해한다. 경계 바로 위에 구분선, 그 위 말풍선은 alpha 0.45.
+  - 숨기는 대신 흐리게: 방금 받은 답도 세 쌍이 지나면 못 보게 되는 건 손해다.
+  - `aiHistory()`의 6을 `AiScreenTypes.HISTORY_MESSAGES`로 빼 시트와 같은 값을 쓴다(서버 MAX_HISTORY_TURNS와 동일).
+  - 문자열 `ai_ask_memory_from_here`(ko/en).
+
+---
+
 ## v1.18.3 (b71) — 2026-11-20
 
 ### 스토어 문구

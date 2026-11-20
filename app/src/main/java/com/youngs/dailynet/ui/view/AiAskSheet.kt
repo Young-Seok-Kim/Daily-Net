@@ -22,7 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -53,6 +53,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.activity.compose.BackHandler
@@ -273,6 +275,13 @@ private fun AiAskSheet(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
+            // 다음 질문에 history로 함께 가는 범위(오류 제외 최근 HISTORY_MESSAGES개)의 첫 말풍선. 그 위는 AI가 모르는
+            // 지난 대화라 흐리게 그리고, 경계에 "여기부터 AI가 기억해요" 선을 긋는다. 대화는 앱을 켜 둔 동안 남아
+            // 아침 대화가 저녁까지 보이는데, 어디까지가 "기억"인지 알려 주지 않으면 사용자가 오해한다
+            val rememberedFrom = remember(messages) {
+                val first = messages.filterNot { it.error }.takeLast(AiScreenTypes.HISTORY_MESSAGES).firstOrNull()
+                if (first == null) 0 else messages.indexOfFirst { it === first }.coerceAtLeast(0)
+            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -289,12 +298,16 @@ private fun AiAskSheet(
                         )
                     }
                 }
-                items(messages) { message ->
+                itemsIndexed(messages) { index, message ->
+                    if (index == rememberedFrom && index > 0) {
+                        MemoryDivider()
+                    }
                     // AI가 다른 화면을 가리켰으면 그리로 가는 버튼. 시트를 닫고 MainActivity에 이동을 맡긴다.
                     // 같은 화면이면 서버가 이미 걸렀지만, 화면을 옮긴 뒤 다시 연 시트에서는 같아질 수 있다
                     val gotoScreen = message.navigateTo?.takeIf { it != screenType }
                     MessageBubble(
                         message = message,
+                        dimmed = index < rememberedFrom,
                         // 오류 말풍선 중 마지막 것에만 "다시 시도"를 붙인다
                         canRetry = message.error && message === messages.lastOrNull() && !asking,
                         onRetry = { mainViewModel.retryAiAsk() },
@@ -368,6 +381,7 @@ private fun gotoLabelRes(screen: String): Int? = when (screen) {
  *
  * @param gotoLabel AI가 가리킨 화면으로 가는 버튼 문구. null이면 버튼 없음
  * @param onGoto 그 버튼을 눌렀을 때. [gotoLabel]과 함께 있어야 그린다
+ * @param dimmed AI가 더 이상 기억하지 않는 지난 말풍선. 반투명으로 그린다
  */
 @Composable
 private fun MessageBubble(
@@ -375,10 +389,12 @@ private fun MessageBubble(
     canRetry: Boolean,
     onRetry: () -> Unit,
     gotoLabel: String? = null,
-    onGoto: (() -> Unit)? = null
+    onGoto: (() -> Unit)? = null,
+    dimmed: Boolean = false
 ) {
+    val rowModifier = Modifier.fillMaxWidth().alpha(if (dimmed) 0.45f else 1f)
     if (message.fromUser) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Row(modifier = rowModifier, horizontalArrangement = Arrangement.End) {
             Surface(
                 shape = RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp),
                 color = Ink,
@@ -395,7 +411,7 @@ private fun MessageBubble(
         return
     }
 
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(modifier = rowModifier) {
         Surface(
             shape = RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp),
             color = if (message.error) MaterialTheme.colorScheme.errorContainer
@@ -433,6 +449,24 @@ private fun MessageBubble(
 }
 
 /** 답을 만드는 동안의 말풍선. 누르는 동안 멈춘 것처럼 보이지 않게 한다 */
+/** "── 여기부터 AI가 기억해요 ──". 다음 질문에 함께 가는 말풍선과 그렇지 않은 것의 경계 */
+@Composable
+private fun MemoryDivider() {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+        Text(
+            text = stringResource(R.string.ai_ask_memory_from_here),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+    }
+}
+
 @Composable
 private fun ThinkingBubble() {
     Surface(

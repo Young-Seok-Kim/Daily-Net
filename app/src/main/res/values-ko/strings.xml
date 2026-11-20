@@ -570,6 +570,7 @@
     <string name="ai_ask_send">보내기</string>
     <string name="ai_ask_thinking">답변을 만드는 중...</string>
     <string name="ai_ask_empty">지금 보고 있는 화면의 기록을 함께 보고 답해요.</string>
+    <string name="ai_ask_memory_from_here">여기부터 AI가 기억해요</string>
     <string name="ai_ask_error">답변을 받지 못했어요. 잠시 후 다시 시도해 주세요.</string>
     <string name="ai_ask_retry">다시 시도</string>
     <string name="ai_ask_limit">오늘 AI 질문 횟수를 모두 사용했어요. 내일 다시 시도해 주세요.</string>

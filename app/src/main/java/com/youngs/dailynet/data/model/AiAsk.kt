@@ -115,4 +115,10 @@ object AiScreenTypes {
 
     /** 질문 길이 상한. 서버 MAX_QUESTION_CHARS와 같아야 한다 */
     const val MAX_QUESTION = 500
+
+    /**
+     * 질문마다 history로 다시 보내는 지난 말풍선 수(질문·답 3쌍). 서버 MAX_HISTORY_TURNS와 같아야 한다.
+     * 시트는 이 범위 밖의 말풍선을 흐리게 그려 AI가 어디까지 기억하는지 보여 준다.
+     */
+    const val HISTORY_MESSAGES = 6
 }
