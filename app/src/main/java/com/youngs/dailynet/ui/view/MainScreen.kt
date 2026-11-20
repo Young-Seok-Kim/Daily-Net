@@ -1211,8 +1211,8 @@ private val TREND_BAR_AREA = 110.dp
 private val TREND_TIP_AREA = 24.dp
 /** 날짜 라벨 자리 높이 */
 private val TREND_LABEL_AREA = 22.dp
-/** 하루 목표 순칼로리. 선 하나로만 쓰여서 상수로 둔다 */
-private const val DAILY_GOAL_KCAL = 500
+/** 하루 목표 순칼로리. 최근 추이의 목표선과 AI 질문의 사용자 정보(AiAskContext.profile)가 같은 값을 쓴다 */
+const val DAILY_GOAL_KCAL = 500
 
 /**
  * 최근 순칼로리 미니 바 차트.

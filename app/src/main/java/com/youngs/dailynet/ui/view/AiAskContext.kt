@@ -1,6 +1,7 @@
 package com.youngs.dailynet.ui.view
 
 import com.youngs.dailynet.data.local.entity.InbodyRecordEntity
+import com.youngs.dailynet.data.local.entity.UserProfileEntity
 import com.youngs.dailynet.data.model.DailyRecordModel
 import com.youngs.dailynet.util.PassUsage
 import java.util.Locale
@@ -48,8 +49,47 @@ object AiAskContext {
      */
     const val OLDER_DAYS_MAX = 730
 
-    /** 압축 블록 상한. 한 줄 30자 × 730일에 여유. 서버 MAX_OLDER_CHARS(24000)보다 아래 */
-    const val OLDER_MAX = 23000
+    /** 월별 요약 + 압축 블록 상한. 한 줄 30자 × 730일에 월별 줄 여유. 서버 MAX_OLDER_CHARS(28000)보다 아래 */
+    const val OLDER_MAX = 26000
+
+    /** 사용자 정보 블록 상한. 프로필·인바디 한 줄씩과 이용권 몇 줄. 서버 MAX_PROFILE_CHARS(1500)와 같다 */
+    const val PROFILE_MAX = 1500
+
+    /**
+     * 사용자 정보 한 묶음: 프로필(키·성별·나이·시작 체중·하루 목표)·최근 인바디·운동 이용권. 화면과 무관하게 매 질문에 간다.
+     *
+     * BMI·적정 체중·체중당 단백질 같은 질문은 키·성별·나이 없이는 답을 못 한다. 하루 분석(AnalysisRequest)도 같은 값을
+     * 보내고 있어 새로 나가는 정보는 아니다. 시작 체중은 "지금까지 얼마나 뺐어"의 근거다. 이용권은 전에 목록·정산 상세
+     * 화면 데이터에만 붙었는데, 월간·체중 화면에서 물어도 알게 여기로 옮겨 항상 보낸다.
+     *
+     * @return 셋 다 없으면 null (블록을 보내지 않는다)
+     */
+    fun profile(
+        profile: UserProfileEntity?,
+        latestInbody: InbodyRecordEntity?,
+        passes: List<PassUsage>,
+        today: String
+    ): String? {
+        val lines = mutableListOf<String>()
+        if (profile != null) {
+            val parts = mutableListOf<String>()
+            if (profile.height > 0f) parts += "height " + String.format(Locale.US, "%.0fcm", profile.height)
+            parts += if (profile.isMale) "male" else "female"
+            ageOf(profile.birthDate, today)?.let { parts += "age $it" }
+            if (profile.initialWeight > 0f) parts += "start weight ${kg(profile.initialWeight)}"
+            parts += "daily net goal -$DAILY_GOAL_KCAL kcal"
+            lines += "profile: ${parts.joinToString(", ")}"
+        }
+        if (latestInbody != null) lines += "latest inbody ${latestInbody.measuredAt}: ${inbodyLine(latestInbody)}"
+        passLine(passes)?.let { lines += it }
+        if (lines.isEmpty()) return null
+        return lines.joinToString("\n").take(PROFILE_MAX)
+    }
+
+    /** 생년월일(yyyy-MM-dd)로 만 나이. 비었거나 깨졌거나 말이 안 되는 값이면 null */
+    private fun ageOf(birthDate: String, today: String): Int? = runCatching {
+        java.time.Period.between(java.time.LocalDate.parse(birthDate.trim()), java.time.LocalDate.parse(today)).years
+    }.getOrNull()?.takeIf { it in 1..120 }
 
     /**
      * 일일 기록 목록 화면. 전체 합계와 이용권만 담는다 — 날짜별 줄은 [recentDays]가 어느 화면에서나 붙이므로
@@ -99,12 +139,24 @@ object AiAskContext {
             (if (shown.isEmpty()) "" else ", ${shown.size} already in screen data (omitted here)") +
             (if (first < from) "; all records ${past.size} days since $first (older days in compact block)" else "")
         val lines = mutableListOf(head)
+        // 권장 탄단지를 한 줄. 하루 줄의 C/P/F를 견줄 기준이 없으면 "이번 주 단백질 충분했어?"에 답을 못 한다
+        val summary = buildPeriodSummary(inWindow, inWindow.firstOrNull { it.weight > 0f }?.weight ?: 0f)
+        if (summary.nutritionDays > 0) {
+            lines += "recommended daily: C${summary.recCarb}g P${summary.recProtein}g F${summary.recFat}g " +
+                "(compare with C/P/F on each day line; avg over ${summary.nutritionDays} analyzed days " +
+                "C${summary.carbAvg.toInt()}g P${summary.proteinAvg.toInt()}g F${summary.fatAvg.toInt()}g: ${macroVerdicts(summary)})"
+        }
         fresh.forEach { lines += dayLine(it) }
         return lines.joinToString("\n").take(RECENT_MAX)
     }
 
     /**
-     * 최근 창 **이전**의 모든 날을 압축 한 줄("2026-05-22 -195 92.2kg food ex")로. 식단 글은 뺀다.
+     * 전체 기록 요약: **월별 한 줄**(모든 달) + 최근 창 **이전**의 모든 날을 압축 한 줄("2026-05-22 -195 92.2kg food ex")로.
+     * 식단 글은 뺀다.
+     *
+     * 월별 줄은 월간 정산 카드와 같은 계산([buildPeriodSummary])으로 기록일수·평균 순칼로리·탄단지 평균과 권장량·운동일수·
+     * 체중 변화를 적는다. "올해 탄수화물 알맞게 먹었어?"에 모델이 "이 화면엔 탄단지가 없다"고 답한 실기기 사례(2026-11-20) —
+     * 탄단지는 정산 상세·월간 화면에만 가고 있었다.
      *
      * `food`·`ex`는 그 날 식단·운동 **글이 있다**는 표시다. 내용이 없는 줄만 보고 모델이 "운동만 기록돼 있다"고 단정한
      * 실기기 사례(2026-11-20, 6월 5일)가 있어 식단 표시를 넣었다. 내용은 서버가 [NEED:day]로 읽어 준다.
@@ -115,23 +167,69 @@ object AiAskContext {
      * 화면 데이터와 겹쳐도 빼지 않는다 — 압축 줄은 싸고, 빼면 전 기간 목록에 구멍이 생겨 "가장"을 잘못 고른다.
      * [OLDER_DAYS_MAX]일(2년)까지만 담고 넘치는 오래된 날은 머리줄에 몇 일을 뺐는지 적는다.
      *
-     * @return 창 이전에 기록이 없으면 null (블록을 보내지 않는다)
+     * @return 오늘까지의 기록이 하나도 없으면 null (블록을 보내지 않는다)
      */
     fun olderDays(records: List<DailyRecordModel>, today: String): String? {
         val from = windowStart(today) ?: return null
-        val older = records
-            .filter { it.date < from }
+        val past = records
+            .filter { it.date <= today }
             .distinctBy { it.date }
             .sortedByDescending { it.date }
-        if (older.isEmpty()) return null
-        val shown = older.take(OLDER_DAYS_MAX)
-        val omitted = older.size - shown.size
-        val head = "older days (${shown.last().date}..${shown.first().date}): ${shown.size} days, " +
-            "format: date net(kcal) weight food(has meal text) ex(has exercise)" +
-            if (omitted > 0) "; $omitted older days before ${shown.last().date} omitted (yearly summary on request)" else ""
-        val lines = mutableListOf(head)
-        shown.forEach { lines += compactLine(it) }
+        if (past.isEmpty()) return null
+        val lines = mutableListOf<String>()
+
+        // 월별 요약. 권장 탄단지의 체중은 월간 카드와 같이 그 달 기록 체중, 없으면 최근 체중
+        val latestWeight = past.firstOrNull { it.weight > 0f }?.weight ?: 0f
+        val byMonth = past.groupBy { it.date.take(7) }.toSortedMap(compareByDescending { it })
+        lines += "monthly (${byMonth.lastKey()}..${byMonth.firstKey()}): ${byMonth.size} months, " +
+            "format: month days avg-net macros-avg(over analyzed days) vs rec(recommended daily) with verdict " +
+            "(low <85%, ok, high >115% of rec) exercise weight-change"
+        byMonth.forEach { (ym, recs) -> lines += monthLine(ym, buildPeriodSummary(recs, latestWeight)) }
+
+        val older = past.filter { it.date < from }
+        if (older.isNotEmpty()) {
+            val shown = older.take(OLDER_DAYS_MAX)
+            val omitted = older.size - shown.size
+            lines += "older days (${shown.last().date}..${shown.first().date}): ${shown.size} days, " +
+                "format: date net(kcal) weight food(has meal text) ex(has exercise)" +
+                if (omitted > 0) "; $omitted older days before ${shown.last().date} omitted (yearly summary on request)" else ""
+            shown.forEach { lines += compactLine(it) }
+        }
         return lines.joinToString("\n").take(OLDER_MAX)
+    }
+
+    /**
+     * "- 2026-11: 19 days, avg net -334 kcal, macros avg C172g P92g F48g over 15 days vs rec C210g P112g F55g:
+     *  carb 82% low, protein 82% low, fat 87% ok, exercise 8 days, weight -0.8kg"
+     *
+     * 권장량 대비 판정은 앱이 계산해 적는다. 숫자만 주면 모델이 비교를 틀린다 — 단백질 84g vs 권장 151g을 "권장량을
+     * 넘겼다"고 답한 실기기 사례(2026-11-20).
+     */
+    private fun monthLine(ym: String, s: PeriodSummary): String {
+        val sb = StringBuilder("- $ym: ${s.recordDays} days, avg net ${kcal(s.netAverage)}")
+        if (s.nutritionDays > 0) {
+            sb.append(", macros avg C${s.carbAvg.toInt()}g P${s.proteinAvg.toInt()}g F${s.fatAvg.toInt()}g over ${s.nutritionDays} days")
+            sb.append(" vs rec C${s.recCarb}g P${s.recProtein}g F${s.recFat}g: ${macroVerdicts(s)}")
+        }
+        sb.append(", exercise ${s.exerciseDays} days")
+        s.weightDiff?.let { sb.append(", weight ${signedKg(it)}") }
+        return sb.toString()
+    }
+
+    /** "carb 112% high, protein 56% low, fat 186% high". 권장량이 0이면 n/a */
+    private fun macroVerdicts(s: PeriodSummary): String =
+        "carb ${macroVerdict(s.carbAvg, s.recCarb)}, protein ${macroVerdict(s.proteinAvg, s.recProtein)}, " +
+            "fat ${macroVerdict(s.fatAvg, s.recFat)}"
+
+    private fun macroVerdict(avg: Float, rec: Int): String {
+        if (rec <= 0) return "n/a"
+        val pct = (avg / rec * 100f).toInt()
+        val flag = when {
+            pct < 85 -> "low"
+            pct > 115 -> "high"
+            else -> "ok"
+        }
+        return "$pct% $flag"
     }
 
     /** 최근 창의 첫 날(오늘 포함 [RECENT_DAYS]일). 오늘 날짜가 깨졌으면 null */
@@ -331,8 +429,18 @@ object AiAskContext {
 
     /** "- 2026-11-19 net -420kcal, weight 78.2kg, ex yes | B: 계란밥 L: …" */
     private fun dayLine(record: DailyRecordModel): String {
-        val parts = mutableListOf("net ${kcal(record.netCalories)}")
+        // 섭취·소모가 있으면 같이. "평균 얼마나 먹었어?"는 순칼로리만으로는 못 답한다
+        val intake = record.breakfastKcal + record.lunchKcal + record.dinnerKcal + record.snackKcal
+        val parts = mutableListOf(
+            if (intake > 0 || record.exerciseKcal > 0) "net ${kcal(record.netCalories)} (in $intake, out ${record.exerciseKcal})"
+            else "net ${kcal(record.netCalories)}"
+        )
         if (record.weight > 0f) parts += "weight ${kg(record.weight)}"
+        // 탄단지. "이번 주 단백질 충분했어?"는 식단 글만으로는 못 답한다
+        if (record.hasNutritionData) {
+            parts += "C${record.carbGram.toInt()}g P${record.proteinGram.toInt()}g F${record.fatGram.toInt()}g"
+        }
+        if (record.steps > 0) parts += "steps ${record.steps}"
         // 무슨 운동을 했는지까지. "이번 달 러닝 몇 번 했어?"에 답하려면 yes/no로는 모자란다
         val exercise = clip(record.exercise, FIELD_MAX)
         if (exercise.isNotEmpty()) parts += "exercise: $exercise"

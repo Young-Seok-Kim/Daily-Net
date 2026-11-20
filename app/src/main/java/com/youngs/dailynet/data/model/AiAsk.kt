@@ -34,6 +34,8 @@ data class AiAskRequest(
      * 질문("가장 심했던 날")을 한 번에 답하게 한다. 창 이전 기록이 없으면 null
      */
     val olderData: String? = null,
+    /** 프로필(키·성별·나이·시작 체중)·최근 인바디·운동 이용권(AiAskContext.profile). 없으면 null */
+    val profileData: String? = null,
     /** 설정 > AI 분석 참고 정보(목표·활동량·메모). 비어 있으면 null → 필드를 빼고 보낸다 */
     val aiContext: AiContext? = null,
     val question: String,

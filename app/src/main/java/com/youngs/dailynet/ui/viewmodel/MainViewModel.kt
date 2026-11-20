@@ -675,10 +675,17 @@ class MainViewModel @Inject constructor(
                 // 최근 30일(하루 줄)과 그 이전 전부(압축 줄)를 화면과 무관하게 항상 같이 보낸다. Room에 다 있어
                 // 서버가 저장소를 읽을 필요가 없다. allDailyRecord는 구독 화면이 없으면 비어 있을 수 있어 Flow에서
                 // 직접 한 번 읽는다. 실패해도 질문은 보낸다
+                val profile = userProfileDao.getProfile()
                 val blocks = runCatching {
                     val records = repository.getAllDailyRecordRoom().first()
                     val today = java.time.LocalDate.now().toString()
-                    AiAskContext.recentDays(records, today, call.contextData) to AiAskContext.olderDays(records, today)
+                    val latestInbody = inbodyRepository.observe().first().filterNot { it.isDummy }.maxByOrNull { it.measuredAt }
+                    val passes = passRepository.observe().first().map { computePassUsage(it, records, today) }
+                    Triple(
+                        AiAskContext.recentDays(records, today, call.contextData),
+                        AiAskContext.olderDays(records, today),
+                        AiAskContext.profile(profile, latestInbody, passes, today)
+                    )
                 }.getOrNull()
                 val request = AiAskRequest(
                     language = Locale.getDefault().toLanguageTag(),
@@ -688,8 +695,9 @@ class MainViewModel @Inject constructor(
                     contextData = call.contextData,
                     recentData = blocks?.first,
                     olderData = blocks?.second,
+                    profileData = blocks?.third,
                     // 설정의 목표·활동량·메모. 다른 AI 호출과 같은 기준을 쓴다
-                    aiContext = AiContext.of(userProfileDao.getProfile()),
+                    aiContext = AiContext.of(profile),
                     question = call.question,
                     history = history
                 )

@@ -16,6 +16,7 @@ const {
     MAX_CONTEXT_CHARS,
     MAX_RECENT_CHARS,
     MAX_OLDER_CHARS,
+    MAX_PROFILE_CHARS,
     RECENT_DAYS,
     MAX_TITLE_CHARS,
     SCREEN_TYPES,
@@ -24,6 +25,7 @@ const {
     normalizeContextData,
     normalizeRecentData,
     normalizeOlderData,
+    normalizeProfileData,
     datesToFetch,
     normalizeHistory,
     buildPrompt,
@@ -153,6 +155,8 @@ test("최근 기록 블록 다듬기", async (t) => {
         assert.ok(MAX_OLDER_CHARS > MAX_RECENT_CHARS * 3);
         assert.equal(normalizeOlderData("x".repeat(MAX_OLDER_CHARS + 5)).length, MAX_OLDER_CHARS);
         assert.equal(normalizeOlderData(null), "");
+        assert.equal(normalizeProfileData("x".repeat(MAX_PROFILE_CHARS + 5)).length, MAX_PROFILE_CHARS);
+        assert.equal(normalizeProfileData(undefined), "");
     });
 
     await t.test("최근 블록이 왔으면 창 안의 날은 저장소에서 읽지 않는다", () => {
@@ -256,17 +260,32 @@ test("프롬프트 조립", async (t) => {
         assert.match(prompt, /`all records N days since yyyy-MM-dd` 는 저장된 전체 기록의 첫 날짜와 일수/);
         assert.match(prompt, /창의 첫 줄을 첫 기록이라고 하지 마십시오/);
         // 이전 전체 기록 블록은 최근 블록 뒤, 날짜 블록 앞. 전 기간 질문은 두 블록을 합쳐 훑으라고 지시한다
-        const older = `older days (2026-05-22..${shiftDate(from, -1)}): 152 days, format: date net(kcal) weight exercise\n2026-05-22 -195 92.2kg ex`;
+        const older = `monthly (2026-05..2026-11): 7 months\n- 2026-11: 19 days, avg net -334 kcal, macros avg C172g P92g F48g over 15 days (rec C210g P112g F55g)\nolder days (2026-05-22..${shiftDate(from, -1)}): 152 days, format: date net(kcal) weight exercise\n2026-05-22 -195 92.2kg ex`;
         const withOlder = buildPrompt({ ...base, recentData: recent, olderData: older, askedBlock: "[질문이 가리킨 날짜의 기록 — 서버가 저장소에서 읽어 온 값]\nx" });
-        const olderAt = withOlder.indexOf(`[${from} 이전의 전체 기록`);
+        const olderAt = withOlder.indexOf(`[전체 기록 요약 (월별 한 줄 + ${from} 이전 하루 한 줄)`);
+        assert.ok(olderAt > 0);
         assert.ok(withOlder.indexOf(`[최근 ${RECENT_DAYS}일 기록`) < olderAt && olderAt < withOlder.indexOf("[질문이 가리킨 날짜의 기록"));
         assert.match(withOlder, /2026-05-22 -195 92.2kg ex/);
-        assert.ok(withOlder.includes(`[${from} 이전의 전체 기록]을 합쳐 모든 줄을 훑어 고르십시오`));
+        assert.ok(withOlder.includes("[전체 기록 요약]을 합쳐 모든 줄을 훑어 고르십시오"));
+        assert.match(withOlder, /macros avg C172g P92g F48g/);
+        // 탄단지 질문은 최근 줄의 C/P/F와 월별 macros avg·rec로 답하라고 지시 (2026-11-20 "올해 탄수화물" 실기기 사례)
+        assert.match(withOlder, /탄수화물·단백질·지방 질문은 \[최근 \d+일 기록\] 줄의 C\/P\/F g과 \[전체 기록 요약\] 월별 줄의 macros avg를 rec\(권장량\)와 견주어/);
+        // 판정(low/ok/high)은 앱이 계산한 값이니 그대로 쓰라고 (모델이 84g vs 151g을 "넘겼다"고 답한 사례)
+        assert.match(withOlder, /판정은 앱이 권장량과 비교해 계산한 값입니다. 그대로 인용하고/);
+        assert.match(withOlder, /low = 권장보다 부족, ok = 적정, high = 권장보다 과다/);
         // food·ex는 표시일 뿐이니 내용을 물으면 NEED:day (2026-11-20 "그날 식단이랑 운동 뭐했더라"에 "운동만 기록" 실기기 사례)
         assert.match(withOlder, /food는 식단 글이, ex는 운동 글이 기록돼 있다는 표시일 뿐 내용은 여기 없습니다/);
         assert.match(withOlder, /"운동만 기록돼 있다", "상세 기록이 없다"고 답하지 말고/);
         assert.match(withOlder, /반드시 규칙 8의 \[NEED:day:yyyy-MM-dd\]로 그 날을 요청하십시오/);
-        assert.doesNotMatch(buildPrompt({ ...base, recentData: recent }), /이전의 전체 기록 — 하루 한 줄/);
+        assert.doesNotMatch(buildPrompt({ ...base, recentData: recent }), /\[전체 기록 요약 \(월별 한 줄/);
+        // 사용자 정보 블록은 화면 데이터와 최근 블록 사이. 키·성별·나이 계산과 시작 체중 비교를 지시한다
+        const withProfile = buildPrompt({ ...base, recentData: recent, profileData: "profile: height 176cm, male, age 39, start weight 98.6kg, daily net goal -500 kcal\nlatest inbody 2026-11-10: weight 77.8kg" });
+        const profileAt = withProfile.indexOf("[사용자 정보 — 앱 프로필");
+        assert.ok(withProfile.indexOf("[화면 데이터") < profileAt && profileAt < withProfile.indexOf(`[최근 ${RECENT_DAYS}일 기록`));
+        assert.match(withProfile, /start weight 98.6kg/);
+        assert.match(withProfile, /키·성별·나이가 필요한 계산은 \[사용자 정보\]의 값으로 하고 근사값임을 밝히십시오/);
+        assert.match(withProfile, /start weight와 가장 최근 체중을 견주어/);
+        assert.doesNotMatch(buildPrompt(base), /\[사용자 정보 — 앱 프로필/);
         // 블록이 없으면(옛 앱) 제목도 없다
         assert.doesNotMatch(buildPrompt(base), /\[최근 \d+일 기록 — 앱이/);
         assert.doesNotMatch(buildPrompt({ ...base, recentData: "" }), /\[최근 \d+일 기록 — 앱이/);
