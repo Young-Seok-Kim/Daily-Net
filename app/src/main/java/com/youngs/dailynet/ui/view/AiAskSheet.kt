@@ -61,7 +61,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.youngs.dailynet.R
@@ -148,7 +147,9 @@ fun AiAskFab(
 }
 
 /**
- * AI 질문 바텀시트. 위에서부터 제목·인식된 화면 뱃지 → 추천 질문 칩 → 대화 → 입력.
+ * AI 질문 바텀시트. 위에서부터 제목 → 추천 질문 칩 → 대화 → 입력.
+ * 화면 이름(screenTitle)은 서버에만 가고 시트에는 그리지 않는다 — 최근 30일 기록이 어느 화면에서나 함께 가므로
+ * "지금 어느 화면을 보고 있나"를 사용자에게 알릴 이유가 없다 (b70에서 뱃지 제거).
  *
  * @param contextData 이 화면이 지금 보여주는 값의 요약 (AiAskContext)
  */
@@ -201,15 +202,12 @@ private fun AiAskSheet(
                 .padding(horizontal = 20.dp)
         ) {
             Row(verticalAlignment = Alignment.Top) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.ai_ask_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    ScreenBadge(title = screenTitle)
-                }
+                Text(
+                    text = stringResource(R.string.ai_ask_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
                 IconButton(onClick = onDismiss) {
                     Icon(
                         imageVector = Icons.Default.Close,
@@ -329,25 +327,6 @@ private fun AiAskSheet(
             }
             Spacer(modifier = Modifier.height(12.dp))
         }
-    }
-}
-
-/** "인식된 화면: 11월 월간 정산" — 민트 알약 */
-@Composable
-private fun ScreenBadge(title: String) {
-    Surface(
-        shape = RoundedCornerShape(50),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-    ) {
-        Text(
-            text = stringResource(R.string.ai_ask_screen_badge, title),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-        )
     }
 }
 

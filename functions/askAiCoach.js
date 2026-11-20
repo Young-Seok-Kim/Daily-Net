@@ -47,6 +47,13 @@ const MONTHS_YEARS_BACK = 3;
 /** 인바디 이력은 최근 몇 건까지 */
 const INBODY_MAX = 6;
 
+/** [NEED:find:단어]로 찾을 때 거슬러 갈 일수(2년)와 돌려줄 최대 일수(최근 것부터) */
+const FIND_DAYS_BACK = 730;
+const FIND_MAX = 60;
+
+/** 찾을 단어의 길이 상한. 음식 이름 하나나 "치킨|닭" 정도다 */
+const FIND_KEYWORD_MAX = 20;
+
 /** 질문 한 번의 길이 상한. 앱 입력창도 같은 값으로 자른다(AiAsk.MAX_QUESTION) */
 const MAX_QUESTION_CHARS = 500;
 
@@ -64,6 +71,21 @@ const MAX_CONTEXT_CHARS = 8000;
 
 /** 화면 이름(뱃지에 그대로 보이는 말)의 길이 상한 */
 const MAX_TITLE_CHARS = 60;
+
+/**
+ * 앱이 화면과 무관하게 매 질문에 같이 보내는 최근 기록의 일수. 앱 AiAskContext.RECENT_DAYS와 같아야 한다.
+ * 이 창 안의 "어제·2주 전·지난 주말" 질문은 저장소를 읽지 않고 한 번에 답한다. 창 밖은 askedDates·[NEED]로 읽는다.
+ */
+const RECENT_DAYS = 30;
+
+/** 최근 기록 블록(recentData)의 상한. 하루 줄 30개(각 180자쯤)에 여유를 둔 값 */
+const MAX_RECENT_CHARS = 6000;
+
+/**
+ * 최근 창 이전의 압축 블록(olderData)의 상한. 앱이 "날짜 순칼로리 체중 운동" 한 줄(30자쯤) × 최대 730일을 보낸다.
+ * "가장 심했던 날", "언제부터" 같은 전 기간 질문을 저장소 읽기 없이 한 번에 답하기 위한 것이다.
+ */
+const MAX_OLDER_CHARS = 24000;
 
 /**
  * 앱이 보내는 화면 종류. 앱의 AiScreenTypes와 같아야 한다.
@@ -302,7 +324,7 @@ async function fetchAskedRecords(uid, dates) {
     return ["[질문이 가리킨 날짜의 기록 — 서버가 저장소에서 읽어 온 값]", ...blocks].join("\n\n");
 }
 
-const NEED_MARK = /\[NEED:([a-z]+)(?::([^\]]{0,12}))?\]/;
+const NEED_MARK = /\[NEED:([a-z]+)(?::([^\]]{0,20}))?\]/;
 
 /**
  * 모델이 "답 대신" 낸 추가 데이터 요청을 읽는다. 없거나 틀리면 null.
@@ -315,6 +337,7 @@ const NEED_MARK = /\[NEED:([a-z]+)(?::([^\]]{0,12}))?\]/;
  *  - months:yyyy      그 해의 월별 집계 (MONTHS_YEARS_BACK 년 전까지)
  *  - weight:N         최근 N일 체중 (WEIGHT_DAYS_MIN~MAX)
  *  - inbody           인바디 측정 이력
+ *  - find:단어        식단·운동·메모에 그 단어가 든 날 (최근 FIND_DAYS_BACK일, "치킨|닭"처럼 |로 여러 개)
  *
  * @returns {{kind: string, arg: string|null}|null}
  */
@@ -339,6 +362,10 @@ function parseNeed(text, today) {
         }
         case "inbody":
             return { kind, arg: null };
+        case "find": {
+            const kw = pressLine(arg || "");
+            return kw && kw.length <= FIND_KEYWORD_MAX && kw.replace(/[|,\s]/g, "") ? { kind, arg: kw } : null;
+        }
         default:
             return null;
     }
@@ -439,6 +466,27 @@ function formatInbody(records) {
     return lines.join("\n");
 }
 
+/**
+ * 식단·운동·메모에 단어가 든 날만 골라 하루 줄로. "치킨 언제 먹었어?", "러닝 몇 번 했어?"의 근거다.
+ * 전 기간 식단 글을 프롬프트에 다 넣는 대신(1년에 5만 자) 서버가 찾아 맞는 날만 준다. 대소문자 무시, 공백은 눌러 비교.
+ * 단어는 |로 여러 개("치킨|닭") — 하나라도 들면 맞는 날. 기록은 date 오름차순으로 들어오고 최근 FIND_MAX일만 돌려준다.
+ */
+function formatFind(keyword, records) {
+    const words = String(keyword).split("|").map((w) => pressLine(w).toLowerCase()).filter(Boolean);
+    const title = `["${words.join("|")}"가 든 날 — 서버가 최근 ${FIND_DAYS_BACK}일 기록의 식단·운동·메모에서 찾은 값]`;
+    const hit = (d) => {
+        const text = ["breakfast", "lunch", "dinner", "snack", "exercise", "remark"]
+            .map((k) => pressLine(d[k] || "").toLowerCase()).join(" / ");
+        return words.some((w) => text.includes(w));
+    };
+    const matches = records.filter(hit);
+    if (!matches.length) return `${title}\n(없음)`;
+    const shown = matches.slice(-FIND_MAX);
+    const lines = [title, `${matches.length} days found` + (matches.length > shown.length ? `, latest ${shown.length} shown` : "")];
+    shown.forEach((d) => lines.push(dayLine(d)));
+    return lines.join("\n");
+}
+
 /** settlements에서 날짜 범위를 읽는다 (문서의 date 필드 기준, 오름차순) */
 async function readSettlements(uid, from, to) {
     const snap = await admin.firestore().collection("users").doc(uid).collection("settlements")
@@ -463,6 +511,8 @@ async function fetchNeeded(uid, need, today) {
             const snap = await admin.firestore().collection("users").doc(uid).collection("inbody").get();
             return formatInbody(snap.docs.map((d) => d.data()));
         }
+        case "find":
+            return formatFind(need.arg, await readSettlements(uid, shiftDate(today, -FIND_DAYS_BACK), today));
         default:
             return "";
     }
@@ -495,15 +545,39 @@ function normalizeScreen(body) {
     return { type, title: title || type };
 }
 
+/** 앱이 만든 글 블록. 제어문자를 걷어내고 길이를 자른다. 탭·줄바꿈은 살린다(표 모양 요약이 읽기 좋다) */
+function cleanBlock(raw, max) {
+    if (typeof raw !== "string") return "";
+    const cleaned = raw.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").trim();
+    return cleaned.length > max ? cleaned.slice(0, max) : cleaned;
+}
+
 /**
  * 화면 데이터. 앱이 만든 요약 텍스트를 그대로 받되, 제어문자를 걷어내고 길이를 자른다.
  * 빈 값이면 빈 문자열 — 프롬프트에 "화면 데이터 없음"으로 적힌다.
  */
 function normalizeContextData(raw) {
-    if (typeof raw !== "string") return "";
-    // 탭은 살린다(앱이 만든 표 모양 요약이 읽기 좋다). 나머지 제어문자만 지운다.
-    const cleaned = raw.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").trim();
-    return cleaned.length > MAX_CONTEXT_CHARS ? cleaned.slice(0, MAX_CONTEXT_CHARS) : cleaned;
+    return cleanBlock(raw, MAX_CONTEXT_CHARS);
+}
+
+/** 최근 RECENT_DAYS일 블록. 옛 앱은 안 보내므로 빈 문자열이 흔하다 — 그러면 프롬프트에 블록을 넣지 않는다 */
+function normalizeRecentData(raw) {
+    return cleanBlock(raw, MAX_RECENT_CHARS);
+}
+
+/** 최근 창 이전의 압축 블록. 없으면 빈 문자열 */
+function normalizeOlderData(raw) {
+    return cleanBlock(raw, MAX_OLDER_CHARS);
+}
+
+/**
+ * 질문이 가리킨 날짜 중 저장소에서 읽어야 하는 것. 최근 블록이 왔으면 그 창 안의 날은 이미 프롬프트에 있으니
+ * 창 밖의 날만 읽는다. 옛 앱(블록 없음)은 전부 읽는다.
+ */
+function datesToFetch(askedDates, today, hasRecent) {
+    if (!hasRecent) return askedDates;
+    const windowStart = shiftDate(today, -(RECENT_DAYS - 1));
+    return askedDates.filter((d) => d < windowStart);
 }
 
 /**
@@ -537,6 +611,8 @@ function historyBlock(history) {
  * @param {object} input
  *   - screen: {type, title}
  *   - contextData: 앱이 요약한 화면 데이터 (없으면 "")
+ *   - recentData: 앱이 화면과 무관하게 보낸 최근 RECENT_DAYS일 하루 줄 (옛 앱·기록 없음이면 "")
+ *   - olderData: 그 이전 모든 날의 압축 줄 "날짜 순칼로리 체중 운동" (없으면 "")
  *   - aiContextBlock: 설정의 목표·활동량·메모 블록 (없으면 "")
  *   - history: 정리된 대화
  *   - question: 정리된 질문
@@ -547,7 +623,7 @@ function historyBlock(history) {
  *   - neededBlock: 모델이 1차에서 요청해 읽어 온 데이터 (fetchNeeded). 2차 질의에만 있다
  *   - allowNeed: 추가 데이터 요청([NEED])을 허용할지. 2차 질의에서는 false — 무한히 되묻지 않게
  */
-function buildPrompt({ screen, contextData, aiContextBlock: contextBlock, history, question, outputLanguage, now, timeZone, askedBlock, neededBlock, allowNeed = true }) {
+function buildPrompt({ screen, contextData, recentData, olderData, aiContextBlock: contextBlock, history, question, outputLanguage, now, timeZone, askedBlock, neededBlock, allowNeed = true }) {
     const data = contextData || "(이 화면에서 앱이 보낸 데이터가 없습니다)";
     const tz = timeZone || DEFAULT_TIME_ZONE;
     const current = now || nowText(new Date(), tz);
@@ -560,6 +636,22 @@ function buildPrompt({ screen, contextData, aiContextBlock: contextBlock, histor
         "[화면 데이터 — 앱이 지금 화면에 보여주고 있는 값. 이 화면의 날짜·기간 것만 들어 있습니다]",
         data
     ];
+    // 창의 시작일을 숫자로 박아 둔다. "10월 14일이 창 안인가"를 모델이 날짜 계산 없이 비교만으로 알게
+    const recentFrom = shiftDate(today, -(RECENT_DAYS - 1));
+    if (recentData) {
+        parts.push(
+            "",
+            `[최근 ${RECENT_DAYS}일 기록 (${recentFrom} ~ ${today}) — 앱이 화면과 무관하게 항상 보내는 하루 한 줄. 화면 데이터에 이미 든 날은 여기서 빠져 있습니다]`,
+            recentData
+        );
+    }
+    if (olderData) {
+        parts.push(
+            "",
+            `[${recentFrom} 이전의 전체 기록 — 하루 한 줄 "날짜 순칼로리(kcal) 체중 food ex". food는 식단 글이, ex는 운동 글이 기록돼 있다는 표시일 뿐 내용은 여기 없습니다]`,
+            olderData
+        );
+    }
     if (askedBlock) {
         parts.push("", askedBlock);
     }
@@ -579,11 +671,26 @@ function buildPrompt({ screen, contextData, aiContextBlock: contextBlock, histor
         "[지침]",
         "1. 위 [화면 데이터]에 있는 값만 근거로 답하십시오. 없는 수치를 만들거나 추측해서 단정하지 마십시오.",
         "   화면에 없는 값이 필요하면 \"이 화면에는 그 값이 없습니다\"라고 말하고, 어디서 볼 수 있는지 알려 주십시오.",
-        "   질문이 화면 데이터와 다른 날·기간(어제, 지난주, 지난달 등)을 가리키면 반드시 날짜를 맞춰 보십시오.",
+        "   질문이 화면 데이터와 다른 날·기간(어제, 그제, N일 전, 지난 주말, 요일, 특정 날짜, 지난주, 지난달 등)을 가리키면",
+        `   오늘 날짜로 그 날을 계산해 [최근 ${RECENT_DAYS}일 기록]에서 그 날짜 줄을 찾아 답하고 어느 날짜인지 밝히십시오.`,
+        "   창 안인데 그 날짜 줄이 없으면 그 날은 기록이 없다고 말하십시오. 화면 데이터에 이미 든 날은 화면 데이터에서 찾으십시오.",
         "   [질문이 가리킨 날짜의 기록] 블록이 있으면 그 블록의 값으로 답하고 어느 날짜인지 밝히십시오.",
-        "   그 블록이 없으면 규칙 8로 요청하고, \"(기록 없음)\"이면 화면 데이터를 그 날의 값인 것처럼 말하지 말고",
-        "   그 날은 기록이 없다고 말하십시오. 어느 경우든 화면 데이터(date 줄)의 날짜와 질문의 날짜가 다르면 화면 값을 그 날 값으로 쓰면 안 됩니다.",
-        "   그 날 기록을 자세히 볼 화면으로 안내할 때는 규칙 7의 표식에 날짜를 붙이십시오 (예: [GOTO:daily_record:2026-11-18]).",
+        `   ${recentFrom}보다 앞선 날·달이고 그 블록도 없으면 "없다"·"이 화면에서는 볼 수 없다"고 답하지 말고 반드시 규칙 8로 요청하십시오.`,
+        "   \"그 다음날\", \"그 전날\"처럼 앞 대화의 날짜를 기준으로 한 질문도 날짜를 계산해 같은 규칙을 따르십시오.",
+        "   블록 머리줄의 `all records N days since yyyy-MM-dd` 는 저장된 전체 기록의 첫 날짜와 일수입니다. \"첫 기록\", \"언제부터\",",
+        "   \"가장 오래된 날\" 질문은 그 날짜로 답하고, 그 날의 내용이 필요하면 규칙 8로 요청하십시오. 창의 첫 줄을 첫 기록이라고 하지 마십시오.",
+        `   \"적자가 제일 심했던 날\", \"체중이 제일 낮았던 때\", \"며칠 연속\"처럼 전 기간을 봐야 하는 질문은 [최근 ${RECENT_DAYS}일 기록]과`,
+        `   [${recentFrom} 이전의 전체 기록]을 합쳐 모든 줄을 훑어 고르십시오. 그 블록이 있으면 규칙 8로 전체를 다시 요청하지 마십시오.`,
+        "   이전 기록 블록의 food·ex는 식단·운동 글이 있다는 표시일 뿐 내용이 아닙니다. 그 날 무엇을 먹었는지·무슨 운동을 했는지를 물으면",
+        "   (\"그날 식단이랑 운동 뭐 했더라\"처럼 앞 답변의 날짜를 가리키는 경우도) \"운동만 기록돼 있다\", \"상세 기록이 없다\"고 답하지 말고",
+        "   반드시 규칙 8의 [NEED:day:yyyy-MM-dd]로 그 날을 요청하십시오. food도 ex도 없는 줄만 그 날 식단·운동 기록이 없는 것입니다.",
+        `   \"치킨 언제 먹었어\", \"러닝 몇 번 했어\", \"마지막으로 술 마신 게 언제야\"처럼 음식·운동 이름으로 날을 찾는 질문은, 기간을 말하지 않았으면`,
+        `   기록 전체를 뜻합니다. [최근 ${RECENT_DAYS}일 기록]만 보고 답하지 말고 바로 규칙 8의 [NEED:find:단어]로 요청하십시오 (압축 블록에는 그 글이 없습니다).`,
+        "   \"이번 주\", \"어제\", \"이번 달\"처럼 기간을 말했을 때만 최근 기록 블록에서 바로 찾아 답하십시오.",
+        "   \"(기록 없음)\"이면 화면 데이터를 그 날의 값인 것처럼 말하지 말고 그 날은 기록이 없다고 말하십시오.",
+        "   어느 경우든 화면 데이터(date 줄)의 날짜와 질문의 날짜가 다르면 화면 값을 그 날 값으로 쓰면 안 됩니다.",
+        "   최근 기록이나 날짜 블록의 값으로 이미 답했으면 기록 목록·정산 상세로 가는 표식은 붙이지 마십시오.",
+        "   그 날 기록을 자세히 볼 화면으로 안내해야만 할 때는 규칙 7의 표식에 날짜를 붙이십시오 (예: [GOTO:daily_record:2026-11-18]).",
         "   화면 데이터의 `pass 이름 (count|period): ...` 줄은 운동 이용권입니다. `went N days: 날짜들`은 그 이용권 운동을 한 날",
         "   전체 목록이고, `no keyword, exercise days since start N: 날짜 운동` 은 이용권 기간 안에 한 모든 운동입니다.",
         "   \"등록하고 몇 번 갔나\", \"자주 갔나\" 는 이 줄의 날짜로 세어 답하십시오 (다른 화면으로 보내지 마십시오).",
@@ -604,9 +711,10 @@ function buildPrompt({ screen, contextData, aiContextBlock: contextBlock, histor
     if (allowNeed) {
         parts.push(
             "8. 위에 없는 기록이 답에 꼭 필요하면, 답을 쓰지 말고 아래 중 하나를 **한 줄만** 내십시오. 서버가 그 데이터를 읽어",
-            "   다시 묻습니다. 화면 데이터로 답할 수 있으면 쓰지 마십시오. 한 번에 하나만.",
+            `   다시 묻습니다. 위 블록으로 답할 수 있으면 쓰지 마십시오. ${recentFrom}보다 앞선 날짜를 물으면 이 줄이 답입니다. 한 번에 하나만.`,
             `   [NEED:day:yyyy-MM-dd] 특정 날의 정산 / [NEED:month:yyyy-MM] 그 달의 일별 정산 / [NEED:months:yyyy] 그 해의 월별 집계`,
-            `   [NEED:weight:N] 최근 N일 체중(${WEIGHT_DAYS_MIN}~${WEIGHT_DAYS_MAX}) / [NEED:inbody] 인바디 측정 이력`
+            `   [NEED:weight:N] 최근 N일 체중(${WEIGHT_DAYS_MIN}~${WEIGHT_DAYS_MAX}) / [NEED:inbody] 인바디 측정 이력`,
+            `   [NEED:find:단어] 식단·운동·메모에 그 단어가 든 날 전부 (최근 ${FIND_DAYS_BACK}일, "치킨|닭"처럼 |로 여러 단어)`
         );
     } else {
         parts.push(
@@ -691,6 +799,8 @@ const askAiCoach = onRequest({
         // 앱이 만든 데이터는 인증 전에 정리해 둔다 (검증 실패해도 모델은 부르지 않는다)
         const screen = normalizeScreen(body);
         const contextData = normalizeContextData(body.contextData);
+        const recentData = normalizeRecentData(body.recentData);
+        const olderData = normalizeOlderData(body.olderData);
         const history = normalizeHistory(body.history);
         const aiContext = normalizeAiContext(body.aiContext);
 
@@ -723,23 +833,27 @@ const askAiCoach = onRequest({
             paidModel("gemini-3.5-flash-lite", generationConfig)
         ];
 
-        // 질문이 어제·특정 날짜를 가리키면 그 날 정산을 읽어 넣는다. 화면 데이터만으로는 모델이 오늘 값을
-        // 그 날 것처럼 답하기 때문이다. 읽기 실패·지연은 본 답변을 막지 않는다
+        // 질문이 특정 날짜를 가리키면 그 날 정산을 읽어 넣는다. 화면 데이터만으로는 모델이 오늘 값을
+        // 그 날 것처럼 답하기 때문이다. 앱이 최근 RECENT_DAYS일 블록을 보냈으면 창 안의 날은 거기 있으니
+        // 창 밖의 날만 읽는다. 읽기 실패·지연은 본 답변을 막지 않는다
         const timeZone = normalizeTimeZone(body.timeZone);
         const current = nowText(new Date(), timeZone);
         const askedDates = extractAskedDates(question, current.slice(0, 10));
+        const fetchDates = datesToFetch(askedDates, current.slice(0, 10), Boolean(recentData));
         let askedBlock = "";
-        if (askedDates.length) {
+        if (fetchDates.length) {
             try {
-                askedBlock = await withTimeout(fetchAskedRecords(user.uid, askedDates), QUOTA_TIMEOUT_MS);
+                askedBlock = await withTimeout(fetchAskedRecords(user.uid, fetchDates), QUOTA_TIMEOUT_MS);
             } catch (error) {
-                console.warn(`[askAiCoach] 날짜 기록 읽기 실패 (${askedDates.join(",")}):`, error.message);
+                console.warn(`[askAiCoach] 날짜 기록 읽기 실패 (${fetchDates.join(",")}):`, error.message);
             }
         }
 
         const prompt = buildPrompt({
             screen,
             contextData,
+            recentData,
+            olderData,
             aiContextBlock: aiContextPromptBlock(aiContext),
             history,
             question,
@@ -764,7 +878,7 @@ const askAiCoach = onRequest({
                 }
                 if (neededBlock) {
                     const secondPrompt = buildPrompt({
-                        screen, contextData, aiContextBlock: aiContextPromptBlock(aiContext), history, question,
+                        screen, contextData, recentData, olderData, aiContextBlock: aiContextPromptBlock(aiContext), history, question,
                         outputLanguage: L.outputLanguage, now: current, timeZone, askedBlock, neededBlock, allowNeed: false
                     });
                     try {
@@ -785,7 +899,7 @@ const askAiCoach = onRequest({
             const { answer, navigateTo, navigateArg } = suppressDailyNav(
                 splitNavigation(generated, screen.type), askedDates
             );
-            console.log(`[askAiCoach] uid=${user.uid} 화면=${screen.type} 질문=${question.length}자 답변=${answer.length}자 이동=${navigateTo || "-"} 날짜=${askedDates.join(",") || "-"} 남은=${quota.remainingFreeCount}`);
+            console.log(`[askAiCoach] uid=${user.uid} 화면=${screen.type} 질문=${question.length}자 최근=${recentData.length}자 이전=${olderData.length}자 답변=${answer.length}자 이동=${navigateTo || "-"} 날짜=${askedDates.join(",") || "-"} 남은=${quota.remainingFreeCount}`);
             return res.status(200).json({
                 answer,
                 navigateTo,
@@ -819,17 +933,26 @@ module.exports = {
     formatMonths,
     formatWeight,
     formatInbody,
+    formatFind,
     WEIGHT_POINTS_MAX,
     INBODY_MAX,
+    FIND_MAX,
+    FIND_DAYS_BACK,
     MAX_QUESTION_CHARS,
     MAX_HISTORY_TURNS,
     MAX_HISTORY_CHARS,
     MAX_CONTEXT_CHARS,
+    MAX_RECENT_CHARS,
+    MAX_OLDER_CHARS,
+    RECENT_DAYS,
     MAX_TITLE_CHARS,
     SCREEN_TYPES,
     normalizeQuestion,
     normalizeScreen,
     normalizeContextData,
+    normalizeRecentData,
+    normalizeOlderData,
+    datesToFetch,
     normalizeHistory,
     buildPrompt,
     generateText

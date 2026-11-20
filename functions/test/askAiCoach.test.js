@@ -14,11 +14,17 @@ const admin = require("firebase-admin");
 const {
     MAX_QUESTION_CHARS,
     MAX_CONTEXT_CHARS,
+    MAX_RECENT_CHARS,
+    MAX_OLDER_CHARS,
+    RECENT_DAYS,
     MAX_TITLE_CHARS,
     SCREEN_TYPES,
     normalizeQuestion,
     normalizeScreen,
     normalizeContextData,
+    normalizeRecentData,
+    normalizeOlderData,
+    datesToFetch,
     normalizeHistory,
     buildPrompt,
     splitNavigation,
@@ -34,8 +40,11 @@ const {
     formatMonths,
     formatWeight,
     formatInbody,
+    formatFind,
     WEIGHT_POINTS_MAX,
-    INBODY_MAX
+    INBODY_MAX,
+    FIND_MAX,
+    FIND_DAYS_BACK
 } = require("../askAiCoach");
 const {
     FREE_FOR_ALL,
@@ -134,6 +143,29 @@ test("화면 데이터 다듬기", async (t) => {
     });
 });
 
+test("최근 기록 블록 다듬기", async (t) => {
+    await t.test("화면 데이터와 같은 규칙, 상한만 따로", () => {
+        assert.equal(normalizeRecentData("  - 2026-11-18 net -300kcal\u0007 \n- 2026-11-17 net 0kcal  "), "- 2026-11-18 net -300kcal \n- 2026-11-17 net 0kcal");
+        assert.equal(normalizeRecentData(undefined), "");
+        assert.equal(normalizeRecentData(42), "");
+        assert.equal(normalizeRecentData("x".repeat(MAX_RECENT_CHARS + 5)).length, MAX_RECENT_CHARS);
+        // 이전 전체 기록의 압축 블록은 2년치가 들어가므로 상한이 훨씬 크다
+        assert.ok(MAX_OLDER_CHARS > MAX_RECENT_CHARS * 3);
+        assert.equal(normalizeOlderData("x".repeat(MAX_OLDER_CHARS + 5)).length, MAX_OLDER_CHARS);
+        assert.equal(normalizeOlderData(null), "");
+    });
+
+    await t.test("최근 블록이 왔으면 창 안의 날은 저장소에서 읽지 않는다", () => {
+        const today = "2026-11-19";
+        const windowStart = shiftDate(today, -(RECENT_DAYS - 1));
+        const asked = ["2026-09-01", shiftDate(windowStart, -1), windowStart, "2026-11-18"];
+        assert.deepEqual(datesToFetch(asked, today, true), ["2026-09-01", shiftDate(windowStart, -1)]);
+        // 옛 앱(블록 없음)은 전부 읽는다
+        assert.deepEqual(datesToFetch(asked, today, false), asked);
+        assert.deepEqual(datesToFetch([], today, true), []);
+    });
+});
+
 test("이어 온 대화 다듬기", async (t) => {
     await t.test("role이 user/assistant가 아니거나 글이 빈 항목은 버린다", () => {
         const turns = normalizeHistory([
@@ -201,6 +233,43 @@ test("프롬프트 조립", async (t) => {
     await t.test("오늘·어제·그제 날짜를 계산해서 적어 준다", () => {
         const prompt = buildPrompt(base);
         assert.match(prompt, /오늘은 2026-11-19, 어제는 2026-11-18, 그제는 2026-11-17/);
+    });
+
+    await t.test("최근 N일 블록은 화면 데이터와 날짜 블록 사이에 들어가고, 없으면 블록 자체가 없다", () => {
+        const recent = `recent ${RECENT_DAYS} days (2026-10-21..2026-11-19): 20 days recorded\n- 2026-11-18 net -300 kcal | L: 김밥`;
+        const prompt = buildPrompt({ ...base, recentData: recent, askedBlock: "[질문이 가리킨 날짜의 기록 — 서버가 저장소에서 읽어 온 값]\n2026-09-01: (기록 없음)" });
+        const screenAt = prompt.indexOf("[화면 데이터");
+        const recentAt = prompt.indexOf(`[최근 ${RECENT_DAYS}일 기록`);
+        const askedAt = prompt.indexOf("[질문이 가리킨 날짜의 기록");
+        assert.ok(screenAt < recentAt && recentAt < askedAt);
+        assert.match(prompt, /- 2026-11-18 net -300 kcal \| L: 김밥/);
+        // 지침이 그 블록에서 날짜 줄을 찾으라고, 답했으면 이동 표식을 붙이지 말라고 알려 준다
+        assert.ok(prompt.includes(`[최근 ${RECENT_DAYS}일 기록]에서 그 날짜 줄을 찾아`));
+        assert.match(prompt, /이미 답했으면 기록 목록·정산 상세로 가는 표식은 붙이지 마십시오/);
+        // 창의 시작일을 숫자로 적고, 그보다 앞선 날은 "없다"로 끝내지 말고 NEED를 내라고 못박는다 (2026-11-20 "그 다음날은?" 실제 사례)
+        const from = shiftDate("2026-11-19", -(RECENT_DAYS - 1));
+        assert.ok(prompt.includes(`[최근 ${RECENT_DAYS}일 기록 (${from} ~ 2026-11-19)`));
+        assert.ok(prompt.includes(`${from}보다 앞선 날·달이고 그 블록도 없으면 "없다"·"이 화면에서는 볼 수 없다"고 답하지 말고 반드시 규칙 8로`));
+        assert.ok(prompt.includes(`${from}보다 앞선 날짜를 물으면 이 줄이 답입니다`));
+        assert.match(prompt, /"그 다음날", "그 전날"처럼 앞 대화의 날짜를 기준으로 한 질문도/);
+        // 전체 기록 범위 머리줄의 뜻과 "창의 첫 줄을 첫 기록이라고 하지 마라" (2026-11-20 실제 사례)
+        assert.match(prompt, /`all records N days since yyyy-MM-dd` 는 저장된 전체 기록의 첫 날짜와 일수/);
+        assert.match(prompt, /창의 첫 줄을 첫 기록이라고 하지 마십시오/);
+        // 이전 전체 기록 블록은 최근 블록 뒤, 날짜 블록 앞. 전 기간 질문은 두 블록을 합쳐 훑으라고 지시한다
+        const older = `older days (2026-05-22..${shiftDate(from, -1)}): 152 days, format: date net(kcal) weight exercise\n2026-05-22 -195 92.2kg ex`;
+        const withOlder = buildPrompt({ ...base, recentData: recent, olderData: older, askedBlock: "[질문이 가리킨 날짜의 기록 — 서버가 저장소에서 읽어 온 값]\nx" });
+        const olderAt = withOlder.indexOf(`[${from} 이전의 전체 기록`);
+        assert.ok(withOlder.indexOf(`[최근 ${RECENT_DAYS}일 기록`) < olderAt && olderAt < withOlder.indexOf("[질문이 가리킨 날짜의 기록"));
+        assert.match(withOlder, /2026-05-22 -195 92.2kg ex/);
+        assert.ok(withOlder.includes(`[${from} 이전의 전체 기록]을 합쳐 모든 줄을 훑어 고르십시오`));
+        // food·ex는 표시일 뿐이니 내용을 물으면 NEED:day (2026-11-20 "그날 식단이랑 운동 뭐했더라"에 "운동만 기록" 실기기 사례)
+        assert.match(withOlder, /food는 식단 글이, ex는 운동 글이 기록돼 있다는 표시일 뿐 내용은 여기 없습니다/);
+        assert.match(withOlder, /"운동만 기록돼 있다", "상세 기록이 없다"고 답하지 말고/);
+        assert.match(withOlder, /반드시 규칙 8의 \[NEED:day:yyyy-MM-dd\]로 그 날을 요청하십시오/);
+        assert.doesNotMatch(buildPrompt({ ...base, recentData: recent }), /이전의 전체 기록 — 하루 한 줄/);
+        // 블록이 없으면(옛 앱) 제목도 없다
+        assert.doesNotMatch(buildPrompt(base), /\[최근 \d+일 기록 — 앱이/);
+        assert.doesNotMatch(buildPrompt({ ...base, recentData: "" }), /\[최근 \d+일 기록 — 앱이/);
     });
 
     await t.test("질문이 가리킨 날짜의 기록 블록이 화면 데이터 뒤에 들어간다", () => {
@@ -404,12 +473,40 @@ test("질문 속 날짜 뽑기", async (t) => {
 test("추가 데이터 요청(NEED)", async (t) => {
     const today = "2026-11-19";
 
+    await t.test("find: 식단·운동·메모에 단어가 든 날만 하루 줄로, 대소문자·공백 무시, |로 여러 단어", () => {
+        const rows = [
+            { date: "2026-05-01", netCalories: -100, lunch: "후라이드 치킨 2조각" },
+            { date: "2026-05-02", netCalories: 50, dinner: "김치찌개" },
+            { date: "2026-05-03", netCalories: 0, exercise: "러닝 30분", remark: "Chicken salad" },
+            { date: "2026-05-04", netCalories: 0, snack: "닭  가슴살" }
+        ];
+        const text = formatFind("치킨|닭 가슴살", rows);
+        assert.match(text, /^\["치킨\|닭 가슴살"가 든 날 — 서버가 최근 730일/);
+        assert.match(text, /2 days found/);
+        assert.match(text, /- 2026-05-01 net -100kcal \| L: 후라이드 치킨 2조각/);
+        assert.match(text, /- 2026-05-04 net 0kcal \| S: 닭 가슴살/);
+        // 김치찌개 날과, remark에 영어 Chicken만 있는 날은 "치킨"으로는 안 맞는다
+        assert.doesNotMatch(text, /김치찌개|2026-05-03/);
+        // 영어 대소문자 무시
+        assert.match(formatFind("chicken", rows), /1 days found[\s\S]*2026-05-03/);
+        // 없으면 (없음)
+        assert.match(formatFind("피자", rows), /\(없음\)$/);
+        // 많으면 최근 FIND_MAX일만
+        const many = Array.from({ length: FIND_MAX + 10 }, (_, i) => ({ date: `2025-${String(1 + Math.floor(i / 28)).padStart(2, "0")}-${String(1 + (i % 28)).padStart(2, "0")}`, netCalories: 0, lunch: "치킨" }));
+        const capped = formatFind("치킨", many);
+        assert.match(capped, new RegExp(`${FIND_MAX + 10} days found, latest ${FIND_MAX} shown`));
+        assert.equal(capped.split("\n").length, FIND_MAX + 2);
+        assert.ok(FIND_DAYS_BACK >= 365);
+    });
+
     await t.test("다섯 종류를 읽고 인자를 검증한다", () => {
         assert.deepEqual(parseNeed("[NEED:day:2026-11-03]", today), { kind: "day", arg: "2026-11-03" });
         assert.deepEqual(parseNeed("[NEED:month:2026-10]", today), { kind: "month", arg: "2026-10" });
         assert.deepEqual(parseNeed("[NEED:months:2026]", today), { kind: "months", arg: "2026" });
         assert.deepEqual(parseNeed("[NEED:weight:90]", today), { kind: "weight", arg: "90" });
         assert.deepEqual(parseNeed("[NEED:inbody]", today), { kind: "inbody", arg: null });
+        assert.deepEqual(parseNeed("[NEED:find:치킨]", today), { kind: "find", arg: "치킨" });
+        assert.deepEqual(parseNeed("[NEED:find:치킨|닭 가슴살]", today), { kind: "find", arg: "치킨|닭 가슴살" });
         // 글 사이에 섞여 있어도 요청으로 본다
         assert.deepEqual(parseNeed("확인해 볼게요.\n[NEED:month:2026-10]", today), { kind: "month", arg: "2026-10" });
     });
@@ -423,6 +520,10 @@ test("추가 데이터 요청(NEED)", async (t) => {
         assert.equal(parseNeed("[NEED:weight:400]", today), null);
         assert.equal(parseNeed("[NEED:settings]", today), null);
         assert.equal(parseNeed("[NEED:day:어제]", today), null);
+        // find는 단어가 비었거나 너무 길면 null
+        assert.equal(parseNeed("[NEED:find]", today), null);
+        assert.equal(parseNeed("[NEED:find: | ]", today), null);
+        assert.equal(parseNeed(`[NEED:find:${"가".repeat(21)}]`, today), null);
         assert.equal(parseNeed("그냥 답입니다.", today), null);
     });
 
@@ -430,6 +531,9 @@ test("추가 데이터 요청(NEED)", async (t) => {
         const base = { screen: { type: "month_report", title: "11월" }, contextData: "", aiContextBlock: "", history: [], question: "q", outputLanguage: "한국어", now: "2026-11-19 목요일 14:32" };
         const first = buildPrompt(base);
         assert.match(first, /\[NEED:months:yyyy\]/);
+        assert.match(first, /\[NEED:find:단어\] 식단·운동·메모에 그 단어가 든 날 전부/);
+        assert.match(first, /음식·운동 이름으로 날을 찾는 질문은, 기간을 말하지 않았으면/);
+        assert.match(first, /기록 전체를 뜻합니다/);
         assert.match(first, /규칙 8로 요청/);
         const second = buildPrompt({ ...base, allowNeed: false, neededBlock: "[2026년 월별 집계 — 서버가 저장소에서 읽어 온 값]\n- 2026-10: 20 days" });
         assert.match(second, /더 할 수 없습니다/);
