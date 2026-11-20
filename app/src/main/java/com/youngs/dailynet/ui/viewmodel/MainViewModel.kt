@@ -39,6 +39,7 @@ import com.youngs.dailynet.util.AiNavigation
 import com.youngs.dailynet.util.PassUsage
 import com.youngs.dailynet.util.RecordDirtyCheck
 import com.youngs.dailynet.util.computePassUsage
+import com.youngs.dailynet.ui.view.AiAskContext
 import com.youngs.dailynet.ui.view.PeriodKind
 import com.youngs.dailynet.ui.view.buildPeriodEvalRequest
 import com.youngs.dailynet.ui.view.periodKeyOf
@@ -71,6 +72,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -669,12 +671,22 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             _aiAsking.value = true
             try {
+                // 최근 30일(하루 줄)과 그 이전 전부(압축 줄)를 화면과 무관하게 항상 같이 보낸다. Room에 다 있어
+                // 서버가 저장소를 읽을 필요가 없다. allDailyRecord는 구독 화면이 없으면 비어 있을 수 있어 Flow에서
+                // 직접 한 번 읽는다. 실패해도 질문은 보낸다
+                val blocks = runCatching {
+                    val records = repository.getAllDailyRecordRoom().first()
+                    val today = java.time.LocalDate.now().toString()
+                    AiAskContext.recentDays(records, today, call.contextData) to AiAskContext.olderDays(records, today)
+                }.getOrNull()
                 val request = AiAskRequest(
                     language = Locale.getDefault().toLanguageTag(),
                     timeZone = java.util.TimeZone.getDefault().id,
                     screenType = call.screenType,
                     screenTitle = call.screenTitle,
                     contextData = call.contextData,
+                    recentData = blocks?.first,
+                    olderData = blocks?.second,
                     // 설정의 목표·활동량·메모. 다른 AI 호출과 같은 기준을 쓴다
                     aiContext = AiContext.of(userProfileDao.getProfile()),
                     question = call.question,

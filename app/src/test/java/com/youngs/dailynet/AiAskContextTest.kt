@@ -134,7 +134,7 @@ class AiAskContextTest {
     }
 
     @Test
-    fun `일일 목록은 합계와 최근 7일만 담는다`() {
+    fun `일일 목록은 합계만 담고 날짜별 줄은 넣지 않는다 (최근 30일 블록이 대신 간다)`() {
         val records = (1..12).map {
             record(date = "2026-11-%02d".format(it), net = -100 * it, weight = 70f + it / 10f)
         }
@@ -143,20 +143,102 @@ class AiAskContextTest {
         assertTrue(text.contains("records 12 days"))
         assertTrue(text.contains("total net -7800 kcal"))
         assertTrue(text.contains("avg net -650 kcal/day"))
-        // 최신순으로 들어오므로 11-01 ~ 11-07 일곱 줄만
-        assertTrue(text.contains("- 2026-11-01"))
-        assertTrue(text.contains("- 2026-11-07"))
-        assertFalse(text.contains("- 2026-11-08"))
+        assertFalse(text.contains("- 2026-11-"))
     }
 
     @Test
-    fun `목록 줄에는 무슨 운동을 했는지 글자가 들어간다`() {
-        val text = AiAskContext.dailyList(listOf(
+    fun `최근 30일 블록은 오늘부터 29일 전까지만, 최신순으로 담는다`() {
+        val today = "2026-11-19"
+        val start = java.time.LocalDate.of(2026, 9, 1)
+        val records = (0 until 90).map { record(date = start.plusDays(it.toLong()).toString(), net = -it) } +
+            record(date = "2026-11-25", net = -999) // 미래(미리 적어 둔 날)는 뺀다
+
+        val text = AiAskContext.recentDays(records, today, screenData = "")!!
+        val lines = text.lines()
+
+        // 창 밖에도 기록이 있으면 머리줄에 전체 범위를 적는다 — "첫 기록이 언제야?"에 창의 첫 줄을 답하지 않게
+        assertEquals("recent 30 days (2026-10-21..2026-11-19): 30 days recorded; all records 80 days since 2026-09-01 (older days in compact block)", lines[0])
+        assertEquals(31, lines.size)
+        assertTrue(lines[1].startsWith("- 2026-11-19 "))
+        assertTrue(lines[30].startsWith("- 2026-10-21 "))
+        assertFalse(text.contains("2026-10-20"))
+        assertFalse(text.contains("2026-11-25"))
+    }
+
+    @Test
+    fun `창 이전의 날은 날짜·순칼로리·체중·운동만 한 줄로 압축해 전부 보낸다`() {
+        val today = "2026-11-19"
+        val start = java.time.LocalDate.of(2026, 5, 22)
+        val records = (0 until 182).map { i ->
+            record(
+                date = start.plusDays(i.toLong()).toString(), net = -195 + i,
+                weight = if (i % 3 == 0) 92.2f else 0f,
+                exercise = if (i % 2 == 0) "헬스 1시간" else "",
+                breakfast = if (i == 1) "" else "식단 글은 압축 줄에 안 들어간다"
+            )
+        }
+
+        val text = AiAskContext.olderDays(records, today)!!
+        val lines = text.lines()
+        // 창(10-21~)보다 앞선 5-22 ~ 10-20 = 152일, 최신순
+        assertEquals("older days (2026-05-22..2026-10-20): 152 days, format: date net(kcal) weight food(has meal text) ex(has exercise)", lines[0])
+        assertEquals(153, lines.size)
+        assertTrue(lines[1].startsWith("2026-10-20 "))
+        assertEquals("2026-05-22 -195 92.2kg food ex", lines.last())
+        // 5-23은 체중·식단·운동이 모두 없다
+        assertEquals("2026-05-23 -194", lines[lines.size - 2])
+        assertFalse(text.contains("식단 글"))
+        assertFalse(text.contains("2026-10-21"))
+
+        // 창 이전 기록이 없으면 null
+        assertEquals(null, AiAskContext.olderDays(listOf(record(date = "2026-11-01")), today))
+        assertEquals(null, AiAskContext.olderDays(records, "오늘"))
+    }
+
+    @Test
+    fun `압축 블록은 2년치까지만 담고 넘치는 오래된 날은 몇 일을 뺐는지 적는다`() {
+        val today = "2026-11-19"
+        val start = java.time.LocalDate.of(2023, 1, 1)
+        val records = (0 until 1200).map { record(date = start.plusDays(it.toLong()).toString()) }
+        val text = AiAskContext.olderDays(records, today)!!
+        val lines = text.lines()
+        assertEquals(AiAskContext.OLDER_DAYS_MAX + 1, lines.size)
+        // 가장 오래된 줄은 2026-04-14 이전이 아니라, 최신 730일의 마지막
+        val oldest = lines.last().substring(0, 10)
+        assertTrue(lines[0], lines[0].contains("; ${1200 - AiAskContext.OLDER_DAYS_MAX} older days before $oldest omitted (yearly summary on request)"))
+        assertTrue(text.length <= AiAskContext.OLDER_MAX)
+    }
+
+    @Test
+    fun `최근 30일 줄에는 무슨 운동을 했는지 글자가 들어간다`() {
+        val text = AiAskContext.recentDays(listOf(
             record(date = "2026-11-02", exercise = "러닝 30분"),
             record(date = "2026-11-01", exercise = "", exerciseKcal = 0)
-        ))
+        ), today = "2026-11-02", screenData = "")!!
         assertTrue(text.contains("- 2026-11-02 net -420 kcal, exercise: 러닝 30분"))
         assertFalse(text.contains("2026-11-01 net -420 kcal, exercise"))
+    }
+
+    @Test
+    fun `화면 데이터에 이미 든 날은 최근 30일 블록에서 뺀다`() {
+        val today = "2026-11-19"
+        val records = listOf(record(date = "2026-11-19"), record(date = "2026-11-18"), record(date = "2026-11-17"))
+
+        // 정산 상세: 첫 줄 "date yyyy-MM-dd"
+        val detail = AiAskContext.recentDays(records, today, AiAskContext.dailyRecord(records[0]))!!
+        // 창 밖 기록이 없으면 전체 범위 문구도 없다
+        assertEquals("recent 30 days (2026-10-21..2026-11-19): 3 days recorded, 1 already in screen data (omitted here)", detail.lines()[0])
+        assertFalse(detail.contains("- 2026-11-19 "))
+        assertTrue(detail.contains("- 2026-11-18 "))
+
+        // 월간 정산: 일별 줄 "- yyyy-MM-dd "
+        val month = AiAskContext.recentDays(records, today, AiAskContext.periodSummary(summary(), records, "11월"))!!
+        assertEquals(1, month.lines().size)
+        assertTrue(month.contains("3 already in screen data"))
+
+        // 창 안에 기록이 없거나 오늘 날짜가 깨졌으면 블록을 보내지 않는다
+        assertEquals(null, AiAskContext.recentDays(listOf(record(date = "2026-01-01")), today, ""))
+        assertEquals(null, AiAskContext.recentDays(records, "오늘", ""))
     }
 
     @Test
@@ -227,9 +309,10 @@ class AiAskContextTest {
         assertTrue(line, line.contains("…, 2026-11-02 러닝 30분, 2026-11-17 킥복싱 수업 50분"))
         assertFalse(line.contains("2026-10-10"))
         assertFalse(line.contains("2026-10-20"))
-        // 목록 요약에서는 일별 줄보다 앞에 온다 (잘려도 이용권이 남게)
+        // 목록 요약에도 붙는다 (일별 줄은 목록 요약에 없다 — 최근 30일 블록이 따로 간다)
         val list = AiAskContext.dailyList(records.sortedByDescending { it.date }, listOf(computePassUsage(overcome, records, today)))
-        assertTrue(list.indexOf("pass 오버컴") < list.indexOf("- 2026-11-17"))
+        assertTrue(list.contains("pass 오버컴"))
+        assertFalse(list.contains("- 2026-11-17"))
     }
 
     @Test

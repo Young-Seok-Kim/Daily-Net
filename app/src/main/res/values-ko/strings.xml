@@ -560,12 +560,11 @@
 
     <!--
       전역 AI 질문 (조회 화면 우하단 AI 버튼 → 바텀시트)
-      화면 이름은 각 화면이 이미 쓰는 제목을 그대로 넘긴다 (ai_ask_screen_badge에 들어간다).
+      화면 이름은 각 화면이 이미 쓰는 제목을 그대로 넘긴다 (서버로만 가고 시트에는 안 그린다, b70).
     -->
     <string name="ai_ask_fab">AI</string>
     <string name="cd_ai_ask">AI에게 묻기</string>
     <string name="ai_ask_title">AI 어시스턴트</string>
-    <string name="ai_ask_screen_badge">인식된 화면: %1$s</string>
     <string name="ai_ask_suggested">이렇게 물어보세요</string>
     <string name="ai_ask_placeholder">보고 있는 화면에 대해 물어보세요...</string>
     <string name="ai_ask_send">보내기</string>

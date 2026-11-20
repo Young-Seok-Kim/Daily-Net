@@ -562,12 +562,11 @@
 
     <!--
       Global AI questions (AI button on record/report screens → bottom sheet).
-      Screen names reuse each screen's own title (they go into ai_ask_screen_badge).
+      Screen names reuse each screen's own title (sent to the server only; no badge in the sheet since b70).
     -->
     <string name="ai_ask_fab">AI</string>
     <string name="cd_ai_ask">Ask AI</string>
     <string name="ai_ask_title">AI assistant</string>
-    <string name="ai_ask_screen_badge">Watching: %1$s</string>
     <string name="ai_ask_suggested">Try asking</string>
     <string name="ai_ask_placeholder">Ask about what you\'re seeing…</string>
     <string name="ai_ask_send">Send</string>

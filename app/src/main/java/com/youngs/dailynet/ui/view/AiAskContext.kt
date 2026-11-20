@@ -34,8 +34,26 @@ object AiAskContext {
     private const val MAX_DAY_LINES = 31
 
     /**
-     * 일일 기록 목록 화면. 최근 7일의 순칼로리·체중·식단·운동을 짧게 담고 전체 합계를 붙인다.
-     * 목록은 최신순(DESC)으로 들어온다.
+     * 화면과 무관하게 매 질문에 함께 보내는 최근 기록의 일수. 서버 askAiCoach.js의 RECENT_DAYS와 같아야 한다.
+     * "어제·2주 전·이번 달" 질문이 이 안에 들면 서버가 저장소를 읽지 않고 한 번에 답한다.
+     */
+    const val RECENT_DAYS = 30
+
+    /** 최근 기록 블록의 길이 상한. 서버 MAX_RECENT_CHARS(6000)보다 아래 */
+    const val RECENT_MAX = 5500
+
+    /**
+     * 최근 창 이전의 날을 압축 줄로 보낼 최대 일수(2년). 그보다 오래된 날은 머리줄에 몇 일을 뺐는지만 적고,
+     * 모델은 서버의 연 월별 집계 요청([NEED:months])으로 받는다.
+     */
+    const val OLDER_DAYS_MAX = 730
+
+    /** 압축 블록 상한. 한 줄 30자 × 730일에 여유. 서버 MAX_OLDER_CHARS(24000)보다 아래 */
+    const val OLDER_MAX = 23000
+
+    /**
+     * 일일 기록 목록 화면. 전체 합계와 이용권만 담는다 — 날짜별 줄은 [recentDays]가 어느 화면에서나 붙이므로
+     * 여기서 또 적지 않는다. 목록은 최신순(DESC)으로 들어온다.
      *
      * @param passes 운동 이용권 상태. 남은 횟수·기간을 한 줄로 붙인다 (없으면 생략)
      */
@@ -46,11 +64,93 @@ object AiAskContext {
         val lines = mutableListOf(
             "records ${records.size} days, total net ${kcal(total)}, avg net ${kcal(average)}/day"
         )
-        // 이용권은 일별 줄보다 앞에. 길어서 잘리더라도 오래된 날짜 줄이 먼저 잘리게
         passLine(passes)?.let { lines += it }
-        records.take(7).forEach { lines += dayLine(it) }
         return join(lines)
     }
+
+    /**
+     * 최근 [RECENT_DAYS]일의 하루 줄. 화면 종류와 상관없이 ViewModel이 질문마다 붙인다(별도 필드 recentData).
+     *
+     * 전에는 화면에 보이는 날짜만 보내고, 다른 날 질문은 서버가 질문 글에서 날짜를 정규식으로 뽑아 Firestore를 읽거나
+     * 모델이 [NEED]로 되묻는 두 번 호출로 때웠다. 정규식은 "지난 주말"·"월요일에"를 놓치고 두 번 호출은 느리다.
+     * 기록은 폰 Room에 다 있으니 최근 한 달을 그냥 같이 보내는 편이 빠르고 정확하다.
+     *
+     * 화면 데이터에 이미 든 날(월간 정산의 일별 줄, 정산 상세의 그 날)은 뺀다 — 같은 값을 두 번 보내면 길이만 든다.
+     *
+     * 머리줄에 **전체 기록의 첫 날짜와 일수**도 적는다. 모델은 프롬프트에 든 30일을 "가진 데이터 전부"로 알아서
+     * "첫 기록이 언제야?"에 창의 첫 줄(29일 전)을 답했다(2026-11-20 실제 사례). 창 이전의 날은 [olderDays]가 압축 줄로 보낸다.
+     *
+     * @param records 전체 기록 (순서 무관). 오늘 이후 날짜는 뺀다
+     * @param today 기기 날짜 yyyy-MM-dd. 기록도 기기 날짜로 매겨져 있다
+     * @param screenData 이 화면의 요약(contextData). 겹치는 날을 가리는 데만 쓴다
+     * @return 창 안에 기록이 하나도 없으면 null (블록을 보내지 않는다)
+     */
+    fun recentDays(records: List<DailyRecordModel>, today: String, screenData: String): String? {
+        val from = windowStart(today) ?: return null
+        val inWindow = records
+            .filter { it.date in from..today }
+            .sortedByDescending { it.date }
+            .distinctBy { it.date }
+        if (inWindow.isEmpty()) return null
+        val (shown, fresh) = inWindow.partition { screenData.hasDay(it.date) }
+        val past = records.filter { it.date <= today }.distinctBy { it.date }
+        val first = past.minOf { it.date }
+        val head = "recent $RECENT_DAYS days ($from..$today): ${inWindow.size} days recorded" +
+            (if (shown.isEmpty()) "" else ", ${shown.size} already in screen data (omitted here)") +
+            (if (first < from) "; all records ${past.size} days since $first (older days in compact block)" else "")
+        val lines = mutableListOf(head)
+        fresh.forEach { lines += dayLine(it) }
+        return lines.joinToString("\n").take(RECENT_MAX)
+    }
+
+    /**
+     * 최근 창 **이전**의 모든 날을 압축 한 줄("2026-05-22 -195 92.2kg food ex")로. 식단 글은 뺀다.
+     *
+     * `food`·`ex`는 그 날 식단·운동 **글이 있다**는 표시다. 내용이 없는 줄만 보고 모델이 "운동만 기록돼 있다"고 단정한
+     * 실기기 사례(2026-11-20, 6월 5일)가 있어 식단 표시를 넣었다. 내용은 서버가 [NEED:day]로 읽어 준다.
+     *
+     * "적자가 제일 심했던 날", "체중이 제일 낮았던 때", "언제부터 기록했어" 처럼 전 기간을 훑어야 하는 질문을
+     * 서버가 저장소를 읽지 않고 한 번에 답하게 한다. 특정 날의 식단 글이 필요하면 모델이 서버에 그 날·달을 요청한다.
+     *
+     * 화면 데이터와 겹쳐도 빼지 않는다 — 압축 줄은 싸고, 빼면 전 기간 목록에 구멍이 생겨 "가장"을 잘못 고른다.
+     * [OLDER_DAYS_MAX]일(2년)까지만 담고 넘치는 오래된 날은 머리줄에 몇 일을 뺐는지 적는다.
+     *
+     * @return 창 이전에 기록이 없으면 null (블록을 보내지 않는다)
+     */
+    fun olderDays(records: List<DailyRecordModel>, today: String): String? {
+        val from = windowStart(today) ?: return null
+        val older = records
+            .filter { it.date < from }
+            .distinctBy { it.date }
+            .sortedByDescending { it.date }
+        if (older.isEmpty()) return null
+        val shown = older.take(OLDER_DAYS_MAX)
+        val omitted = older.size - shown.size
+        val head = "older days (${shown.last().date}..${shown.first().date}): ${shown.size} days, " +
+            "format: date net(kcal) weight food(has meal text) ex(has exercise)" +
+            if (omitted > 0) "; $omitted older days before ${shown.last().date} omitted (yearly summary on request)" else ""
+        val lines = mutableListOf(head)
+        shown.forEach { lines += compactLine(it) }
+        return lines.joinToString("\n").take(OLDER_MAX)
+    }
+
+    /** 최근 창의 첫 날(오늘 포함 [RECENT_DAYS]일). 오늘 날짜가 깨졌으면 null */
+    private fun windowStart(today: String): String? =
+        runCatching { java.time.LocalDate.parse(today).minusDays((RECENT_DAYS - 1).toLong()).toString() }.getOrNull()
+
+    /** "2026-05-22 -195 92.2kg food ex". 체중 없으면 체중 칸이, 식단 글 없으면 food가, 운동 없으면 ex가 빠진다 */
+    private fun compactLine(record: DailyRecordModel): String {
+        val sb = StringBuilder(record.date).append(' ').append("%+d".format(Locale.US, record.netCalories))
+        if (record.weight > 0f) sb.append(' ').append(kg(record.weight))
+        val hasFood = listOf(record.breakfast, record.lunch, record.dinner, record.snack).any { it.isNotBlank() }
+        if (hasFood) sb.append(" food")
+        if (record.hasExercise || record.exercise.isNotBlank()) sb.append(" ex")
+        return sb.toString()
+    }
+
+    /** 화면 요약에 그 날이 이미 있는가. 일별 줄은 "- yyyy-MM-dd ", 정산 상세는 첫 줄 "date yyyy-MM-dd" */
+    private fun String.hasDay(date: String): Boolean =
+        contains("- $date ") || lineSequence().any { it == "date $date" }
 
     /** 이용권 줄에 적을 간 날짜 수. 그보다 많으면 최근 것만 적고 앞을 줄인다 */
     private const val PASS_DATES_MAX = 60
