@@ -24,6 +24,7 @@ import com.youngs.dailynet.data.model.AiActivity
 import com.youngs.dailynet.data.model.AiAskMessage
 import com.youngs.dailynet.data.model.AiAskQuota
 import com.youngs.dailynet.data.model.AiAskRequest
+import com.youngs.dailynet.data.model.AiScreenTypes
 import com.youngs.dailynet.data.model.AiAskTurn
 import com.youngs.dailynet.data.model.AiContext
 import com.youngs.dailynet.data.model.AiGoal
@@ -655,7 +656,7 @@ class MainViewModel @Inject constructor(
      */
     private fun aiHistory(): List<AiAskTurn> = _aiMessages.value
         .filterNot { it.error }
-        .takeLast(6)
+        .takeLast(AiScreenTypes.HISTORY_MESSAGES)
         .map { AiAskTurn(role = if (it.fromUser) "user" else "assistant", text = it.text) }
 
     private fun sendAiAsk(call: AiAskCall, appendUser: Boolean) {

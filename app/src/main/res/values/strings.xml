@@ -572,6 +572,7 @@
     <string name="ai_ask_send">Send</string>
     <string name="ai_ask_thinking">Thinking…</string>
     <string name="ai_ask_empty">Answers are based on the records on this screen.</string>
+    <string name="ai_ask_memory_from_here">AI remembers from here</string>
     <string name="ai_ask_error">Couldn\'t get an answer. Please try again in a moment.</string>
     <string name="ai_ask_retry">Try again</string>
     <string name="ai_ask_limit">You\'ve used all of today\'s AI questions. Try again tomorrow.</string>
