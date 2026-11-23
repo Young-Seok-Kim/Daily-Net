@@ -267,6 +267,12 @@ test("프롬프트 조립", async (t) => {
         assert.ok(withOlder.indexOf(`[최근 ${RECENT_DAYS}일 기록`) < olderAt && olderAt < withOlder.indexOf("[질문이 가리킨 날짜의 기록"));
         assert.match(withOlder, /2026-05-22 -195 92.2kg ex/);
         assert.ok(withOlder.includes("[전체 기록 요약]을 합쳐 모든 줄을 훑어 고르십시오"));
+        // 기간 합계는 월별 net total을 더하고 일수×평균으로 만들지 말라 (2026-11-23 "다시 올라온 이후 토탈"에 -3,092를 -22,866으로 답한 사례)
+        assert.match(withOlder, /월별 줄은 기록일수·순칼로리 합계\(net total\)·그 달부터/);
+        assert.match(withOlder, /그 달부터 오늘까지의 누적\(total from … to today, 앱이 더해 둔 값\)/);
+        assert.match(withOlder, /그 달 줄의 `total from … to today` 값을 그대로 쓰고\(앱이 더해 둔 누적\), 달마다의 net total을 나열하되 직접 더하지 마십시오/);
+        assert.match(withOlder, /일수에 avg net을 곱해 합계를 만들지도 마십시오/);
+        assert.match(withOlder, /weight 변화로 시작 달을 고르고 어느 달부터 더했는지 밝히십시오/);
         assert.match(withOlder, /macros avg C172g P92g F48g/);
         // 탄단지 질문은 최근 줄의 C/P/F와 월별 macros avg·rec로 답하라고 지시 (2026-11-20 "올해 탄수화물" 실기기 사례)
         assert.match(withOlder, /탄수화물·단백질·지방 질문은 \[최근 \d+일 기록\] 줄의 C\/P\/F g과 \[전체 기록 요약\] 월별 줄의 macros avg를 rec\(권장량\)와 견주어/);

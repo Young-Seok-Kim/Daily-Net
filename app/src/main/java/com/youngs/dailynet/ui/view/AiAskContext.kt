@@ -40,8 +40,15 @@ object AiAskContext {
      */
     const val RECENT_DAYS = 30
 
-    /** 최근 기록 블록의 길이 상한. 서버 MAX_RECENT_CHARS(6000)보다 아래 */
-    const val RECENT_MAX = 5500
+    /**
+     * 최근 기록 블록의 길이 상한. 서버 MAX_RECENT_CHARS(9000)보다 아래.
+     * 끼니 넷에 운동까지 적은 날은 한 줄이 270자쯤이라 30일이 8000자를 넘긴다. 5500이던 때는 끝이 잘려
+     * 10월 25~27일 줄이 사라진 실기기 사례(2026-11-23)가 있다.
+     */
+    const val RECENT_MAX = 8500
+
+    /** 상한을 넘어 오래된 날을 뺄 때 머리줄에 붙는 안내의 길이 여유 */
+    private const val DROP_NOTE_RESERVE = 80
 
     /**
      * 최근 창 이전의 날을 압축 줄로 보낼 최대 일수(2년). 그보다 오래된 날은 머리줄에 몇 일을 뺐는지만 적고,
@@ -146,8 +153,16 @@ object AiAskContext {
                 "(compare with C/P/F on each day line; avg over ${summary.nutritionDays} analyzed days " +
                 "C${summary.carbAvg.toInt()}g P${summary.proteinAvg.toInt()}g F${summary.fatAvg.toInt()}g: ${macroVerdicts(summary)})"
         }
-        fresh.forEach { lines += dayLine(it) }
-        return lines.joinToString("\n").take(RECENT_MAX)
+        // 상한을 넘으면 오래된 날부터 **줄 단위로** 뺀다. 글자 수로 자르면 마지막 줄이 중간에 끊기고 머리줄의 일수와도 어긋나서
+        // 모델이 그 날들을 "기록 없음"으로 읽는다. 뺀 날은 압축 블록(창 이전만 담음)에도 없으니 머리줄에 적는다
+        val dayLines = fresh.map { dayLine(it) }
+        val fixedLen = lines.sumOf { it.length + 1 } + DROP_NOTE_RESERVE
+        var kept = dayLines.size
+        while (kept > 0 && fixedLen + dayLines.take(kept).sumOf { it.length + 1 } > RECENT_MAX) kept--
+        val dropped = dayLines.size - kept
+        if (dropped > 0) lines[0] += "; $dropped oldest days of this window dropped for size (not in compact block)"
+        lines += dayLines.take(kept)
+        return lines.joinToString("\n")
     }
 
     /**
@@ -182,9 +197,17 @@ object AiAskContext {
         val latestWeight = past.firstOrNull { it.weight > 0f }?.weight ?: 0f
         val byMonth = past.groupBy { it.date.take(7) }.toSortedMap(compareByDescending { it })
         lines += "monthly (${byMonth.lastKey()}..${byMonth.firstKey()}): ${byMonth.size} months, " +
-            "format: month days avg-net macros-avg(over analyzed days) vs rec(recommended daily) with verdict " +
-            "(low <85%, ok, high >115% of rec) exercise weight-change"
-        byMonth.forEach { (ym, recs) -> lines += monthLine(ym, buildPeriodSummary(recs, latestWeight)) }
+            "format: month days net-total total-from-that-month-to-today(pre-summed, use as-is) avg-net " +
+            "macros-avg(over analyzed days) vs rec(recommended daily) with verdict (low <85%, ok, high >115% of rec) " +
+            "exercise weight-change"
+        // 최신 달부터 내려가며 "그 달부터 오늘까지" 누적을 앱이 더해 둔다. 월별 합계만 주면 모델이 세 수를 더하다
+        // +2823 +984 -6252 = -2445를 +3782라고 답한 실기기 사례(2026-11-23)
+        var since = 0
+        byMonth.forEach { (ym, recs) ->
+            val summary = buildPeriodSummary(recs, latestWeight)
+            since += summary.netTotal
+            lines += monthLine(ym, summary, since)
+        }
 
         val older = past.filter { it.date < from }
         if (older.isNotEmpty()) {
@@ -199,14 +222,19 @@ object AiAskContext {
     }
 
     /**
-     * "- 2026-11: 19 days, avg net -334 kcal, macros avg C172g P92g F48g over 15 days vs rec C210g P112g F55g:
-     *  carb 82% low, protein 82% low, fat 87% ok, exercise 8 days, weight -0.8kg"
+     * "- 2026-11: 19 days, net total -6346 kcal, total from 2026-11 to today -6346 kcal, avg net -334 kcal, macros avg C172g P92g F48g
+     *  over 15 days vs rec C210g P112g F55g: carb 82% low, protein 82% low, fat 87% ok, exercise 8 days, weight -0.8kg"
      *
      * 권장량 대비 판정은 앱이 계산해 적는다. 숫자만 주면 모델이 비교를 틀린다 — 단백질 84g vs 권장 151g을 "권장량을
      * 넘겼다"고 답한 실기기 사례(2026-11-20).
+     *
+     * 합계(net total)도 적는다. 평균만 주면 "9월 이후 총 몇 kcal이야"에 모델이 일수×평균을 머릿속으로 곱해 더하다
+     * 실제 -3,092를 -22,866으로 답한 실기기 사례(2026-11-23).
+     *
+     * @param since 그 달부터 오늘까지의 순칼로리 누적. "N월 이후 합계"를 모델이 더하지 않고 그대로 읽게
      */
-    private fun monthLine(ym: String, s: PeriodSummary): String {
-        val sb = StringBuilder("- $ym: ${s.recordDays} days, avg net ${kcal(s.netAverage)}")
+    private fun monthLine(ym: String, s: PeriodSummary, since: Int): String {
+        val sb = StringBuilder("- $ym: ${s.recordDays} days, net total ${kcal(s.netTotal)}, total from $ym to today ${kcal(since)}, avg net ${kcal(s.netAverage)}")
         if (s.nutritionDays > 0) {
             sb.append(", macros avg C${s.carbAvg.toInt()}g P${s.proteinAvg.toInt()}g F${s.fatAvg.toInt()}g over ${s.nutritionDays} days")
             sb.append(" vs rec C${s.recCarb}g P${s.recProtein}g F${s.recFat}g: ${macroVerdicts(s)}")
