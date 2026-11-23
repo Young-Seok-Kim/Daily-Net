@@ -273,6 +273,10 @@ test("프롬프트 조립", async (t) => {
         // 판정(low/ok/high)은 앱이 계산한 값이니 그대로 쓰라고 (모델이 84g vs 151g을 "넘겼다"고 답한 사례)
         assert.match(withOlder, /판정은 앱이 권장량과 비교해 계산한 값입니다. 그대로 인용하고/);
         assert.match(withOlder, /low = 권장보다 부족, ok = 적정, high = 권장보다 과다/);
+        // 음식 하나의 탄단지를 물으면 하루 합계를 그 음식 값처럼 말하지 말고 그 날 정산 상세로 보내라 (2026-11-23 "보쌈 탄단지" 실기기 사례)
+        assert.match(withOlder, /음식 하나나 끼니 하나의\n\s+탄단지를 물으면 그 합계를 그 음식의 값인 것처럼 말하지 마십시오/);
+        assert.match(withOlder, /끼니별 탄단지는 그 날 정산 상세의 AI 리포트에 있다고 안내한 뒤 규칙 7의 표식에 날짜를 붙여/);
+        assert.match(withOlder, /일반 지식으로 추정해 기록인 것처럼 말하지 마십시오/);
         // food·ex는 표시일 뿐이니 내용을 물으면 NEED:day (2026-11-20 "그날 식단이랑 운동 뭐했더라"에 "운동만 기록" 실기기 사례)
         assert.match(withOlder, /food는 식단 글이, ex는 운동 글이 기록돼 있다는 표시일 뿐 내용은 여기 없습니다/);
         assert.match(withOlder, /"운동만 기록돼 있다", "상세 기록이 없다"고 답하지 말고/);
