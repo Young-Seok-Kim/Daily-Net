@@ -208,10 +208,11 @@ class AiAskContextTest {
         val text = AiAskContext.olderDays(records, today)!!
         val lines = text.lines()
         // 앞에는 월별 요약(5월~11월 7달, 최신순). 탄단지가 없는 기록이라 macros 칸은 없다
-        assertTrue(lines[0], lines[0].startsWith("monthly (2026-05..2026-11): 7 months, format: month days net-total avg-net macros-avg"))
-        // 합계와 평균을 둘 다. 11월은 11-01(-32)~11-19(-14) 19일 = -437, 5월은 5-22(-195)~5-31(-186) 10일 = -1905
-        assertTrue(lines[1], lines[1].startsWith("- 2026-11: 19 days, net total -437 kcal, avg net -23 kcal, "))
-        assertTrue(lines[7], lines[7].startsWith("- 2026-05: 10 days, net total -1905 kcal, avg net -190 kcal, "))
+        assertTrue(lines[0], lines[0].startsWith("monthly (2026-05..2026-11): 7 months, format: month days net-total total-from-that-month-to-today(pre-summed, use as-is) avg-net macros-avg"))
+        // 합계·그 달부터 오늘까지 누적·평균. 11월은 11-01(-32)~11-19(-14) 19일 = -437, 5월은 5-22(-195)~5-31(-186) 10일 = -1905,
+        // 5월부터 전체 182일 누적은 -195×182 + (0+…+181) = -19019
+        assertTrue(lines[1], lines[1].startsWith("- 2026-11: 19 days, net total -437 kcal, total from 2026-11 to today -437 kcal, avg net -23 kcal, "))
+        assertTrue(lines[7], lines[7].startsWith("- 2026-05: 10 days, net total -1905 kcal, total from 2026-05 to today -19019 kcal, avg net -190 kcal, "))
         assertFalse(text.contains("macros avg"))
         // 그 뒤 창(10-21~)보다 앞선 5-22 ~ 10-20 = 152일, 최신순
         val olderAt = lines.indexOfFirst { it.startsWith("older days") }
@@ -280,7 +281,7 @@ class AiAskContextTest {
 
         // 월별 줄에도 권장량 대비 판정을 앱이 계산해 적는다 (모델이 84g vs 151g을 "넘겼다"고 읽은 사례)
         val monthly = AiAskContext.olderDays(listOf(analyzed, plain), today)!!
-        assertTrue(monthly, monthly.contains("- 2026-11: 2 days, net total -840 kcal, avg net -420 kcal, macros avg C180g P95g F40g over 1 days vs rec C232g P125g F53g: carb 77% low, protein 76% low, fat 75% low, exercise 0 days"))
+        assertTrue(monthly, monthly.contains("- 2026-11: 2 days, net total -840 kcal, total from 2026-11 to today -840 kcal, avg net -420 kcal, macros avg C180g P95g F40g over 1 days vs rec C232g P125g F53g: carb 77% low, protein 76% low, fat 75% low, exercise 0 days"))
         // 탄단지 없는 창에는 권장량 줄이 없다
         assertFalse(AiAskContext.recentDays(listOf(plain), today, "")!!.contains("recommended"))
     }
