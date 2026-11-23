@@ -167,6 +167,32 @@ class AiAskContextTest {
     }
 
     @Test
+    fun `최근 30일 블록이 상한을 넘으면 오래된 날부터 줄 단위로 빼고 머리줄에 적는다`() {
+        val today = "2026-11-19"
+        val start = java.time.LocalDate.of(2026, 10, 21)
+        val meal = "a".repeat(60)
+        // 끼니 넷에 운동까지 60자씩 — 한 줄 360자쯤, 30일이면 10800자로 상한(8500)을 넘어 7일쯤 빠진다
+        val records = (0 until 30).map {
+            record(date = start.plusDays(it.toLong()).toString(), breakfast = meal, lunch = meal, dinner = meal, snack = meal, exercise = meal)
+        }
+
+        val text = AiAskContext.recentDays(records, today, screenData = "")!!
+        val lines = text.lines()
+        assertTrue(text.length <= AiAskContext.RECENT_MAX)
+        // 줄이 중간에 끊기지 않는다 — 모든 날 줄이 같은 꼴로 끝난다
+        lines.drop(1).forEach { assertTrue(it, it.endsWith(" S: $meal")) }
+        val dropped = 30 - (lines.size - 1)
+        assertTrue("dropped=$dropped", dropped in 5..10)
+        assertTrue(lines[0], lines[0].endsWith("; $dropped oldest days of this window dropped for size (not in compact block)"))
+        assertTrue(lines[1].startsWith("- 2026-11-19 "))
+        assertTrue(lines.last().startsWith("- ${start.plusDays(dropped.toLong())} "))
+
+        // 상한 안이면 안내가 없다
+        val small = AiAskContext.recentDays(records.take(3), today, screenData = "")!!
+        assertFalse(small.contains("dropped"))
+    }
+
+    @Test
     fun `창 이전의 날은 날짜·순칼로리·체중·운동만 한 줄로 압축해 전부 보낸다`() {
         val today = "2026-11-19"
         val start = java.time.LocalDate.of(2026, 5, 22)
@@ -182,9 +208,10 @@ class AiAskContextTest {
         val text = AiAskContext.olderDays(records, today)!!
         val lines = text.lines()
         // 앞에는 월별 요약(5월~11월 7달, 최신순). 탄단지가 없는 기록이라 macros 칸은 없다
-        assertTrue(lines[0], lines[0].startsWith("monthly (2026-05..2026-11): 7 months, format: month days avg-net macros-avg"))
-        assertTrue(lines[1], lines[1].startsWith("- 2026-11: 19 days, avg net "))
-        assertTrue(lines[7], lines[7].startsWith("- 2026-05: 10 days, avg net "))
+        assertTrue(lines[0], lines[0].startsWith("monthly (2026-05..2026-11): 7 months, format: month days net-total avg-net macros-avg"))
+        // 합계와 평균을 둘 다. 11월은 11-01(-32)~11-19(-14) 19일 = -437, 5월은 5-22(-195)~5-31(-186) 10일 = -1905
+        assertTrue(lines[1], lines[1].startsWith("- 2026-11: 19 days, net total -437 kcal, avg net -23 kcal, "))
+        assertTrue(lines[7], lines[7].startsWith("- 2026-05: 10 days, net total -1905 kcal, avg net -190 kcal, "))
         assertFalse(text.contains("macros avg"))
         // 그 뒤 창(10-21~)보다 앞선 5-22 ~ 10-20 = 152일, 최신순
         val olderAt = lines.indexOfFirst { it.startsWith("older days") }
@@ -253,7 +280,7 @@ class AiAskContextTest {
 
         // 월별 줄에도 권장량 대비 판정을 앱이 계산해 적는다 (모델이 84g vs 151g을 "넘겼다"고 읽은 사례)
         val monthly = AiAskContext.olderDays(listOf(analyzed, plain), today)!!
-        assertTrue(monthly, monthly.contains("- 2026-11: 2 days, avg net -420 kcal, macros avg C180g P95g F40g over 1 days vs rec C232g P125g F53g: carb 77% low, protein 76% low, fat 75% low, exercise 0 days"))
+        assertTrue(monthly, monthly.contains("- 2026-11: 2 days, net total -840 kcal, avg net -420 kcal, macros avg C180g P95g F40g over 1 days vs rec C232g P125g F53g: carb 77% low, protein 76% low, fat 75% low, exercise 0 days"))
         // 탄단지 없는 창에는 권장량 줄이 없다
         assertFalse(AiAskContext.recentDays(listOf(plain), today, "")!!.contains("recommended"))
     }
