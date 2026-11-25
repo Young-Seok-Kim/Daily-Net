@@ -59,7 +59,7 @@ Play 검색 순위에서 문안이 할 수 있는 몫은 "검색어와 관련 �
 
 - 2026-11-16 네이버 서치어드바이저(계정 `x1682`)에 `https://dailynet.web.app` 을 사이트로 등록해 두고 소유확인은 대기 상태다.
   `hosting/index.html` 의 `naver-site-verification` 메타태그가 배포된 뒤 웹마스터 도구에서 [소유확인] 을 눌러야 끝난다.
-- 2026-11-16 구글 서치 콘솔(계정 `seok9562@gmail.com`, 기존 개발자 계정)에 URL 접두어 속성 `https://dailynet.web.app/` 을 추가했다.
+- 2026-11-16 구글 서치 콘솔(기존 개발자 계정)에 URL 접두어 속성 `https://dailynet.web.app/` 을 추가했다.
   같이 `google-site-verification` 메타태그를 넣어 두었고, 배포 뒤 속성 화면에서 [확인] 을 누르면 소유권이 잡힌다.
   메타태그는 확인 뒤에도 지우면 안 된다(지우면 소유권이 풀린다).
 - sitemap.xml 은 hosting 에 있으므로 배포 뒤 `https://dailynet.web.app/sitemap.xml` 로 응답하는지 확인하고,
