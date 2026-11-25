@@ -8,7 +8,8 @@
   <url>
     <loc>https://dailynet.web.app/</loc>
     <!-- 2026-11-16: 검색 소유확인·OG·트위터 카드·구조화 데이터 보강 -->
-    <lastmod>2026-11-16</lastmod>
+    <!-- 2026-11-25: 칼로리 추정 설명에서 식약처 DB 문구 제거 -->
+    <lastmod>2026-11-25</lastmod>
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
   </url>
